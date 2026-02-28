@@ -1,0 +1,102 @@
+{"instruction": "How much did I spend at Amazon?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%AMAZON%'", "category": "merchant_queries"}
+{"instruction": "Show me all Amazon purchases", "output": "SELECT date, description, amount FROM transactions WHERE description LIKE '%AMAZON%' ORDER BY date DESC", "category": "merchant_queries"}
+{"instruction": "How many times did I shop at Amazon?", "output": "SELECT COUNT(*) as visits FROM transactions WHERE description LIKE '%AMAZON%'", "category": "merchant_queries"}
+{"instruction": "What's my average Amazon purchase?", "output": "SELECT AVG(amount) as avg_purchase FROM transactions WHERE description LIKE '%AMAZON%'", "category": "merchant_queries"}
+{"instruction": "Amazon spending this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%AMAZON%' AND date >= date('now', 'start of month')", "category": "merchant_queries"}
+{"instruction": "Last Amazon purchase?", "output": "SELECT date, amount FROM transactions WHERE description LIKE '%AMAZON%' ORDER BY date DESC LIMIT 1", "category": "merchant_queries"}
+{"instruction": "How much did I spend at Costco?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%COSTCO%'", "category": "merchant_queries"}
+{"instruction": "Show me all Costco purchases", "output": "SELECT date, description, amount FROM transactions WHERE description LIKE '%COSTCO%' ORDER BY date DESC", "category": "merchant_queries"}
+{"instruction": "How many times did I shop at Costco?", "output": "SELECT COUNT(*) as visits FROM transactions WHERE description LIKE '%COSTCO%'", "category": "merchant_queries"}
+{"instruction": "What's my average Costco purchase?", "output": "SELECT AVG(amount) as avg_purchase FROM transactions WHERE description LIKE '%COSTCO%'", "category": "merchant_queries"}
+{"instruction": "Costco spending this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%COSTCO%' AND date >= date('now', 'start of month')", "category": "merchant_queries"}
+{"instruction": "Last Costco purchase?", "output": "SELECT date, amount FROM transactions WHERE description LIKE '%COSTCO%' ORDER BY date DESC LIMIT 1", "category": "merchant_queries"}
+{"instruction": "How much did I spend at Target?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%TARGET%'", "category": "merchant_queries"}
+{"instruction": "Show me all Target purchases", "output": "SELECT date, description, amount FROM transactions WHERE description LIKE '%TARGET%' ORDER BY date DESC", "category": "merchant_queries"}
+{"instruction": "How many times did I shop at Target?", "output": "SELECT COUNT(*) as visits FROM transactions WHERE description LIKE '%TARGET%'", "category": "merchant_queries"}
+{"instruction": "What's my average Target purchase?", "output": "SELECT AVG(amount) as avg_purchase FROM transactions WHERE description LIKE '%TARGET%'", "category": "merchant_queries"}
+{"instruction": "Target spending this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%TARGET%' AND date >= date('now', 'start of month')", "category": "merchant_queries"}
+{"instruction": "Last Target purchase?", "output": "SELECT date, amount FROM transactions WHERE description LIKE '%TARGET%' ORDER BY date DESC LIMIT 1", "category": "merchant_queries"}
+{"instruction": "How much did I spend at Walmart?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%WALMART%'", "category": "merchant_queries"}
+{"instruction": "Show me all Walmart purchases", "output": "SELECT date, description, amount FROM transactions WHERE description LIKE '%WALMART%' ORDER BY date DESC", "category": "merchant_queries"}
+{"instruction": "How many times did I shop at Walmart?", "output": "SELECT COUNT(*) as visits FROM transactions WHERE description LIKE '%WALMART%'", "category": "merchant_queries"}
+{"instruction": "What's my average Walmart purchase?", "output": "SELECT AVG(amount) as avg_purchase FROM transactions WHERE description LIKE '%WALMART%'", "category": "merchant_queries"}
+{"instruction": "Walmart spending this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%WALMART%' AND date >= date('now', 'start of month')", "category": "merchant_queries"}
+{"instruction": "Last Walmart purchase?", "output": "SELECT date, amount FROM transactions WHERE description LIKE '%WALMART%' ORDER BY date DESC LIMIT 1", "category": "merchant_queries"}
+{"instruction": "How much did I spend at Starbucks?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%STARBUCKS%'", "category": "merchant_queries"}
+{"instruction": "Show me all Starbucks purchases", "output": "SELECT date, description, amount FROM transactions WHERE description LIKE '%STARBUCKS%' ORDER BY date DESC", "category": "merchant_queries"}
+{"instruction": "How many times did I shop at Starbucks?", "output": "SELECT COUNT(*) as visits FROM transactions WHERE description LIKE '%STARBUCKS%'", "category": "merchant_queries"}
+{"instruction": "What's my average Starbucks purchase?", "output": "SELECT AVG(amount) as avg_purchase FROM transactions WHERE description LIKE '%STARBUCKS%'", "category": "merchant_queries"}
+{"instruction": "Starbucks spending this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%STARBUCKS%' AND date >= date('now', 'start of month')", "category": "merchant_queries"}
+{"instruction": "Last Starbucks purchase?", "output": "SELECT date, amount FROM transactions WHERE description LIKE '%STARBUCKS%' ORDER BY date DESC LIMIT 1", "category": "merchant_queries"}
+{"instruction": "How much did I spend at Uber?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%UBER%'", "category": "merchant_queries"}
+{"instruction": "Show me all Uber purchases", "output": "SELECT date, description, amount FROM transactions WHERE description LIKE '%UBER%' ORDER BY date DESC", "category": "merchant_queries"}
+{"instruction": "How many times did I shop at Uber?", "output": "SELECT COUNT(*) as visits FROM transactions WHERE description LIKE '%UBER%'", "category": "merchant_queries"}
+{"instruction": "What's my average Uber purchase?", "output": "SELECT AVG(amount) as avg_purchase FROM transactions WHERE description LIKE '%UBER%'", "category": "merchant_queries"}
+{"instruction": "Uber spending this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%UBER%' AND date >= date('now', 'start of month')", "category": "merchant_queries"}
+{"instruction": "Last Uber purchase?", "output": "SELECT date, amount FROM transactions WHERE description LIKE '%UBER%' ORDER BY date DESC LIMIT 1", "category": "merchant_queries"}
+{"instruction": "How much did I spend at Lyft?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%LYFT%'", "category": "merchant_queries"}
+{"instruction": "Show me all Lyft purchases", "output": "SELECT date, description, amount FROM transactions WHERE description LIKE '%LYFT%' ORDER BY date DESC", "category": "merchant_queries"}
+{"instruction": "How many times did I shop at Lyft?", "output": "SELECT COUNT(*) as visits FROM transactions WHERE description LIKE '%LYFT%'", "category": "merchant_queries"}
+{"instruction": "What's my average Lyft purchase?", "output": "SELECT AVG(amount) as avg_purchase FROM transactions WHERE description LIKE '%LYFT%'", "category": "merchant_queries"}
+{"instruction": "Lyft spending this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%LYFT%' AND date >= date('now', 'start of month')", "category": "merchant_queries"}
+{"instruction": "Last Lyft purchase?", "output": "SELECT date, amount FROM transactions WHERE description LIKE '%LYFT%' ORDER BY date DESC LIMIT 1", "category": "merchant_queries"}
+{"instruction": "How much did I spend at Netflix?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%NETFLIX%'", "category": "merchant_queries"}
+{"instruction": "Show me all Netflix purchases", "output": "SELECT date, description, amount FROM transactions WHERE description LIKE '%NETFLIX%' ORDER BY date DESC", "category": "merchant_queries"}
+{"instruction": "How many times did I shop at Netflix?", "output": "SELECT COUNT(*) as visits FROM transactions WHERE description LIKE '%NETFLIX%'", "category": "merchant_queries"}
+{"instruction": "What's my average Netflix purchase?", "output": "SELECT AVG(amount) as avg_purchase FROM transactions WHERE description LIKE '%NETFLIX%'", "category": "merchant_queries"}
+{"instruction": "Netflix spending this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%NETFLIX%' AND date >= date('now', 'start of month')", "category": "merchant_queries"}
+{"instruction": "Last Netflix purchase?", "output": "SELECT date, amount FROM transactions WHERE description LIKE '%NETFLIX%' ORDER BY date DESC LIMIT 1", "category": "merchant_queries"}
+{"instruction": "How much did I spend at Spotify?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%SPOTIFY%'", "category": "merchant_queries"}
+{"instruction": "Show me all Spotify purchases", "output": "SELECT date, description, amount FROM transactions WHERE description LIKE '%SPOTIFY%' ORDER BY date DESC", "category": "merchant_queries"}
+{"instruction": "How many times did I shop at Spotify?", "output": "SELECT COUNT(*) as visits FROM transactions WHERE description LIKE '%SPOTIFY%'", "category": "merchant_queries"}
+{"instruction": "What's my average Spotify purchase?", "output": "SELECT AVG(amount) as avg_purchase FROM transactions WHERE description LIKE '%SPOTIFY%'", "category": "merchant_queries"}
+{"instruction": "Spotify spending this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%SPOTIFY%' AND date >= date('now', 'start of month')", "category": "merchant_queries"}
+{"instruction": "Last Spotify purchase?", "output": "SELECT date, amount FROM transactions WHERE description LIKE '%SPOTIFY%' ORDER BY date DESC LIMIT 1", "category": "merchant_queries"}
+{"instruction": "How much did I spend at Apple?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%APPLE%'", "category": "merchant_queries"}
+{"instruction": "Show me all Apple purchases", "output": "SELECT date, description, amount FROM transactions WHERE description LIKE '%APPLE%' ORDER BY date DESC", "category": "merchant_queries"}
+{"instruction": "How many times did I shop at Apple?", "output": "SELECT COUNT(*) as visits FROM transactions WHERE description LIKE '%APPLE%'", "category": "merchant_queries"}
+{"instruction": "What's my average Apple purchase?", "output": "SELECT AVG(amount) as avg_purchase FROM transactions WHERE description LIKE '%APPLE%'", "category": "merchant_queries"}
+{"instruction": "Apple spending this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%APPLE%' AND date >= date('now', 'start of month')", "category": "merchant_queries"}
+{"instruction": "Last Apple purchase?", "output": "SELECT date, amount FROM transactions WHERE description LIKE '%APPLE%' ORDER BY date DESC LIMIT 1", "category": "merchant_queries"}
+{"instruction": "How much did I spend at Google?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%GOOGLE%'", "category": "merchant_queries"}
+{"instruction": "Show me all Google purchases", "output": "SELECT date, description, amount FROM transactions WHERE description LIKE '%GOOGLE%' ORDER BY date DESC", "category": "merchant_queries"}
+{"instruction": "How many times did I shop at Google?", "output": "SELECT COUNT(*) as visits FROM transactions WHERE description LIKE '%GOOGLE%'", "category": "merchant_queries"}
+{"instruction": "What's my average Google purchase?", "output": "SELECT AVG(amount) as avg_purchase FROM transactions WHERE description LIKE '%GOOGLE%'", "category": "merchant_queries"}
+{"instruction": "Google spending this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%GOOGLE%' AND date >= date('now', 'start of month')", "category": "merchant_queries"}
+{"instruction": "Last Google purchase?", "output": "SELECT date, amount FROM transactions WHERE description LIKE '%GOOGLE%' ORDER BY date DESC LIMIT 1", "category": "merchant_queries"}
+{"instruction": "How much did I spend at DoorDash?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%DOORDASH%'", "category": "merchant_queries"}
+{"instruction": "Show me all DoorDash purchases", "output": "SELECT date, description, amount FROM transactions WHERE description LIKE '%DOORDASH%' ORDER BY date DESC", "category": "merchant_queries"}
+{"instruction": "How many times did I shop at DoorDash?", "output": "SELECT COUNT(*) as visits FROM transactions WHERE description LIKE '%DOORDASH%'", "category": "merchant_queries"}
+{"instruction": "What's my average DoorDash purchase?", "output": "SELECT AVG(amount) as avg_purchase FROM transactions WHERE description LIKE '%DOORDASH%'", "category": "merchant_queries"}
+{"instruction": "DoorDash spending this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%DOORDASH%' AND date >= date('now', 'start of month')", "category": "merchant_queries"}
+{"instruction": "Last DoorDash purchase?", "output": "SELECT date, amount FROM transactions WHERE description LIKE '%DOORDASH%' ORDER BY date DESC LIMIT 1", "category": "merchant_queries"}
+{"instruction": "How much did I spend at Grubhub?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%GRUBHUB%'", "category": "merchant_queries"}
+{"instruction": "Show me all Grubhub purchases", "output": "SELECT date, description, amount FROM transactions WHERE description LIKE '%GRUBHUB%' ORDER BY date DESC", "category": "merchant_queries"}
+{"instruction": "How many times did I shop at Grubhub?", "output": "SELECT COUNT(*) as visits FROM transactions WHERE description LIKE '%GRUBHUB%'", "category": "merchant_queries"}
+{"instruction": "What's my average Grubhub purchase?", "output": "SELECT AVG(amount) as avg_purchase FROM transactions WHERE description LIKE '%GRUBHUB%'", "category": "merchant_queries"}
+{"instruction": "Grubhub spending this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%GRUBHUB%' AND date >= date('now', 'start of month')", "category": "merchant_queries"}
+{"instruction": "Last Grubhub purchase?", "output": "SELECT date, amount FROM transactions WHERE description LIKE '%GRUBHUB%' ORDER BY date DESC LIMIT 1", "category": "merchant_queries"}
+{"instruction": "How much did I spend at Whole Foods?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%WHOLE FOODS%'", "category": "merchant_queries"}
+{"instruction": "Show me all Whole Foods purchases", "output": "SELECT date, description, amount FROM transactions WHERE description LIKE '%WHOLE FOODS%' ORDER BY date DESC", "category": "merchant_queries"}
+{"instruction": "How many times did I shop at Whole Foods?", "output": "SELECT COUNT(*) as visits FROM transactions WHERE description LIKE '%WHOLE FOODS%'", "category": "merchant_queries"}
+{"instruction": "What's my average Whole Foods purchase?", "output": "SELECT AVG(amount) as avg_purchase FROM transactions WHERE description LIKE '%WHOLE FOODS%'", "category": "merchant_queries"}
+{"instruction": "Whole Foods spending this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%WHOLE FOODS%' AND date >= date('now', 'start of month')", "category": "merchant_queries"}
+{"instruction": "Last Whole Foods purchase?", "output": "SELECT date, amount FROM transactions WHERE description LIKE '%WHOLE FOODS%' ORDER BY date DESC LIMIT 1", "category": "merchant_queries"}
+{"instruction": "How much did I spend at Trader Joe's?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%TRADER JOE%'", "category": "merchant_queries"}
+{"instruction": "Show me all Trader Joe's purchases", "output": "SELECT date, description, amount FROM transactions WHERE description LIKE '%TRADER JOE%' ORDER BY date DESC", "category": "merchant_queries"}
+{"instruction": "How many times did I shop at Trader Joe's?", "output": "SELECT COUNT(*) as visits FROM transactions WHERE description LIKE '%TRADER JOE%'", "category": "merchant_queries"}
+{"instruction": "What's my average Trader Joe's purchase?", "output": "SELECT AVG(amount) as avg_purchase FROM transactions WHERE description LIKE '%TRADER JOE%'", "category": "merchant_queries"}
+{"instruction": "Trader Joe's spending this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%TRADER JOE%' AND date >= date('now', 'start of month')", "category": "merchant_queries"}
+{"instruction": "Last Trader Joe's purchase?", "output": "SELECT date, amount FROM transactions WHERE description LIKE '%TRADER JOE%' ORDER BY date DESC LIMIT 1", "category": "merchant_queries"}
+{"instruction": "How much did I spend at CVS?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%CVS%'", "category": "merchant_queries"}
+{"instruction": "Show me all CVS purchases", "output": "SELECT date, description, amount FROM transactions WHERE description LIKE '%CVS%' ORDER BY date DESC", "category": "merchant_queries"}
+{"instruction": "How many times did I shop at CVS?", "output": "SELECT COUNT(*) as visits FROM transactions WHERE description LIKE '%CVS%'", "category": "merchant_queries"}
+{"instruction": "What's my average CVS purchase?", "output": "SELECT AVG(amount) as avg_purchase FROM transactions WHERE description LIKE '%CVS%'", "category": "merchant_queries"}
+{"instruction": "CVS spending this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%CVS%' AND date >= date('now', 'start of month')", "category": "merchant_queries"}
+{"instruction": "Last CVS purchase?", "output": "SELECT date, amount FROM transactions WHERE description LIKE '%CVS%' ORDER BY date DESC LIMIT 1", "category": "merchant_queries"}
+{"instruction": "How much did I spend at Walgreens?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%WALGREENS%'", "category": "merchant_queries"}
+{"instruction": "Show me all Walgreens purchases", "output": "SELECT date, description, amount FROM transactions WHERE description LIKE '%WALGREENS%' ORDER BY date DESC", "category": "merchant_queries"}
+{"instruction": "How many times did I shop at Walgreens?", "output": "SELECT COUNT(*) as visits FROM transactions WHERE description LIKE '%WALGREENS%'", "category": "merchant_queries"}
+{"instruction": "What's my average Walgreens purchase?", "output": "SELECT AVG(amount) as avg_purchase FROM transactions WHERE description LIKE '%WALGREENS%'", "category": "merchant_queries"}
+{"instruction": "Walgreens spending this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE description LIKE '%WALGREENS%' AND date >= date('now', 'start of month')", "category": "merchant_queries"}
+{"instruction": "Last Walgreens purchase?", "output": "SELECT date, amount FROM transactions WHERE description LIKE '%WALGREENS%' ORDER BY date DESC LIMIT 1", "category": "merchant_queries"}

@@ -1,0 +1,10 @@
+{"instruction": "How much did I spend this week?", "output": "SELECT SUM(amount) as total FROM transactions WHERE date >= date('now', 'weekday 0', '-7 days')", "category": "time_queries"}
+{"instruction": "How much did I spend last week?", "output": "SELECT SUM(amount) as total FROM transactions WHERE date >= date('now', 'weekday 0', '-14 days') AND date < date('now', 'weekday 0', '-7 days')", "category": "time_queries"}
+{"instruction": "How much did I spend this quarter?", "output": "SELECT SUM(amount) as total FROM transactions WHERE date >= date('now', 'start of month', '-' || ((strftime('%m', 'now') - 1) % 3) || ' months')", "category": "time_queries"}
+{"instruction": "How much did I spend Q1?", "output": "SELECT SUM(amount) as total FROM transactions WHERE date >= '2026-01-01' AND date < '2026-04-01'", "category": "time_queries"}
+{"instruction": "How much did I spend the last 6 months?", "output": "SELECT SUM(amount) as total FROM transactions WHERE date >= date('now', '-6 months')", "category": "time_queries"}
+{"instruction": "How much did I spend since January?", "output": "SELECT SUM(amount) as total FROM transactions WHERE date >= '2026-01-01'", "category": "time_queries"}
+{"instruction": "How much did I spend before December?", "output": "SELECT SUM(amount) as total FROM transactions WHERE date < '2025-12-01'", "category": "time_queries"}
+{"instruction": "How much did I spend on my birthday?", "output": "SELECT SUM(amount) as total FROM transactions WHERE strftime('%m-%d', date) = '03-15'", "category": "time_queries"}
+{"instruction": "How much did I spend on weekends?", "output": "SELECT SUM(amount) as total FROM transactions WHERE strftime('%w', date) IN ('0', '6')", "category": "time_queries"}
+{"instruction": "How much did I spend on Fridays?", "output": "SELECT SUM(amount) as total FROM transactions WHERE strftime('%w', date) = '5'", "category": "time_queries"}

@@ -1,0 +1,173 @@
+{"instruction": "What's my checking account balance?", "output": "SELECT balance FROM v_current_balances WHERE type = 'checking'", "category": "account_queries"}
+{"instruction": "How much did I spend on travel?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Travel'", "category": "spending_queries"}
+{"instruction": "What's my spending last 90 days?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-90 days')", "category": "spending_queries"}
+{"instruction": "What's my shopping spending?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Shopping'", "category": "spending_queries"}
+{"instruction": "Total entertainment costs?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Entertainment'", "category": "spending_queries"}
+{"instruction": "Total expenses today?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date = date('now')", "category": "spending_queries"}
+{"instruction": "Show me my expense breakdown", "output": "SELECT category, SUM(amount) as total FROM transactions GROUP BY category ORDER BY total DESC", "category": "category_queries"}
+{"instruction": "How many transactions per category?", "output": "SELECT category, COUNT(*) as transaction_count FROM transactions GROUP BY category ORDER BY transaction_count DESC", "category": "category_queries"}
+{"instruction": "Total healthcare costs?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Healthcare'", "category": "spending_queries"}
+{"instruction": "Total expenses last 90 days?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-90 days')", "category": "spending_queries"}
+{"instruction": "What was my total spending last week?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-7 days')", "category": "spending_queries"}
+{"instruction": "How much on groceries this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Groceries'", "category": "spending_queries"}
+{"instruction": "Show me transport expenses", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Transport'", "category": "spending_queries"}
+{"instruction": "How much money did I spend this month?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', 'start of month')", "category": "spending_queries"}
+{"instruction": "How much on subscriptions this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Subscriptions'", "category": "spending_queries"}
+{"instruction": "What was my total spending last 90 days?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-90 days')", "category": "spending_queries"}
+{"instruction": "How much did I spend last month?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-1 month')", "category": "spending_queries"}
+{"instruction": "How much money did I spend last 90 days?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-90 days')", "category": "spending_queries"}
+{"instruction": "What's my spending this month?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', 'start of month')", "category": "spending_queries"}
+{"instruction": "travel spending last month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Travel'", "category": "spending_queries"}
+{"instruction": "Show me all my accounts", "output": "SELECT name, type, balance FROM v_current_balances", "category": "account_queries"}
+{"instruction": "How much did I spend on dining?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Dining'", "category": "spending_queries"}
+{"instruction": "Am I spending more than last month?", "output": "SELECT \n            (SELECT SUM(amount) FROM transactions WHERE date >= date('now', 'start of month')) as this_month,\n            (SELECT SUM(amount) FROM transactions WHERE date >= date('now', '-1 month', 'start of month') AND date < date('now', 'start of month')) as last_month", "category": "trend_queries"}
+{"instruction": "How much did I spend on subscriptions?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Subscriptions'", "category": "spending_queries"}
+{"instruction": "How much did I spend on utilities?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Utilities'", "category": "spending_queries"}
+{"instruction": "Show me my spending last week", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-7 days')", "category": "spending_queries"}
+{"instruction": "Show me entertainment expenses", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Entertainment'", "category": "spending_queries"}
+{"instruction": "How much did I spend on shopping?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Shopping'", "category": "spending_queries"}
+{"instruction": "What are my top spending categories?", "output": "SELECT category, SUM(amount) as total FROM transactions GROUP BY category ORDER BY total DESC LIMIT 5", "category": "category_queries"}
+{"instruction": "How much money did I spend yesterday?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date = date('now', '-1 day')", "category": "spending_queries"}
+{"instruction": "How much on travel this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Travel'", "category": "spending_queries"}
+{"instruction": "What's my spending in February?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%m', date) = '02'", "category": "spending_queries"}
+{"instruction": "How much did I spend today?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date = date('now')", "category": "spending_queries"}
+{"instruction": "How much on utilities this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Utilities'", "category": "spending_queries"}
+{"instruction": "What did I spend this year?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', 'start of year')", "category": "spending_queries"}
+{"instruction": "Show me my main spending areas", "output": "SELECT category, SUM(amount) as total FROM transactions GROUP BY category ORDER BY total DESC", "category": "category_queries"}
+{"instruction": "What's my spending today?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date = date('now')", "category": "spending_queries"}
+{"instruction": "How much did I spend last 90 days?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-90 days')", "category": "spending_queries"}
+{"instruction": "How much did I spend in February?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%m', date) = '02'", "category": "spending_queries"}
+{"instruction": "What's my average monthly spending?", "output": "SELECT AVG(monthly_total) as avg_monthly \n            FROM (SELECT SUM(amount) as monthly_total FROM transactions GROUP BY strftime('%Y-%m', date))", "category": "trend_queries"}
+{"instruction": "transport spending last month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Transport'", "category": "spending_queries"}
+{"instruction": "What was my total spending yesterday?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date = date('now', '-1 day')", "category": "spending_queries"}
+{"instruction": "What's my credit card balance?", "output": "SELECT name, balance FROM v_current_balances WHERE type = 'credit_card'", "category": "account_queries"}
+{"instruction": "Show me healthcare expenses", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Healthcare'", "category": "spending_queries"}
+{"instruction": "What did I spend last week?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-7 days')", "category": "spending_queries"}
+{"instruction": "How much on healthcare this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Healthcare'", "category": "spending_queries"}
+{"instruction": "What's my utilities spending?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Utilities'", "category": "spending_queries"}
+{"instruction": "shopping spending last month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Shopping'", "category": "spending_queries"}
+{"instruction": "How much did I spend on gas?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Gas'", "category": "spending_queries"}
+{"instruction": "Total subscriptions costs?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Subscriptions'", "category": "spending_queries"}
+{"instruction": "Am I on track for my goals?", "output": "SELECT name, current_amount, target_amount, target_date,\n            ROUND(current_amount * 100.0 / target_amount, 1) as progress_pct\n            FROM goals WHERE is_active = 1", "category": "goal_queries"}
+{"instruction": "What accounts do I have?", "output": "SELECT name, type, institution FROM accounts WHERE is_active = 1", "category": "account_queries"}
+{"instruction": "Where does my money go?", "output": "SELECT category, SUM(amount) as total, ROUND(SUM(amount) * 100.0 / (SELECT SUM(amount) FROM transactions), 1) as percentage FROM transactions GROUP BY category ORDER BY total DESC", "category": "category_queries"}
+{"instruction": "What's my spending last 30 days?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-30 days')", "category": "spending_queries"}
+{"instruction": "How much more do I need for my vacation fund?", "output": "SELECT name, target_amount - current_amount as remaining FROM goals WHERE name LIKE '%vacation%'", "category": "goal_queries"}
+{"instruction": "Show me my spending last 30 days", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-30 days')", "category": "spending_queries"}
+{"instruction": "How much have I saved this month?", "output": "SELECT SUM(amount) as saved FROM transactions \n            WHERE category IN ('Savings', 'Transfer to Savings') \n            AND date >= date('now', 'start of month')", "category": "goal_queries"}
+{"instruction": "Show me groceries expenses", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Groceries'", "category": "spending_queries"}
+{"instruction": "Show me shopping expenses", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Shopping'", "category": "spending_queries"}
+{"instruction": "dining spending last month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Dining'", "category": "spending_queries"}
+{"instruction": "What did I spend in January?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%m', date) = '01'", "category": "spending_queries"}
+{"instruction": "How much do I have in savings?", "output": "SELECT SUM(balance) as total_savings FROM v_current_balances WHERE type = 'savings'", "category": "account_queries"}
+{"instruction": "Show me my spending in February", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%m', date) = '02'", "category": "spending_queries"}
+{"instruction": "utilities spending last month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Utilities'", "category": "spending_queries"}
+{"instruction": "What goals do I have?", "output": "SELECT name, target_amount, current_amount, target_date FROM goals", "category": "goal_queries"}
+{"instruction": "How much on transport this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Transport'", "category": "spending_queries"}
+{"instruction": "Which category do I spend the most on?", "output": "SELECT category, SUM(amount) as total FROM transactions GROUP BY category ORDER BY total DESC LIMIT 1", "category": "category_queries"}
+{"instruction": "What's my spending last month?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-1 month')", "category": "spending_queries"}
+{"instruction": "What was my total spending this month?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', 'start of month')", "category": "spending_queries"}
+{"instruction": "What's my credit utilization?", "output": "SELECT name, balance, credit_limit, \n            ROUND(balance * 100.0 / credit_limit, 1) as utilization \n            FROM v_credit_card_summary", "category": "account_queries"}
+{"instruction": "Total dining costs?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Dining'", "category": "spending_queries"}
+{"instruction": "How much money did I spend in 2025?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%Y', date) = '2025'", "category": "spending_queries"}
+{"instruction": "How much money did I spend last month?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-1 month')", "category": "spending_queries"}
+{"instruction": "What did I spend in February?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%m', date) = '02'", "category": "spending_queries"}
+{"instruction": "What's my gas spending?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Gas'", "category": "spending_queries"}
+{"instruction": "Show me my spending distribution", "output": "SELECT category, SUM(amount) as total FROM transactions GROUP BY category ORDER BY total DESC", "category": "category_queries"}
+{"instruction": "What percentage do I spend on dining?", "output": "SELECT ROUND(SUM(CASE WHEN category = 'Dining' THEN amount ELSE 0 END) * 100.0 / SUM(amount), 1) as dining_percentage FROM transactions", "category": "category_queries"}
+{"instruction": "Show me my spending last month", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-1 month')", "category": "spending_queries"}
+{"instruction": "How much money did I spend today?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date = date('now')", "category": "spending_queries"}
+{"instruction": "entertainment spending last month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Entertainment'", "category": "spending_queries"}
+{"instruction": "How does this month compare to average?", "output": "SELECT \n            (SELECT SUM(amount) FROM transactions WHERE date >= date('now', 'start of month')) as this_month,\n            (SELECT AVG(monthly_total) FROM (SELECT SUM(amount) as monthly_total FROM transactions GROUP BY strftime('%Y-%m', date))) as average_month", "category": "trend_queries"}
+{"instruction": "Show me my savings goals", "output": "SELECT name, current_amount, target_amount, target_date FROM goals WHERE is_active = 1", "category": "goal_queries"}
+{"instruction": "Show me my spending yesterday", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date = date('now', '-1 day')", "category": "spending_queries"}
+{"instruction": "What's my entertainment spending?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Entertainment'", "category": "spending_queries"}
+{"instruction": "gas spending last month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Gas'", "category": "spending_queries"}
+{"instruction": "Total travel costs?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Travel'", "category": "spending_queries"}
+{"instruction": "Total shopping costs?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Shopping'", "category": "spending_queries"}
+{"instruction": "Total expenses in January?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%m', date) = '01'", "category": "spending_queries"}
+{"instruction": "What's my spending in January?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%m', date) = '01'", "category": "spending_queries"}
+{"instruction": "Total expenses in February?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%m', date) = '02'", "category": "spending_queries"}
+{"instruction": "How much did I spend yesterday?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date = date('now', '-1 day')", "category": "spending_queries"}
+{"instruction": "How much did I spend this year?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', 'start of year')", "category": "spending_queries"}
+{"instruction": "How much money did I spend last week?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-7 days')", "category": "spending_queries"}
+{"instruction": "How much on gas this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Gas'", "category": "spending_queries"}
+{"instruction": "How close am I to my emergency fund goal?", "output": "SELECT name, current_amount, target_amount, ROUND(current_amount * 100.0 / target_amount, 1) as progress_pct FROM goals WHERE name LIKE '%emergency%'", "category": "goal_queries"}
+{"instruction": "What was my total spending last month?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-1 month')", "category": "spending_queries"}
+{"instruction": "What's my spending in 2025?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%Y', date) = '2025'", "category": "spending_queries"}
+{"instruction": "Show me my biggest expenses", "output": "SELECT category, SUM(amount) as total FROM transactions GROUP BY category ORDER BY total DESC", "category": "category_queries"}
+{"instruction": "What was my total spending in February?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%m', date) = '02'", "category": "spending_queries"}
+{"instruction": "What was my total spending this year?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', 'start of year')", "category": "spending_queries"}
+{"instruction": "Show me my spending last 90 days", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-90 days')", "category": "spending_queries"}
+{"instruction": "subscriptions spending last month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Subscriptions'", "category": "spending_queries"}
+{"instruction": "Show me spending by category", "output": "SELECT category, SUM(amount) as total FROM transactions GROUP BY category ORDER BY total DESC", "category": "category_queries"}
+{"instruction": "Show me my spending in January", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%m', date) = '01'", "category": "spending_queries"}
+{"instruction": "How much money did I spend in February?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%m', date) = '02'", "category": "spending_queries"}
+{"instruction": "Total expenses last 30 days?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-30 days')", "category": "spending_queries"}
+{"instruction": "What did I spend last month?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-1 month')", "category": "spending_queries"}
+{"instruction": "Show me dining expenses", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Dining'", "category": "spending_queries"}
+{"instruction": "What's my total credit card debt?", "output": "SELECT SUM(balance) as total_debt FROM v_current_balances WHERE type = 'credit_card'", "category": "account_queries"}
+{"instruction": "What's my spending this year?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', 'start of year')", "category": "spending_queries"}
+{"instruction": "Total gas costs?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Gas'", "category": "spending_queries"}
+{"instruction": "Show me my spending this year", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', 'start of year')", "category": "spending_queries"}
+{"instruction": "What's my net worth?", "output": "SELECT \n            SUM(CASE WHEN type IN ('checking', 'savings', 'investment') THEN balance ELSE 0 END) as assets,\n            SUM(CASE WHEN type IN ('credit_card', 'loan') THEN balance ELSE 0 END) as liabilities,\n            SUM(CASE WHEN type IN ('checking', 'savings', 'investment') THEN balance ELSE -balance END) as net_worth\n            FROM v_current_balances", "category": "account_queries"}
+{"instruction": "What did I spend today?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date = date('now')", "category": "spending_queries"}
+{"instruction": "What's my spending yesterday?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date = date('now', '-1 day')", "category": "spending_queries"}
+{"instruction": "What was my total spending today?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date = date('now')", "category": "spending_queries"}
+{"instruction": "How much money did I spend last 30 days?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-30 days')", "category": "spending_queries"}
+{"instruction": "What did I spend this month?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', 'start of month')", "category": "spending_queries"}
+{"instruction": "Show me my spending today", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date = date('now')", "category": "spending_queries"}
+{"instruction": "Total expenses this year?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', 'start of year')", "category": "spending_queries"}
+{"instruction": "What did I spend last 90 days?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-90 days')", "category": "spending_queries"}
+{"instruction": "How much on entertainment this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Entertainment'", "category": "spending_queries"}
+{"instruction": "How much on dining this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Dining'", "category": "spending_queries"}
+{"instruction": "Show me travel expenses", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Travel'", "category": "spending_queries"}
+{"instruction": "How much did I spend this month?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', 'start of month')", "category": "spending_queries"}
+{"instruction": "What was my total spending last 30 days?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-30 days')", "category": "spending_queries"}
+{"instruction": "Is my grocery spending increasing?", "output": "SELECT strftime('%Y-%m', date) as month, SUM(amount) as total \n            FROM transactions WHERE category = 'Groceries' GROUP BY month ORDER BY month DESC LIMIT 6", "category": "trend_queries"}
+{"instruction": "Show me my top categories", "output": "SELECT category, SUM(amount) as total FROM transactions GROUP BY category ORDER BY total DESC", "category": "category_queries"}
+{"instruction": "Show me utilities expenses", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Utilities'", "category": "spending_queries"}
+{"instruction": "How much did I spend last week?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-7 days')", "category": "spending_queries"}
+{"instruction": "Total expenses yesterday?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date = date('now', '-1 day')", "category": "spending_queries"}
+{"instruction": "What's my dining spending?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Dining'", "category": "spending_queries"}
+{"instruction": "Total expenses this month?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', 'start of month')", "category": "spending_queries"}
+{"instruction": "Show me my spending this month", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', 'start of month')", "category": "spending_queries"}
+{"instruction": "Compare my spending month over month", "output": "SELECT strftime('%Y-%m', date) as month, SUM(amount) as total \n            FROM transactions GROUP BY month ORDER BY month", "category": "trend_queries"}
+{"instruction": "Show me my net worth over time", "output": "SELECT snapshot_date, net_worth FROM net_worth_snapshots ORDER BY snapshot_date", "category": "account_queries"}
+{"instruction": "What did I spend last 30 days?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-30 days')", "category": "spending_queries"}
+{"instruction": "How much did I spend last 30 days?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-30 days')", "category": "spending_queries"}
+{"instruction": "What did I spend in 2025?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%Y', date) = '2025'", "category": "spending_queries"}
+{"instruction": "groceries spending last month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Groceries'", "category": "spending_queries"}
+{"instruction": "What's my groceries spending?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Groceries'", "category": "spending_queries"}
+{"instruction": "Show me gas expenses", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Gas'", "category": "spending_queries"}
+{"instruction": "What's my progress on all goals?", "output": "SELECT name, current_amount, target_amount, ROUND(current_amount * 100.0 / target_amount, 1) as progress_pct FROM goals", "category": "goal_queries"}
+{"instruction": "Total expenses in 2025?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%Y', date) = '2025'", "category": "spending_queries"}
+{"instruction": "Total utilities costs?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Utilities'", "category": "spending_queries"}
+{"instruction": "How much did I spend in January?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%m', date) = '01'", "category": "spending_queries"}
+{"instruction": "What's my spending trend?", "output": "SELECT strftime('%Y-%m', date) as month, SUM(amount) as total \n            FROM transactions GROUP BY month ORDER BY month DESC LIMIT 6", "category": "trend_queries"}
+{"instruction": "Total transport costs?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Transport'", "category": "spending_queries"}
+{"instruction": "How much money did I spend this year?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', 'start of year')", "category": "spending_queries"}
+{"instruction": "Show me subscriptions expenses", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Subscriptions'", "category": "spending_queries"}
+{"instruction": "What did I spend yesterday?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date = date('now', '-1 day')", "category": "spending_queries"}
+{"instruction": "What's my spending last week?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-7 days')", "category": "spending_queries"}
+{"instruction": "Show me my spending in 2025", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%Y', date) = '2025'", "category": "spending_queries"}
+{"instruction": "What's my healthcare spending?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Healthcare'", "category": "spending_queries"}
+{"instruction": "How much did I spend on healthcare?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Healthcare'", "category": "spending_queries"}
+{"instruction": "What's my transport spending?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Transport'", "category": "spending_queries"}
+{"instruction": "Total groceries costs?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Groceries'", "category": "spending_queries"}
+{"instruction": "How much did I spend in 2025?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%Y', date) = '2025'", "category": "spending_queries"}
+{"instruction": "What was my total spending in 2025?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%Y', date) = '2025'", "category": "spending_queries"}
+{"instruction": "Total expenses last month?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-1 month')", "category": "spending_queries"}
+{"instruction": "Break down my expenses by category", "output": "SELECT category, SUM(amount) as total, COUNT(*) as count FROM transactions GROUP BY category ORDER BY total DESC", "category": "category_queries"}
+{"instruction": "How much did I spend on entertainment?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Entertainment'", "category": "spending_queries"}
+{"instruction": "Total expenses last week?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', '-7 days')", "category": "spending_queries"}
+{"instruction": "How much money did I spend in January?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%m', date) = '01'", "category": "spending_queries"}
+{"instruction": "What was my total spending in January?", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE strftime('%m', date) = '01'", "category": "spending_queries"}
+{"instruction": "Show me spending over time", "output": "SELECT strftime('%Y-%m', date) as month, SUM(amount) as total \n            FROM transactions GROUP BY month ORDER BY month", "category": "trend_queries"}
+{"instruction": "Show me my where money goes", "output": "SELECT category, SUM(amount) as total FROM transactions GROUP BY category ORDER BY total DESC", "category": "category_queries"}
+{"instruction": "How much on shopping this month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Shopping'", "category": "spending_queries"}
+{"instruction": "How much did I spend on transport?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Transport'", "category": "spending_queries"}
+{"instruction": "healthcare spending last month?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Healthcare'", "category": "spending_queries"}
+{"instruction": "What's my subscriptions spending?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Subscriptions'", "category": "spending_queries"}
+{"instruction": "How much did I spend on groceries?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Groceries'", "category": "spending_queries"}
+{"instruction": "What's my travel spending?", "output": "SELECT SUM(amount) as total FROM transactions WHERE category = 'Travel'", "category": "spending_queries"}

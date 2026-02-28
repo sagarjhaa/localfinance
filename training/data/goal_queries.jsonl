@@ -1,0 +1,7 @@
+{"instruction": "How close am I to my emergency fund goal?", "output": "SELECT name, current_amount, target_amount, ROUND(current_amount * 100.0 / target_amount, 1) as progress_pct FROM goals WHERE name LIKE '%emergency%'", "category": "goal_queries"}
+{"instruction": "Show me my savings goals", "output": "SELECT name, current_amount, target_amount, target_date FROM goals WHERE is_active = 1", "category": "goal_queries"}
+{"instruction": "What's my progress on all goals?", "output": "SELECT name, current_amount, target_amount, ROUND(current_amount * 100.0 / target_amount, 1) as progress_pct FROM goals", "category": "goal_queries"}
+{"instruction": "How much more do I need for my vacation fund?", "output": "SELECT name, target_amount - current_amount as remaining FROM goals WHERE name LIKE '%vacation%'", "category": "goal_queries"}
+{"instruction": "Am I on track for my goals?", "output": "SELECT name, current_amount, target_amount, target_date,\n            ROUND(current_amount * 100.0 / target_amount, 1) as progress_pct\n            FROM goals WHERE is_active = 1", "category": "goal_queries"}
+{"instruction": "What goals do I have?", "output": "SELECT name, target_amount, current_amount, target_date FROM goals", "category": "goal_queries"}
+{"instruction": "How much have I saved this month?", "output": "SELECT SUM(amount) as saved FROM transactions \n            WHERE category IN ('Savings', 'Transfer to Savings') \n            AND date >= date('now', 'start of month')", "category": "goal_queries"}

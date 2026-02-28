@@ -1,0 +1,9 @@
+{"instruction": "What's my checking account balance?", "output": "SELECT balance FROM v_current_balances WHERE type = 'checking'", "category": "account_queries"}
+{"instruction": "Show me all my accounts", "output": "SELECT name, type, balance FROM v_current_balances", "category": "account_queries"}
+{"instruction": "What's my credit card balance?", "output": "SELECT name, balance FROM v_current_balances WHERE type = 'credit_card'", "category": "account_queries"}
+{"instruction": "What's my total credit card debt?", "output": "SELECT SUM(balance) as total_debt FROM v_current_balances WHERE type = 'credit_card'", "category": "account_queries"}
+{"instruction": "What's my credit utilization?", "output": "SELECT name, balance, credit_limit, \n            ROUND(balance * 100.0 / credit_limit, 1) as utilization \n            FROM v_credit_card_summary", "category": "account_queries"}
+{"instruction": "How much do I have in savings?", "output": "SELECT SUM(balance) as total_savings FROM v_current_balances WHERE type = 'savings'", "category": "account_queries"}
+{"instruction": "What's my net worth?", "output": "SELECT \n            SUM(CASE WHEN type IN ('checking', 'savings', 'investment') THEN balance ELSE 0 END) as assets,\n            SUM(CASE WHEN type IN ('credit_card', 'loan') THEN balance ELSE 0 END) as liabilities,\n            SUM(CASE WHEN type IN ('checking', 'savings', 'investment') THEN balance ELSE -balance END) as net_worth\n            FROM v_current_balances", "category": "account_queries"}
+{"instruction": "Show me my net worth over time", "output": "SELECT snapshot_date, net_worth FROM net_worth_snapshots ORDER BY snapshot_date", "category": "account_queries"}
+{"instruction": "What accounts do I have?", "output": "SELECT name, type, institution FROM accounts WHERE is_active = 1", "category": "account_queries"}

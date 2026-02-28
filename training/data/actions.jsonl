@@ -1,0 +1,71 @@
+{"instruction": "Set dining budget to $500", "output": "UPDATE budget_categories SET monthly_budget = 500 WHERE category = 'Dining'", "category": "actions"}
+{"instruction": "Set dining budget to $200", "output": "UPDATE budget_categories SET monthly_budget = 200 WHERE category = 'Dining'", "category": "actions"}
+{"instruction": "Mark as transport", "output": "UPDATE transactions SET category = 'Transport' WHERE id = ?", "category": "actions"}
+{"instruction": "Mark as healthcare", "output": "UPDATE transactions SET category = 'Healthcare' WHERE id = ?", "category": "actions"}
+{"instruction": "Mark as groceries", "output": "UPDATE transactions SET category = 'Groceries' WHERE id = ?", "category": "actions"}
+{"instruction": "Mark as gas", "output": "UPDATE transactions SET category = 'Gas' WHERE id = ?", "category": "actions"}
+{"instruction": "Mark as kids", "output": "UPDATE transactions SET category = 'Kids' WHERE id = ?", "category": "actions"}
+{"instruction": "Categorize this as gas", "output": "UPDATE transactions SET category = 'Gas' WHERE id = ?", "category": "actions"}
+{"instruction": "Categorize this as fitness", "output": "UPDATE transactions SET category = 'Fitness' WHERE id = ?", "category": "actions"}
+{"instruction": "Mark as shopping", "output": "UPDATE transactions SET category = 'Shopping' WHERE id = ?", "category": "actions"}
+{"instruction": "Categorize this as interest", "output": "UPDATE transactions SET category = 'Interest' WHERE id = ?", "category": "actions"}
+{"instruction": "Categorize this as rent", "output": "UPDATE transactions SET category = 'Rent' WHERE id = ?", "category": "actions"}
+{"instruction": "Add $500 to emergency fund", "output": "UPDATE goals SET current_amount = current_amount + 500 WHERE name LIKE '%emergency%'", "category": "actions"}
+{"instruction": "Mark as rent", "output": "UPDATE transactions SET category = 'Rent' WHERE id = ?", "category": "actions"}
+{"instruction": "Mark as home", "output": "UPDATE transactions SET category = 'Home' WHERE id = ?", "category": "actions"}
+{"instruction": "Set grocery budget to $1000", "output": "UPDATE budget_categories SET monthly_budget = 1000 WHERE category = 'Groceries'", "category": "actions"}
+{"instruction": "Categorize this as subscriptions", "output": "UPDATE transactions SET category = 'Subscriptions' WHERE id = ?", "category": "actions"}
+{"instruction": "Categorize this as utilities", "output": "UPDATE transactions SET category = 'Utilities' WHERE id = ?", "category": "actions"}
+{"instruction": "Create car fund for $5000", "output": "INSERT INTO goals (id, name, target_amount, current_amount, category) VALUES (?, 'Car Fund', 5000, 0, 'car')", "category": "actions"}
+{"instruction": "Categorize this as beauty", "output": "UPDATE transactions SET category = 'Beauty' WHERE id = ?", "category": "actions"}
+{"instruction": "Set grocery budget to $300", "output": "UPDATE budget_categories SET monthly_budget = 300 WHERE category = 'Groceries'", "category": "actions"}
+{"instruction": "Mark as fees", "output": "UPDATE transactions SET category = 'Fees' WHERE id = ?", "category": "actions"}
+{"instruction": "Categorize this as kids", "output": "UPDATE transactions SET category = 'Kids' WHERE id = ?", "category": "actions"}
+{"instruction": "Categorize this as mortgage", "output": "UPDATE transactions SET category = 'Mortgage' WHERE id = ?", "category": "actions"}
+{"instruction": "Categorize this as entertainment", "output": "UPDATE transactions SET category = 'Entertainment' WHERE id = ?", "category": "actions"}
+{"instruction": "Mark as interest", "output": "UPDATE transactions SET category = 'Interest' WHERE id = ?", "category": "actions"}
+{"instruction": "Mark as travel", "output": "UPDATE transactions SET category = 'Travel' WHERE id = ?", "category": "actions"}
+{"instruction": "Create emergency fund goal for $10000", "output": "INSERT INTO goals (id, name, target_amount, current_amount, category) VALUES (?, 'Emergency Fund', 10000, 0, 'emergency')", "category": "actions"}
+{"instruction": "Set dining budget to $750", "output": "UPDATE budget_categories SET monthly_budget = 750 WHERE category = 'Dining'", "category": "actions"}
+{"instruction": "Categorize this as pets", "output": "UPDATE transactions SET category = 'Pets' WHERE id = ?", "category": "actions"}
+{"instruction": "Categorize this as home", "output": "UPDATE transactions SET category = 'Home' WHERE id = ?", "category": "actions"}
+{"instruction": "Create vacation fund for $3000", "output": "INSERT INTO goals (id, name, target_amount, current_amount, category) VALUES (?, 'Vacation Fund', 3000, 0, 'vacation')", "category": "actions"}
+{"instruction": "Categorize this as gifts", "output": "UPDATE transactions SET category = 'Gifts' WHERE id = ?", "category": "actions"}
+{"instruction": "Set dining budget to $100", "output": "UPDATE budget_categories SET monthly_budget = 100 WHERE category = 'Dining'", "category": "actions"}
+{"instruction": "Mark as dining", "output": "UPDATE transactions SET category = 'Dining' WHERE id = ?", "category": "actions"}
+{"instruction": "Categorize this as travel", "output": "UPDATE transactions SET category = 'Travel' WHERE id = ?", "category": "actions"}
+{"instruction": "Set dining budget to $600", "output": "UPDATE budget_categories SET monthly_budget = 600 WHERE category = 'Dining'", "category": "actions"}
+{"instruction": "Mark as beauty", "output": "UPDATE transactions SET category = 'Beauty' WHERE id = ?", "category": "actions"}
+{"instruction": "Categorize this as transport", "output": "UPDATE transactions SET category = 'Transport' WHERE id = ?", "category": "actions"}
+{"instruction": "Set grocery budget to $750", "output": "UPDATE budget_categories SET monthly_budget = 750 WHERE category = 'Groceries'", "category": "actions"}
+{"instruction": "Categorize this as healthcare", "output": "UPDATE transactions SET category = 'Healthcare' WHERE id = ?", "category": "actions"}
+{"instruction": "Mark as entertainment", "output": "UPDATE transactions SET category = 'Entertainment' WHERE id = ?", "category": "actions"}
+{"instruction": "Categorize this as other", "output": "UPDATE transactions SET category = 'Other' WHERE id = ?", "category": "actions"}
+{"instruction": "Set grocery budget to $600", "output": "UPDATE budget_categories SET monthly_budget = 600 WHERE category = 'Groceries'", "category": "actions"}
+{"instruction": "Categorize this as dining", "output": "UPDATE transactions SET category = 'Dining' WHERE id = ?", "category": "actions"}
+{"instruction": "Set grocery budget to $500", "output": "UPDATE budget_categories SET monthly_budget = 500 WHERE category = 'Groceries'", "category": "actions"}
+{"instruction": "Categorize this as charity", "output": "UPDATE transactions SET category = 'Charity' WHERE id = ?", "category": "actions"}
+{"instruction": "Categorize this as fees", "output": "UPDATE transactions SET category = 'Fees' WHERE id = ?", "category": "actions"}
+{"instruction": "Set dining budget to $400", "output": "UPDATE budget_categories SET monthly_budget = 400 WHERE category = 'Dining'", "category": "actions"}
+{"instruction": "Mark as business", "output": "UPDATE transactions SET category = 'Business' WHERE id = ?", "category": "actions"}
+{"instruction": "Mark as gifts", "output": "UPDATE transactions SET category = 'Gifts' WHERE id = ?", "category": "actions"}
+{"instruction": "Set dining budget to $1000", "output": "UPDATE budget_categories SET monthly_budget = 1000 WHERE category = 'Dining'", "category": "actions"}
+{"instruction": "Mark as other", "output": "UPDATE transactions SET category = 'Other' WHERE id = ?", "category": "actions"}
+{"instruction": "Add $100 to vacation fund", "output": "UPDATE goals SET current_amount = current_amount + 100 WHERE name LIKE '%vacation%'", "category": "actions"}
+{"instruction": "Mark as fitness", "output": "UPDATE transactions SET category = 'Fitness' WHERE id = ?", "category": "actions"}
+{"instruction": "Mark as insurance", "output": "UPDATE transactions SET category = 'Insurance' WHERE id = ?", "category": "actions"}
+{"instruction": "Set grocery budget to $100", "output": "UPDATE budget_categories SET monthly_budget = 100 WHERE category = 'Groceries'", "category": "actions"}
+{"instruction": "Mark as pets", "output": "UPDATE transactions SET category = 'Pets' WHERE id = ?", "category": "actions"}
+{"instruction": "Set dining budget to $300", "output": "UPDATE budget_categories SET monthly_budget = 300 WHERE category = 'Dining'", "category": "actions"}
+{"instruction": "Mark as subscriptions", "output": "UPDATE transactions SET category = 'Subscriptions' WHERE id = ?", "category": "actions"}
+{"instruction": "Categorize this as insurance", "output": "UPDATE transactions SET category = 'Insurance' WHERE id = ?", "category": "actions"}
+{"instruction": "Mark as charity", "output": "UPDATE transactions SET category = 'Charity' WHERE id = ?", "category": "actions"}
+{"instruction": "Categorize this as business", "output": "UPDATE transactions SET category = 'Business' WHERE id = ?", "category": "actions"}
+{"instruction": "Categorize this as shopping", "output": "UPDATE transactions SET category = 'Shopping' WHERE id = ?", "category": "actions"}
+{"instruction": "Mark as mortgage", "output": "UPDATE transactions SET category = 'Mortgage' WHERE id = ?", "category": "actions"}
+{"instruction": "Set grocery budget to $400", "output": "UPDATE budget_categories SET monthly_budget = 400 WHERE category = 'Groceries'", "category": "actions"}
+{"instruction": "Mark as education", "output": "UPDATE transactions SET category = 'Education' WHERE id = ?", "category": "actions"}
+{"instruction": "Categorize this as education", "output": "UPDATE transactions SET category = 'Education' WHERE id = ?", "category": "actions"}
+{"instruction": "Categorize this as groceries", "output": "UPDATE transactions SET category = 'Groceries' WHERE id = ?", "category": "actions"}
+{"instruction": "Set grocery budget to $200", "output": "UPDATE budget_categories SET monthly_budget = 200 WHERE category = 'Groceries'", "category": "actions"}
+{"instruction": "Mark as utilities", "output": "UPDATE transactions SET category = 'Utilities' WHERE id = ?", "category": "actions"}

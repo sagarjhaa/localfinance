@@ -1,0 +1,11 @@
+{"instruction": "What goals do I have?", "output": "SELECT name, target_amount, target_date FROM goals WHERE is_active = 1", "category": "goals"}
+{"instruction": "Am I on track for my goals?", "output": "SELECT name, current_amount, target_amount, target_date, ROUND(current_amount * 100.0 / target_amount, 1) as progress FROM goals WHERE is_active = 1", "category": "goals"}
+{"instruction": "Goals progress?", "output": "SELECT name, current_amount, target_amount, ROUND(current_amount * 100.0 / target_amount, 1) as progress FROM goals WHERE is_active = 1", "category": "goals"}
+{"instruction": "Which goals am I closest to?", "output": "SELECT name, ROUND(current_amount * 100.0 / target_amount, 1) as progress FROM goals WHERE is_active = 1 ORDER BY progress DESC", "category": "goals"}
+{"instruction": "How much more for emergency fund?", "output": "SELECT target_amount - current_amount as remaining FROM goals WHERE name LIKE '%emergency%'", "category": "goals"}
+{"instruction": "Total goal amount?", "output": "SELECT SUM(target_amount) as total_target FROM goals WHERE is_active = 1", "category": "goals"}
+{"instruction": "Total saved toward goals?", "output": "SELECT SUM(current_amount) as total_saved FROM goals", "category": "goals"}
+{"instruction": "Vacation fund status?", "output": "SELECT current_amount, target_amount, ROUND(current_amount * 100.0 / target_amount, 1) as progress FROM goals WHERE name LIKE '%vacation%'", "category": "goals"}
+{"instruction": "How's my emergency fund?", "output": "SELECT current_amount, target_amount, ROUND(current_amount * 100.0 / target_amount, 1) as progress FROM goals WHERE name LIKE '%emergency%'", "category": "goals"}
+{"instruction": "Show my savings goals", "output": "SELECT name, current_amount, target_amount, ROUND(current_amount * 100.0 / target_amount, 1) as progress FROM goals WHERE is_active = 1", "category": "goals"}
+{"instruction": "Emergency fund progress?", "output": "SELECT current_amount, target_amount, target_amount - current_amount as remaining FROM goals WHERE name LIKE '%emergency%'", "category": "goals"}

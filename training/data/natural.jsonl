@@ -1,0 +1,21 @@
+{"instruction": "How broke am I?", "output": "SELECT balance FROM v_current_balances WHERE type = 'checking'", "category": "natural"}
+{"instruction": "Savings update", "output": "SELECT name, balance FROM v_current_balances WHERE type = 'savings'", "category": "natural"}
+{"instruction": "Emergency fund?", "output": "SELECT current_amount, target_amount FROM goals WHERE name LIKE '%emergency%'", "category": "natural"}
+{"instruction": "Streaming services", "output": "SELECT description, amount FROM transactions WHERE category = 'Subscriptions' AND (description LIKE '%NETFLIX%' OR description LIKE '%HULU%' OR description LIKE '%DISNEY%' OR description LIKE '%HBO%' OR description LIKE '%SPOTIFY%')", "category": "natural"}
+{"instruction": "Damage report", "output": "SELECT SUM(amount) as total_spent FROM transactions WHERE date >= date('now', 'start of month')", "category": "natural"}
+{"instruction": "Financial health check", "output": "SELECT SUM(CASE WHEN type IN ('checking', 'savings', 'investment') THEN balance ELSE -balance END) as net_worth FROM v_current_balances", "category": "natural"}
+{"instruction": "Where'd my money go?", "output": "SELECT category, SUM(amount) as total FROM transactions WHERE date >= date('now', 'start of month') GROUP BY category ORDER BY total DESC", "category": "natural"}
+{"instruction": "Can I afford...", "output": "SELECT SUM(balance) as available FROM v_current_balances WHERE type IN ('checking', 'savings')", "category": "natural"}
+{"instruction": "How much debt?", "output": "SELECT SUM(balance) FROM v_current_balances WHERE type IN ('credit_card', 'loan')", "category": "natural"}
+{"instruction": "Food delivery", "output": "SELECT SUM(amount) FROM transactions WHERE description LIKE '%DOORDASH%' OR description LIKE '%UBEREATS%' OR description LIKE '%GRUBHUB%'", "category": "natural"}
+{"instruction": "Credit card damage?", "output": "SELECT SUM(balance) FROM v_current_balances WHERE type = 'credit_card'", "category": "natural"}
+{"instruction": "What'd I spend?", "output": "SELECT SUM(amount) FROM transactions WHERE date >= date('now', 'start of month')", "category": "natural"}
+{"instruction": "Savings goals?", "output": "SELECT name, current_amount, target_amount FROM goals WHERE is_active = 1", "category": "natural"}
+{"instruction": "Uber total", "output": "SELECT SUM(amount) FROM transactions WHERE description LIKE '%UBER%'", "category": "natural"}
+{"instruction": "Goal check", "output": "SELECT name, ROUND(current_amount * 100.0 / target_amount, 1) as pct FROM goals WHERE is_active = 1", "category": "natural"}
+{"instruction": "Bank balance?", "output": "SELECT SUM(balance) FROM v_current_balances WHERE type = 'checking'", "category": "natural"}
+{"instruction": "Money left?", "output": "SELECT SUM(balance) FROM v_current_balances WHERE type IN ('checking', 'savings')", "category": "natural"}
+{"instruction": "What's in my account?", "output": "SELECT name, balance FROM v_current_balances", "category": "natural"}
+{"instruction": "Cards maxed?", "output": "SELECT name, ROUND(balance * 100.0 / credit_limit, 1) as utilization FROM v_credit_card_summary WHERE balance > credit_limit * 0.8", "category": "natural"}
+{"instruction": "Money status", "output": "SELECT type, SUM(balance) as total FROM v_current_balances GROUP BY type", "category": "natural"}
+{"instruction": "Coffee spending", "output": "SELECT SUM(amount) FROM transactions WHERE description LIKE '%COFFEE%' OR description LIKE '%STARBUCKS%' OR description LIKE '%DUNKIN%'", "category": "natural"}

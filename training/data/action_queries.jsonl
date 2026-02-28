@@ -1,7 +1,0 @@
-{"instruction": "Categorize this as groceries", "output": "UPDATE transactions SET category = 'Groceries' WHERE id = ?", "category": "action_queries"}
-{"instruction": "Mark this as a business expense", "output": "UPDATE transactions SET category = 'Business', tags = tags || ',business' WHERE id = ?", "category": "action_queries"}
-{"instruction": "Add a note to my last transaction", "output": "UPDATE transactions SET note = ? WHERE id = (SELECT id FROM transactions ORDER BY date DESC LIMIT 1)", "category": "action_queries"}
-{"instruction": "Delete duplicate transactions", "output": "DELETE FROM transactions WHERE id NOT IN (\n            SELECT MIN(id) FROM transactions GROUP BY date, description, amount\n         )", "category": "action_queries"}
-{"instruction": "Create a vacation fund for $3000", "output": "INSERT INTO goals (id, name, target_amount, current_amount, category) VALUES (?, 'Vacation Fund', 3000, 0, 'vacation')", "category": "action_queries"}
-{"instruction": "Add $500 to my emergency fund", "output": "UPDATE goals SET current_amount = current_amount + 500 WHERE name LIKE '%emergency%'", "category": "action_queries"}
-{"instruction": "Set dining budget to $400", "output": "UPDATE budget_categories SET monthly_budget = 400 WHERE category = 'Dining'", "category": "action_queries"}

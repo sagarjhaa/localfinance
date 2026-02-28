@@ -1,0 +1,35 @@
+{"instruction": "Last 10 transactions", "output": "SELECT date, description, amount, category FROM transactions ORDER BY date DESC LIMIT 10", "category": "transactions"}
+{"instruction": "Show recent transactions", "output": "SELECT date, description, amount, category FROM transactions ORDER BY date DESC LIMIT 10", "category": "transactions"}
+{"instruction": "Find transactions under $10", "output": "SELECT date, description, amount FROM transactions WHERE amount < 10 AND amount > 0 ORDER BY date DESC", "category": "transactions"}
+{"instruction": "Uncategorized transactions", "output": "SELECT date, description, amount FROM transactions WHERE category IS NULL OR category = 'Other'", "category": "transactions"}
+{"instruction": "Purchases over $200", "output": "SELECT date, description, amount FROM transactions WHERE amount > 200 ORDER BY amount DESC", "category": "transactions"}
+{"instruction": "Find transfers", "output": "SELECT date, description, amount FROM transactions WHERE description LIKE '%TRANSFER%' OR description LIKE '%XFER%'", "category": "transactions"}
+{"instruction": "Find transactions under $50", "output": "SELECT date, description, amount FROM transactions WHERE amount < 50 AND amount > 0 ORDER BY date DESC", "category": "transactions"}
+{"instruction": "Find transactions under $500", "output": "SELECT date, description, amount FROM transactions WHERE amount < 500 AND amount > 0 ORDER BY date DESC", "category": "transactions"}
+{"instruction": "Pending transactions", "output": "SELECT date, description, amount FROM transactions WHERE status = 'pending'", "category": "transactions"}
+{"instruction": "Find credits", "output": "SELECT date, description, amount FROM transactions WHERE amount < 0", "category": "transactions"}
+{"instruction": "Find ATM withdrawals", "output": "SELECT date, description, amount FROM transactions WHERE description LIKE '%ATM%' OR description LIKE '%WITHDRAW%'", "category": "transactions"}
+{"instruction": "Purchases over $10", "output": "SELECT date, description, amount FROM transactions WHERE amount > 10 ORDER BY amount DESC", "category": "transactions"}
+{"instruction": "Find duplicates", "output": "SELECT description, amount, COUNT(*) as count FROM transactions GROUP BY description, amount HAVING count > 1", "category": "transactions"}
+{"instruction": "Transactions over $10", "output": "SELECT date, description, amount FROM transactions WHERE amount > 10 ORDER BY amount DESC", "category": "transactions"}
+{"instruction": "Transactions over $50", "output": "SELECT date, description, amount FROM transactions WHERE amount > 50 ORDER BY amount DESC", "category": "transactions"}
+{"instruction": "Transactions over $1000", "output": "SELECT date, description, amount FROM transactions WHERE amount > 1000 ORDER BY amount DESC", "category": "transactions"}
+{"instruction": "Last 20 transactions", "output": "SELECT date, description, amount, category FROM transactions ORDER BY date DESC LIMIT 20", "category": "transactions"}
+{"instruction": "Find transactions under $20", "output": "SELECT date, description, amount FROM transactions WHERE amount < 20 AND amount > 0 ORDER BY date DESC", "category": "transactions"}
+{"instruction": "Yesterday's transactions", "output": "SELECT date, description, amount, category FROM transactions WHERE date = date('now', '-1 day')", "category": "transactions"}
+{"instruction": "Find transactions under $1000", "output": "SELECT date, description, amount FROM transactions WHERE amount < 1000 AND amount > 0 ORDER BY date DESC", "category": "transactions"}
+{"instruction": "Purchases over $100", "output": "SELECT date, description, amount FROM transactions WHERE amount > 100 ORDER BY amount DESC", "category": "transactions"}
+{"instruction": "Transactions over $100", "output": "SELECT date, description, amount FROM transactions WHERE amount > 100 ORDER BY amount DESC", "category": "transactions"}
+{"instruction": "Purchases over $500", "output": "SELECT date, description, amount FROM transactions WHERE amount > 500 ORDER BY amount DESC", "category": "transactions"}
+{"instruction": "Transactions over $200", "output": "SELECT date, description, amount FROM transactions WHERE amount > 200 ORDER BY amount DESC", "category": "transactions"}
+{"instruction": "Transactions over $500", "output": "SELECT date, description, amount FROM transactions WHERE amount > 500 ORDER BY amount DESC", "category": "transactions"}
+{"instruction": "Today's transactions", "output": "SELECT date, description, amount, category FROM transactions WHERE date = date('now')", "category": "transactions"}
+{"instruction": "Purchases over $50", "output": "SELECT date, description, amount FROM transactions WHERE amount > 50 ORDER BY amount DESC", "category": "transactions"}
+{"instruction": "Show refunds", "output": "SELECT date, description, amount FROM transactions WHERE amount < 0", "category": "transactions"}
+{"instruction": "Find transactions under $100", "output": "SELECT date, description, amount FROM transactions WHERE amount < 100 AND amount > 0 ORDER BY date DESC", "category": "transactions"}
+{"instruction": "Purchases over $1000", "output": "SELECT date, description, amount FROM transactions WHERE amount > 1000 ORDER BY amount DESC", "category": "transactions"}
+{"instruction": "Recent activity", "output": "SELECT date, description, amount, category FROM transactions ORDER BY date DESC LIMIT 15", "category": "transactions"}
+{"instruction": "Transactions over $20", "output": "SELECT date, description, amount FROM transactions WHERE amount > 20 ORDER BY amount DESC", "category": "transactions"}
+{"instruction": "Find transactions under $200", "output": "SELECT date, description, amount FROM transactions WHERE amount < 200 AND amount > 0 ORDER BY date DESC", "category": "transactions"}
+{"instruction": "Cash withdrawals", "output": "SELECT date, description, amount FROM transactions WHERE description LIKE '%ATM%' OR description LIKE '%CASH%'", "category": "transactions"}
+{"instruction": "Purchases over $20", "output": "SELECT date, description, amount FROM transactions WHERE amount > 20 ORDER BY amount DESC", "category": "transactions"}

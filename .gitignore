@@ -1,0 +1,32 @@
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Model files (large binaries)
+models/
+*.gguf
+*.safetensors
+
+# Training artifacts
+training/train.log
+*.pt
+*.bin
+
+# Local data
+*.db
+test_data.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

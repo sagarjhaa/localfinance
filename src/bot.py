@@ -257,6 +257,31 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def cmd_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /test command - run a quick end-to-end test."""
+    await update.message.reply_text("🧪 Running end-to-end test...")
+    
+    test_questions = [
+        "Show all transactions",
+        "How much did I spend total?",
+    ]
+    
+    results = []
+    for q in test_questions:
+        try:
+            response = process_question(q)
+            passed = "❌" not in response
+            results.append(f"{'✅' if passed else '❌'} {q[:30]}")
+        except Exception as e:
+            results.append(f"❌ {q[:30]}: {str(e)[:20]}")
+    
+    msg = "🧪 **Test Results**\n\n"
+    msg += "\n".join(results)
+    msg += "\n\n_Test complete!_"
+    
+    await update.message.reply_text(msg, parse_mode='Markdown')
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle natural language messages."""
     question = update.message.text.strip()
@@ -303,6 +328,7 @@ def main():
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_handler(CommandHandler("status", cmd_status))
+    app.add_handler(CommandHandler("test", cmd_test))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     print("✅ Bot is running! Press Ctrl+C to stop.")

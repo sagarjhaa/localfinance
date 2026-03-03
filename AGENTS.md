@@ -71,13 +71,24 @@
   - Results: 8/8 queries produce clean SQL
   - ~19s per query on CPU
 - [x] **GGUF converter script** (`scripts/convert_to_gguf.py`)
+- [x] **Telegram Bot Integration** (Mar 2, 2026 afternoon)
+  - `src/inference.py`: AI inference module with SQL generation
+  - `src/bot.py`: Full Telegram bot with /start, /help, /status, /test
+  - End-to-end flow: Question → SQL → Database → Formatted response
+  - Works with test_data.db (4 sample transactions)
+- [x] **Device Setup Scripts**
+  - `scripts/setup.sh`: One-command setup for new devices
+  - `scripts/run.sh`: Easy bot launcher
+  - `requirements.txt`: All dependencies
+  - `config.json.template`: Configuration template
 
 ### 🔄 In Progress
+- [ ] Device testing on Raspberry Pi / Mac Mini (tonight)
 - [ ] WiFi provisioning for device (captive portal)
 
 ### ⏳ TODO (Next Steps)
-- [ ] Run GGUF conversion (for llama.cpp — faster inference)
-- [ ] Integrate AI model with Telegram bot (end-to-end test)
+- [ ] Run GGUF conversion (torch version issue — needs newer torch)
+- [ ] Improve date handling in model (training data issue)
 - [ ] Raspberry Pi / Mac Mini setup scripts
 - [ ] First-run onboarding experience
 - [ ] Generate more training data if accuracy needs improvement

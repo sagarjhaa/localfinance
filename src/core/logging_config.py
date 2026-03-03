@@ -6,12 +6,24 @@ Centralized logging setup with file and console output.
 
 import logging
 import sys
+import hashlib
 from pathlib import Path
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 LOG_DIR = PROJECT_ROOT / "logs"
+
+
+def generate_error_code(error_type: str, details: str = "") -> str:
+    """
+    Generate a short error code for user to share.
+    Format: LF-XXXX (4 hex chars based on error + timestamp)
+    """
+    timestamp = datetime.now().strftime("%Y%m%d%H%M")
+    hash_input = f"{error_type}:{details}:{timestamp}"
+    hash_hex = hashlib.md5(hash_input.encode()).hexdigest()[:4].upper()
+    return f"LF-{hash_hex}"
 
 
 def setup_logging(
@@ -93,13 +105,52 @@ ERROR_MESSAGES = {
     "unknown_bank": "🏦 Unknown bank format. I'll try my best, but results may be incomplete.",
     "model_error": "🤖 AI model error. Try rephrasing your question.",
     "timeout": "⏱️ Request timed out. Please try again.",
-    "generic": "Something went wrong. Check the logs for details.",
+    "generic": "Something went wrong. Please try again.",
 }
 
 
 def user_friendly_error(error_key: str, details: str = None) -> str:
-    """Get a user-friendly error message."""
+    """
+    Get a user-friendly error message with error code for support.
+    
+    Returns message like:
+    ❌ Couldn't read this statement...
+    
+    📋 Error code: LF-A1B2
+    Forward this to support if you need help.
+    """
     msg = ERROR_MESSAGES.get(error_key, ERROR_MESSAGES["generic"])
+    
+    # Generate error code
+    error_code = generate_error_code(error_key, details or "")
+    
+    # Log the error with code for correlation
+    logger = logging.getLogger("localfinance.errors")
+    logger.error(f"[{error_code}] {error_key}: {details}")
+    
+    # Build user message
+    msg += f"\n\n📋 **Error code:** `{error_code}`"
+    msg += f"\n_Forward this message to support if you need help._"
+    
     if details:
-        msg += f"\n\n_Details: {details}_"
+        # Truncate long details
+        short_details = details[:100] + "..." if len(details) > 100 else details
+        msg += f"\n\n_Technical: {short_details}_"
+    
     return msg
+
+
+def log_error_with_code(error_key: str, details: str = None, exception: Exception = None) -> str:
+    """
+    Log an error and return the error code.
+    Use this when you want to log but build your own message.
+    """
+    error_code = generate_error_code(error_key, details or "")
+    
+    logger = logging.getLogger("localfinance.errors")
+    if exception:
+        logger.exception(f"[{error_code}] {error_key}: {details}")
+    else:
+        logger.error(f"[{error_code}] {error_key}: {details}")
+    
+    return error_code

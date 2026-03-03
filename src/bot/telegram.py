@@ -44,7 +44,7 @@ from src.ai.inference import get_model, query as ai_query
 from src.core.config import get_config, list_date_formats, DATE_FORMATS
 from src.core.statements import parse_statement
 from src.core.database import execute_query, get_transaction_count, init_database
-from src.core.logging_config import setup_logging, user_friendly_error, get_logger
+from src.core.logging_config import setup_logging, user_friendly_error, get_logger, log_error_with_code
 
 # =============================================================================
 # Configuration
@@ -243,6 +243,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/status — System status & transaction count\n"
         "/settings — Configure date format\n"
         "/categories — View spending by category\n"
+        "/support — Get help with issues\n"
         "/test — Run diagnostic test\n\n"
         "**🔒 Privacy**\n"
         "Everything runs locally. Your data never leaves this device.",
@@ -339,6 +340,23 @@ async def cmd_categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg += f"**Total:** ${total:,.2f}"
     
     await update.message.reply_text(msg, parse_mode='Markdown')
+
+
+async def cmd_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /support command - show how to get help."""
+    await update.message.reply_text(
+        "🆘 **Need Help?**\n\n"
+        "If you're having issues:\n\n"
+        "1️⃣ **Screenshot the error message** (include the error code like `LF-A1B2`)\n"
+        "2️⃣ **Forward it to support**\n"
+        "3️⃣ **Describe what you were trying to do**\n\n"
+        "**Common issues:**\n"
+        "• _PDF not importing_ → Try CSV export from your bank\n"
+        "• _Wrong amounts_ → Check /settings for date format\n"
+        "• _Missing transactions_ → Some banks need specific PDF downloads\n\n"
+        "The error code helps us find exactly what went wrong in the logs.",
+        parse_mode='Markdown'
+    )
 
 
 async def cmd_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -449,10 +467,13 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"Import complete: {saved} saved, {duplicates} duplicates")
         
     except Exception as e:
-        logger.exception(f"Error processing file: {e}")
+        error_code = log_error_with_code("parse_failed", str(e), exception=e)
         await status_msg.edit_text(
-            f"❌ **Error processing file**\n\n{str(e)}\n\n"
-            "_Check logs for details._",
+            f"❌ **Error processing file**\n\n"
+            f"Something went wrong while reading your statement.\n\n"
+            f"📋 **Error code:** `{error_code}`\n"
+            f"_Forward this message to support if you need help._\n\n"
+            f"💡 _Tip: Try downloading a CSV export from your bank's website._",
             parse_mode='Markdown'
         )
 
@@ -477,8 +498,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         response = process_question(question)
         await thinking_msg.edit_text(response, parse_mode='Markdown')
     except Exception as e:
-        logger.exception(f"Error processing question: {e}")
-        await thinking_msg.edit_text(user_friendly_error("generic", str(e)), parse_mode='Markdown')
+        error_code = log_error_with_code("model_error", f"Question: {question[:50]} | Error: {str(e)}", exception=e)
+        await thinking_msg.edit_text(
+            f"❌ **Something went wrong**\n\n"
+            f"I couldn't process your question. Try rephrasing it.\n\n"
+            f"📋 **Error code:** `{error_code}`\n"
+            f"_Forward this message to support if you need help._",
+            parse_mode='Markdown'
+        )
 
 
 # =============================================================================
@@ -517,6 +544,7 @@ def main():
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("settings", cmd_settings))
     app.add_handler(CommandHandler("categories", cmd_categories))
+    app.add_handler(CommandHandler("support", cmd_support))
     app.add_handler(CommandHandler("test", cmd_test))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))

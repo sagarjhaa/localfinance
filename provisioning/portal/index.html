@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LocalFinance Setup</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: #fff;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .logo-icon {
+            font-size: 64px;
+            margin-bottom: 10px;
+        }
+        
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .tagline {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        select, input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+        
+        select:focus, input:focus {
+            outline: none;
+            border-color: #4ade80;
+        }
+        
+        select option {
+            background: #1a1a2e;
+            color: #fff;
+        }
+        
+        button {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+            border: none;
+            border-radius: 12px;
+            color: #000;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(74, 222, 128, 0.4);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .privacy {
+            text-align: center;
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .privacy-icon {
+            font-size: 20px;
+            margin-bottom: 8px;
+        }
+        
+        .privacy p {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            line-height: 1.5;
+        }
+        
+        .status {
+            text-align: center;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .status.error {
+            display: block;
+            background: rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+        }
+        
+        .status.success {
+            display: block;
+            background: rgba(74, 222, 128, 0.2);
+            color: #86efac;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            border-top-color: #4ade80;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <div class="logo-icon">🏦</div>
+            <h1>LocalFinance</h1>
+            <p class="tagline">Your money. Your data. Your device.</p>
+        </div>
+        
+        <div id="status" class="status"></div>
+        
+        <form id="wifi-form">
+            <div class="form-group">
+                <label for="ssid">WiFi Network</label>
+                <select id="ssid" name="ssid" required>
+                    <option value="">Scanning for networks...</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter WiFi password">
+            </div>
+            
+            <button type="submit" id="connect-btn">Connect</button>
+        </form>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Connecting to WiFi...</p>
+        </div>
+        
+        <div class="privacy">
+            <div class="privacy-icon">🔒</div>
+            <p>Your finances stay on this device.<br>No cloud. No tracking. 100% private.</p>
+        </div>
+    </div>
+    
+    <script>
+        const form = document.getElementById('wifi-form');
+        const ssidSelect = document.getElementById('ssid');
+        const status = document.getElementById('status');
+        const loading = document.getElementById('loading');
+        const connectBtn = document.getElementById('connect-btn');
+        
+        // Fetch available networks
+        async function loadNetworks() {
+            try {
+                const response = await fetch('/networks');
+                const networks = await response.json();
+                
+                ssidSelect.innerHTML = '<option value="">Select a network</option>';
+                networks.forEach(network => {
+                    const option = document.createElement('option');
+                    option.value = network.ssid;
+                    option.textContent = `${network.ssid} (${network.signal}%)`;
+                    ssidSelect.appendChild(option);
+                });
+            } catch (error) {
+                ssidSelect.innerHTML = '<option value="">Error loading networks</option>';
+            }
+        }
+        
+        // Handle form submission
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const ssid = ssidSelect.value;
+            const password = document.getElementById('password').value;
+            
+            if (!ssid) {
+                status.className = 'status error';
+                status.textContent = 'Please select a network';
+                return;
+            }
+            
+            form.style.display = 'none';
+            loading.style.display = 'block';
+            
+            try {
+                const response = await fetch('/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ssid, password })
+                });
+                
+                if (response.ok) {
+                    status.className = 'status success';
+                    status.textContent = '✓ Connected! LocalFinance is starting...';
+                    loading.innerHTML = '<div class="spinner"></div><p>Starting LocalFinance bot...<br>You can close this page.</p>';
+                } else {
+                    throw new Error('Connection failed');
+                }
+            } catch (error) {
+                form.style.display = 'block';
+                loading.style.display = 'none';
+                status.className = 'status error';
+                status.textContent = 'Connection failed. Check password and try again.';
+            }
+        });
+        
+        // Load networks on page load
+        loadNetworks();
+    </script>
+</body>
+</html>

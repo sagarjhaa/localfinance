@@ -30,3 +30,10 @@ test_data.db
 # OS
 .DS_Store
 Thumbs.db
+
+# Logs
+logs/*.log
+.bot.pid
+
+# Config with secrets
+config.json

@@ -1,6 +1,22 @@
 # AGENTS.md — LocalFinance Project
 
-**Last Updated:** 2026-03-02
+**Last Updated:** 2026-03-03
+
+---
+
+## 📊 Current Status
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Training Data | ✅ Complete | 2,944 examples |
+| Model Training | ✅ Complete | Qwen2-0.5B fine-tuned |
+| GGUF Conversion | ✅ Complete | F16 (948MB), Q4 (379MB) |
+| Local Testing | ✅ Works | Generates SQL (needs prompt tuning) |
+| Playground Deploy | ❌ Failed | Intel Mac too slow, see `docs/DEPLOYMENT_LOG.md` |
+
+**Blockers:**
+- Need Apple Silicon or GPU-equipped hardware for practical inference
+- Intel Mac Mini (Playground) unsuitable — CPU-only inference takes 8+ minutes
 
 ---
 

@@ -6,43 +6,61 @@ A fully local, privacy-first personal finance system with an AI assistant that r
 
 ---
 
-## 🎯 Vision
+## 🚀 Quick Start
 
-Most finance apps (Mint, YNAB, Copilot) require you to:
-- Connect your bank accounts to their servers
-- Pay monthly subscriptions
-- Trust them with your most sensitive data
+```bash
+# Clone and setup
+git clone https://github.com/sagarjhaa/localfinance.git
+cd localfinance
+./scripts/setup.sh
 
-**LocalFinance is different.** Everything runs on YOUR device:
-- Import statements manually (drag & drop PDFs/CSVs)
-- AI assistant answers questions about YOUR data
-- Fine-tuned model runs locally on phone/laptop
-- Zero internet required after setup
+# Configure
+cp config.json.template config.json
+# Edit config.json with your Telegram bot token (from @BotFather)
+
+# Run
+./scripts/run.sh
+```
+
+**That's it!** Message your bot on Telegram with questions like:
+- "How much did I spend on dining last month?"
+- "Show me all Amazon purchases"
+- "What are my subscriptions?"
 
 ---
 
-## 🏗️ What We're Building
+## 📊 Current Status
 
-### Core Product
-1. **Statement Processor** — Import bank/credit card statements (PDF/CSV)
-2. **SQLite Database** — Your financial data, stored locally
-3. **Finance AI Model** — Small LLM fine-tuned for personal finance queries
-4. **Query Interface** — Ask natural language questions, get answers
+| Component | Status |
+|-----------|--------|
+| AI Model (Qwen2-0.5B fine-tuned) | ✅ Trained |
+| SQL Generation | ✅ Working (8/8 clean queries) |
+| Telegram Bot | ✅ Integrated |
+| Setup Scripts | ✅ Ready |
+| GGUF Conversion | ⏳ Pending (torch version) |
+| Raspberry Pi Testing | ⏳ Tonight |
 
-### Example Interactions
+---
+
+## 🏗️ Architecture
+
 ```
-User: "How much did I spend on dining last month?"
-AI: "You spent $847.32 on dining in January 2026, across 23 transactions. 
-     That's 18% higher than your 3-month average of $718."
-
-User: "Am I on track for my emergency fund goal?"
-AI: "Your emergency fund is at $8,400 of your $15,000 goal (56%).
-     At your current savings rate of $500/month, you'll reach it in 13 months."
-
-User: "What's my credit utilization?"
-AI: "Your total credit utilization is 23% ($2,760 of $12,000).
-     Chase Sapphire: 31% | Amex Gold: 18% | Discover: 12%"
+┌─────────────────────────────────────────────────────────────┐
+│                     YOUR DEVICE                              │
+│  ┌─────────────┐  ┌──────────────┐  ┌───────────────────┐  │
+│  │  Telegram   │→ │  Bot Server  │→ │  LocalFinance AI  │  │
+│  │  (your app) │  │  (Python)    │  │  (Qwen2-0.5B)     │  │
+│  └─────────────┘  └──────┬───────┘  └─────────┬─────────┘  │
+│                          │                     │            │
+│                          ▼                     ▼            │
+│                   ┌──────────────┐    ┌──────────────┐     │
+│                   │   SQLite DB   │←──│ SQL Generator │     │
+│                   │ (your data)   │    │              │     │
+│                   └──────────────┘    └──────────────┘     │
+└─────────────────────────────────────────────────────────────┘
 ```
+
+**Privacy:** All processing happens locally. The only network connection is Telegram's API for the chat interface.
 
 ---
 
@@ -50,56 +68,71 @@ AI: "Your total credit utilization is 23% ($2,760 of $12,000).
 
 ```
 localfinance/
-├── README.md                 # You are here
-├── docs/
-│   ├── ARCHITECTURE.md       # Technical architecture
-│   ├── USER_FLOW.md          # User journey
-│   ├── ONBOARDING.md         # Customer onboarding process
-│   ├── BUSINESS.md           # Business model
-│   └── ROADMAP.md            # Development roadmap
 ├── src/
-│   ├── core/                 # Statement processing, DB management
-│   ├── parsers/              # Bank-specific parsers (Chase, Amex, etc.)
-│   ├── ai/                   # Model inference, query processing
-│   └── ui/                   # CLI and/or desktop UI
-├── models/                   # Fine-tuned model weights
-├── scripts/                  # Setup, training, deployment scripts
-├── tests/                    # Test suite
-└── training/                 # Model training data and configs
+│   ├── inference.py      # AI model loading & SQL generation
+│   ├── bot.py            # Telegram bot integration
+│   └── prototype.py      # Early prototype
+├── models/
+│   └── localfinance-v1/  # Fine-tuned Qwen2-0.5B model (1.97GB)
+├── training/
+│   ├── train.py          # Training script
+│   ├── test_model.py     # Model testing with stop tokens
+│   ├── data/             # 2,944 training examples
+│   └── train.log         # Training logs
+├── scripts/
+│   ├── setup.sh          # One-command device setup
+│   ├── run.sh            # Bot launcher
+│   └── convert_to_gguf.py # GGUF conversion (for llama.cpp)
+├── docs/                 # Architecture, user flow, business docs
+├── requirements.txt      # Python dependencies
+└── config.json.template  # Configuration template
 ```
 
 ---
 
-## 🚀 Quick Links
+## 💻 Requirements
 
-- [Architecture](docs/ARCHITECTURE.md) — How it all fits together
-- [User Flow](docs/USER_FLOW.md) — The customer experience
-- [Onboarding](docs/ONBOARDING.md) — How we help users get started
-- [Business Model](docs/BUSINESS.md) — How we make money
+- **Python:** 3.10+
+- **RAM:** 4GB minimum (model uses ~2GB)
+- **Storage:** ~3GB for model + dependencies
+- **Tested on:** macOS, Linux (Raspberry Pi 4+ pending)
 
 ---
 
-## 📊 Status
+## 🤖 How the AI Works
 
-🟡 **Phase 1: Planning** ← We are here
-- [ ] Architecture finalized
-- [ ] User flow documented
-- [ ] Business model defined
+1. You ask: *"How much did I spend on dining last month?"*
+2. Model generates SQL: `SELECT SUM(amount) FROM transactions WHERE category = 'Dining' AND date >= date('now', '-1 month')`
+3. Bot executes SQL on your local database
+4. You get: *"💰 $847.32"*
 
-⚪ **Phase 2: Core Development**
-- [ ] Statement processor generalized
-- [ ] Database schema packaged
-- [ ] CLI interface built
+**Model specs:**
+- Base: Qwen2-0.5B-Instruct (MIT license)
+- Fine-tuned on: 2,944 finance query examples
+- Inference time: ~20s on CPU (faster with GGUF/llama.cpp)
 
-⚪ **Phase 3: AI Model**
-- [ ] Training data generated
-- [ ] Model fine-tuned
-- [ ] Inference pipeline built
+---
 
-⚪ **Phase 4: Distribution**
-- [ ] Installer/packaging
-- [ ] Documentation
-- [ ] Launch
+## 📝 Roadmap
+
+- [x] Architecture & planning
+- [x] Training data generation
+- [x] Model fine-tuning
+- [x] Telegram bot integration
+- [ ] GGUF conversion for faster inference
+- [ ] Raspberry Pi deployment testing
+- [ ] WiFi captive portal for easy setup
+- [ ] Statement PDF/CSV import via chat
+- [ ] WhatsApp integration (Business API)
+
+---
+
+## 🔒 Privacy Promise
+
+- **No cloud:** All AI runs on your device
+- **No tracking:** We don't see your data
+- **No subscriptions:** One-time setup
+- **Open source:** Audit the code yourself
 
 ---
 

@@ -18,8 +18,9 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, StoppingCriteria, 
 import transformers
 transformers.logging.set_verbosity_error()
 
-# Default model path
-DEFAULT_MODEL_DIR = Path(__file__).parent.parent / "models" / "localfinance-v1"
+# Default model path (relative to project root)
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+DEFAULT_MODEL_DIR = PROJECT_ROOT / "models" / "localfinance-v1"
 
 
 class SQLStoppingCriteria(StoppingCriteria):

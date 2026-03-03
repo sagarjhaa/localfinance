@@ -22,11 +22,11 @@ fi
 # Optional background mode
 if [ "$1" == "--bg" ]; then
     echo "🚀 Starting LocalFinance bot in background..."
-    nohup python src/bot.py > logs/bot.log 2>&1 &
+    nohup python -m src.bot.telegram > logs/bot.log 2>&1 &
     echo $! > .bot.pid
     echo "   PID: $(cat .bot.pid)"
     echo "   Logs: logs/bot.log"
 else
     echo "🚀 Starting LocalFinance bot..."
-    python src/bot.py
+    python -m src.bot.telegram
 fi

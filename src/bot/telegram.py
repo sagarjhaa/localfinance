@@ -15,8 +15,8 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-# Add parent to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add project root to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Telegram imports
 try:
@@ -34,7 +34,7 @@ except ImportError:
     sys.exit(1)
 
 # Local imports
-from src.inference import get_model, query as ai_query
+from src.ai.inference import get_model, query as ai_query
 
 # =============================================================================
 # Configuration
@@ -47,7 +47,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Database path (configurable)
-DB_PATH = os.environ.get('FINANCE_DB', str(Path(__file__).parent.parent / 'test_data.db'))
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+DB_PATH = os.environ.get('FINANCE_DB', str(PROJECT_ROOT / 'test_data.db'))
 
 
 def get_bot_token():

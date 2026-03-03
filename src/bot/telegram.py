@@ -3,15 +3,21 @@
 LocalFinance Telegram Bot
 Combines natural language AI with finance database queries.
 
+Features:
+- Natural language queries → SQL → results
+- PDF/CSV statement import via file upload
+- User settings (date format, categories)
+- Comprehensive error handling and logging
+
 Usage:
-    BOT_TOKEN=your_token python3 bot.py
+    BOT_TOKEN=your_token python -m src.bot.telegram
 """
 
 import os
 import sys
 import json
 import sqlite3
-import logging
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -35,20 +41,21 @@ except ImportError:
 
 # Local imports
 from src.ai.inference import get_model, query as ai_query
+from src.core.config import get_config, list_date_formats, DATE_FORMATS
+from src.core.statements import parse_statement
+from src.core.database import execute_query, get_transaction_count, init_database
+from src.core.logging_config import setup_logging, user_friendly_error, get_logger
 
 # =============================================================================
 # Configuration
 # =============================================================================
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
-
-# Database path (configurable)
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-DB_PATH = os.environ.get('FINANCE_DB', str(PROJECT_ROOT / 'test_data.db'))
+DB_PATH = Path(os.environ.get('FINANCE_DB', str(PROJECT_ROOT / 'data' / 'finances.db')))
+UPLOAD_DIR = PROJECT_ROOT / "uploads"
+
+# Setup logging
+logger = setup_logging("localfinance.bot")
 
 
 def get_bot_token():
@@ -57,7 +64,7 @@ def get_bot_token():
     if token:
         return token
     
-    config_path = Path(__file__).parent.parent / "config.json"
+    config_path = PROJECT_ROOT / "config.json"
     if config_path.exists():
         with open(config_path) as f:
             config = json.load(f)
@@ -67,40 +74,42 @@ def get_bot_token():
 
 
 # =============================================================================
-# Database Execution
+# Database Operations
 # =============================================================================
 
-def execute_sql(sql: str, db_path: str = None) -> dict:
-    """Execute SQL and return results."""
-    db = db_path or DB_PATH
+def save_transactions(transactions: list) -> tuple[int, int]:
+    """
+    Save transactions to database.
+    Returns (saved_count, duplicate_count)
+    """
+    init_database(DB_PATH)
     
-    if not Path(db).exists():
-        return {'success': False, 'error': f'Database not found: {db}'}
+    saved = 0
+    duplicates = 0
     
-    try:
-        conn = sqlite3.connect(db)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        cursor.execute(sql)
-        rows = cursor.fetchall()
-        
-        # Convert to list of dicts
-        results = [dict(row) for row in rows]
-        
-        conn.close()
-        
-        return {
-            'success': True,
-            'results': results,
-            'row_count': len(results)
-        }
-    except sqlite3.Error as e:
-        return {
-            'success': False,
-            'error': str(e),
-            'sql': sql
-        }
+    conn = sqlite3.connect(str(DB_PATH))
+    cursor = conn.cursor()
+    
+    for tx in transactions:
+        try:
+            cursor.execute("""
+                INSERT INTO transactions (date, description, amount, category, account)
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                tx['date'],
+                tx['description'],
+                tx['amount'],
+                tx['category'],
+                tx.get('source', 'Import')
+            ))
+            saved += 1
+        except sqlite3.IntegrityError:
+            duplicates += 1
+    
+    conn.commit()
+    conn.close()
+    
+    return saved, duplicates
 
 
 def format_results(results: list, question: str) -> str:
@@ -151,7 +160,7 @@ def format_results(results: list, question: str) -> str:
 
 
 # =============================================================================
-# Main Query Handler
+# Query Processing
 # =============================================================================
 
 def process_question(question: str) -> str:
@@ -161,17 +170,21 @@ def process_question(question: str) -> str:
     ai_result = ai_query(question)
     
     if not ai_result['success']:
-        return f"❌ AI Error: {ai_result.get('error', 'Unknown error')}"
+        logger.error(f"AI query failed: {ai_result.get('error')}")
+        return user_friendly_error("model_error", ai_result.get('error'))
     
     sql = ai_result['sql']
     inference_time = ai_result['inference_time']
     
+    logger.info(f"Query: {question[:50]} → SQL: {sql[:50]}")
+    
     # Execute SQL
-    db_result = execute_sql(sql)
+    db_result = execute_query(sql, DB_PATH)
     
     if not db_result['success']:
+        logger.error(f"SQL execution failed: {db_result.get('error')}")
         return (
-            f"❌ SQL Error: {db_result.get('error', 'Unknown error')}\n\n"
+            f"❌ Query error: {db_result.get('error', 'Unknown')}\n\n"
             f"Generated SQL:\n`{sql}`"
         )
     
@@ -184,23 +197,29 @@ def process_question(question: str) -> str:
 
 
 # =============================================================================
-# Telegram Handlers
+# Telegram Command Handlers
 # =============================================================================
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command."""
+    logger.info(f"New user: {update.effective_user.id}")
+    
     await update.message.reply_text(
         "👋 **Welcome to LocalFinance!**\n\n"
         "I'm your personal finance assistant, running 100% locally on your device.\n\n"
-        "**Ask me anything about your finances:**\n"
-        "• \"How much did I spend on dining last month?\"\n"
-        "• \"Show me all Amazon purchases\"\n"
-        "• \"What's my total spending this week?\"\n"
-        "• \"Find all grocery transactions\"\n\n"
+        "**Getting Started:**\n"
+        "1️⃣ Send me a PDF or CSV bank statement\n"
+        "2️⃣ I'll import your transactions\n"
+        "3️⃣ Ask me anything about your spending!\n\n"
+        "**Example questions:**\n"
+        "• \"How much did I spend on dining?\"\n"
+        "• \"Show me Amazon purchases\"\n"
+        "• \"What are my subscriptions?\"\n\n"
         "**Commands:**\n"
-        "/help - Show this message\n"
-        "/status - Check system status\n\n"
-        "🔒 _All data stays on your device. No cloud. No tracking._",
+        "/help — Full help\n"
+        "/status — Check system status\n"
+        "/settings — Date format & preferences\n\n"
+        "🔒 _All data stays on this device. No cloud._",
         parse_mode='Markdown'
     )
 
@@ -209,19 +228,24 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /help command."""
     await update.message.reply_text(
         "🤖 **LocalFinance Help**\n\n"
-        "**Example Questions:**\n"
-        "• How much did I spend on [category]?\n"
-        "• Show me transactions over $100\n"
-        "• What are my subscriptions?\n"
-        "• Compare dining vs groceries\n"
-        "• Find transactions from [merchant]\n\n"
-        "**Categories I understand:**\n"
-        "Dining, Groceries, Shopping, Entertainment, "
-        "Transportation, Subscriptions, Utilities, etc.\n\n"
-        "**Time periods:**\n"
-        "• this week / this month / last month\n"
-        "• January / February / etc.\n"
-        "• 2024 / 2025 / etc.",
+        "**📄 Importing Statements**\n"
+        "Just send me a PDF or CSV! I support:\n"
+        "• Chase (credit & checking)\n"
+        "• Capital One (Savor, Quicksilver, Venture)\n"
+        "• American Express\n"
+        "• Generic CSV files\n\n"
+        "**💬 Asking Questions**\n"
+        "• \"How much did I spend on [category]?\"\n"
+        "• \"Show me transactions over $100\"\n"
+        "• \"Compare dining vs groceries\"\n"
+        "• \"Find Amazon purchases\"\n\n"
+        "**⚙️ Commands**\n"
+        "/status — System status & transaction count\n"
+        "/settings — Configure date format\n"
+        "/categories — View spending by category\n"
+        "/test — Run diagnostic test\n\n"
+        "**🔒 Privacy**\n"
+        "Everything runs locally. Your data never leaves this device.",
         parse_mode='Markdown'
     )
 
@@ -233,55 +257,209 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     model_status = "✅ Loaded" if model._loaded else "⏳ Not loaded (loads on first query)"
     
     # Check database
-    db_exists = Path(DB_PATH).exists()
-    db_status = f"✅ {DB_PATH}" if db_exists else f"❌ Not found: {DB_PATH}"
+    db_exists = DB_PATH.exists()
+    db_status = f"✅ Connected" if db_exists else f"⏳ Will be created on first import"
     
-    # Get transaction count if DB exists
-    tx_count = 0
-    if db_exists:
-        try:
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM transactions")
-            tx_count = cursor.fetchone()[0]
-            conn.close()
-        except:
-            pass
+    # Get transaction count
+    tx_count = get_transaction_count(DB_PATH) if db_exists else 0
+    
+    # Get config
+    config = get_config()
     
     await update.message.reply_text(
         "📊 **LocalFinance Status**\n\n"
         f"**AI Model:** {model_status}\n"
         f"**Database:** {db_status}\n"
-        f"**Transactions:** {tx_count:,}\n\n"
+        f"**Transactions:** {tx_count:,}\n"
+        f"**Date Format:** {config.date_format_name}\n\n"
         "_All processing happens locally on this device._",
         parse_mode='Markdown'
     )
 
 
-async def cmd_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /test command - run a quick end-to-end test."""
-    await update.message.reply_text("🧪 Running end-to-end test...")
+async def cmd_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /settings command."""
+    args = context.args
+    config = get_config()
     
-    test_questions = [
-        "Show all transactions",
-        "How much did I spend total?",
-    ]
+    if not args:
+        # Show current settings
+        msg = "⚙️ **Settings**\n\n"
+        msg += f"**Date Format:** {config.date_format_name}\n\n"
+        msg += "To change date format:\n"
+        msg += "`/settings date us` — US (MM/DD/YYYY)\n"
+        msg += "`/settings date eu` — European (DD/MM/YYYY)\n"
+        msg += "`/settings date iso` — ISO (YYYY-MM-DD)\n\n"
+        msg += list_date_formats()
+        
+        await update.message.reply_text(msg, parse_mode='Markdown')
+        return
     
-    results = []
-    for q in test_questions:
-        try:
-            response = process_question(q)
-            passed = "❌" not in response
-            results.append(f"{'✅' if passed else '❌'} {q[:30]}")
-        except Exception as e:
-            results.append(f"❌ {q[:30]}: {str(e)[:20]}")
+    if args[0] == "date" and len(args) > 1:
+        format_key = args[1].lower()
+        if config.set_date_format(format_key):
+            await update.message.reply_text(
+                f"✅ Date format set to **{config.date_format_name}**",
+                parse_mode='Markdown'
+            )
+            logger.info(f"User changed date format to: {format_key}")
+        else:
+            await update.message.reply_text(
+                f"❌ Unknown format: `{format_key}`\n\n{list_date_formats()}",
+                parse_mode='Markdown'
+            )
+    else:
+        await update.message.reply_text("❓ Unknown setting. Use `/settings` to see options.", parse_mode='Markdown')
+
+
+async def cmd_categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /categories command - show spending by category."""
+    result = execute_query("""
+        SELECT category, SUM(amount) as total, COUNT(*) as count
+        FROM transactions
+        GROUP BY category
+        ORDER BY total DESC
+        LIMIT 15
+    """, DB_PATH)
     
-    msg = "🧪 **Test Results**\n\n"
-    msg += "\n".join(results)
-    msg += "\n\n_Test complete!_"
+    if not result['success'] or not result['results']:
+        await update.message.reply_text("📭 No transactions yet. Send a statement to get started!")
+        return
+    
+    msg = "📊 **Spending by Category**\n\n"
+    total = sum(r['total'] for r in result['results'])
+    
+    for r in result['results']:
+        pct = (r['total'] / total * 100) if total > 0 else 0
+        bar = "█" * int(pct / 5) + "░" * (20 - int(pct / 5))
+        msg += f"**{r['category']}**\n"
+        msg += f"${r['total']:,.2f} ({r['count']} txns)\n"
+        msg += f"`{bar}` {pct:.1f}%\n\n"
+    
+    msg += f"**Total:** ${total:,.2f}"
     
     await update.message.reply_text(msg, parse_mode='Markdown')
 
+
+async def cmd_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /test command - run diagnostic test."""
+    await update.message.reply_text("🧪 Running diagnostics...")
+    
+    results = []
+    
+    # Test 1: Model load
+    try:
+        model = get_model()
+        if not model._loaded:
+            model.load()
+        results.append("✅ AI model loaded")
+    except Exception as e:
+        results.append(f"❌ AI model: {str(e)[:30]}")
+    
+    # Test 2: Database
+    try:
+        tx_count = get_transaction_count(DB_PATH)
+        results.append(f"✅ Database: {tx_count} transactions")
+    except Exception as e:
+        results.append(f"❌ Database: {str(e)[:30]}")
+    
+    # Test 3: Query
+    try:
+        result = ai_query("Show all transactions")
+        if result['success']:
+            results.append(f"✅ AI query: {result['inference_time']:.1f}s")
+        else:
+            results.append(f"❌ AI query: {result.get('error', 'Failed')[:30]}")
+    except Exception as e:
+        results.append(f"❌ AI query: {str(e)[:30]}")
+    
+    msg = "🧪 **Diagnostic Results**\n\n"
+    msg += "\n".join(results)
+    
+    await update.message.reply_text(msg, parse_mode='Markdown')
+
+
+# =============================================================================
+# File Upload Handler
+# =============================================================================
+
+async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle uploaded PDF/CSV files."""
+    document = update.message.document
+    file_name = document.file_name or "unknown"
+    
+    logger.info(f"Received file: {file_name} ({document.file_size} bytes)")
+    
+    # Check file type
+    suffix = Path(file_name).suffix.lower()
+    if suffix not in ['.pdf', '.csv']:
+        await update.message.reply_text(
+            "📄 Please send a **PDF** or **CSV** bank statement.\n\n"
+            "Most banks let you download statements from their website.",
+            parse_mode='Markdown'
+        )
+        return
+    
+    # Send processing message
+    status_msg = await update.message.reply_text(f"📥 Processing `{file_name}`...", parse_mode='Markdown')
+    
+    try:
+        # Download file
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        file_path = UPLOAD_DIR / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file_name}"
+        
+        file = await document.get_file()
+        await file.download_to_drive(str(file_path))
+        
+        logger.info(f"Downloaded to: {file_path}")
+        
+        # Parse statement
+        config = get_config()
+        result = parse_statement(file_path, config.categorize)
+        
+        if not result.success:
+            logger.error(f"Parse failed: {result.error}")
+            await status_msg.edit_text(
+                f"❌ **Import Failed**\n\n{result.error}\n\n"
+                "💡 _Tip: Try downloading a CSV from your bank's website._",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Save transactions
+        saved, duplicates = save_transactions(result.transactions)
+        
+        # Build response
+        msg = f"✅ **Import Complete**\n\n"
+        msg += f"📄 **Source:** {result.source}\n"
+        msg += f"📊 **Transactions:** {len(result.transactions)} found\n"
+        msg += f"💾 **Saved:** {saved} new\n"
+        
+        if duplicates > 0:
+            msg += f"🔄 **Duplicates:** {duplicates} skipped\n"
+        
+        if result.warnings:
+            msg += f"\n⚠️ **Warnings:**\n"
+            for w in result.warnings[:3]:
+                msg += f"• {w}\n"
+        
+        msg += f"\n_Try asking: \"How much did I spend this month?\"_"
+        
+        await status_msg.edit_text(msg, parse_mode='Markdown')
+        logger.info(f"Import complete: {saved} saved, {duplicates} duplicates")
+        
+    except Exception as e:
+        logger.exception(f"Error processing file: {e}")
+        await status_msg.edit_text(
+            f"❌ **Error processing file**\n\n{str(e)}\n\n"
+            "_Check logs for details._",
+            parse_mode='Markdown'
+        )
+
+
+# =============================================================================
+# Message Handler
+# =============================================================================
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle natural language messages."""
@@ -290,6 +468,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not question:
         return
     
+    logger.info(f"Question: {question[:50]}...")
+    
     # Send "thinking" indicator
     thinking_msg = await update.message.reply_text("🤔 Thinking...")
     
@@ -297,8 +477,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         response = process_question(question)
         await thinking_msg.edit_text(response, parse_mode='Markdown')
     except Exception as e:
-        logger.error(f"Error processing question: {e}")
-        await thinking_msg.edit_text(f"❌ Error: {str(e)}")
+        logger.exception(f"Error processing question: {e}")
+        await thinking_msg.edit_text(user_friendly_error("generic", str(e)), parse_mode='Markdown')
 
 
 # =============================================================================
@@ -310,17 +490,23 @@ def main():
     token = get_bot_token()
     
     if not token:
+        logger.error("No bot token found!")
         print("❌ No bot token found!")
         print("   Set BOT_TOKEN environment variable or add to config.json")
         sys.exit(1)
     
+    logger.info("Starting LocalFinance Bot...")
     print("🚀 Starting LocalFinance Bot...")
     print(f"   Database: {DB_PATH}")
+    print(f"   Logs: {PROJECT_ROOT / 'logs'}")
     
     # Pre-load model
     print("   Loading AI model...")
     model = get_model()
     model.load()
+    
+    # Initialize database
+    init_database(DB_PATH)
     
     # Build application
     app = Application.builder().token(token).build()
@@ -329,9 +515,13 @@ def main():
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_handler(CommandHandler("status", cmd_status))
+    app.add_handler(CommandHandler("settings", cmd_settings))
+    app.add_handler(CommandHandler("categories", cmd_categories))
     app.add_handler(CommandHandler("test", cmd_test))
+    app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
+    logger.info("Bot is running!")
     print("✅ Bot is running! Press Ctrl+C to stop.")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 

@@ -6,9 +6,17 @@ Loads the fine-tuned model and generates SQL from natural language queries.
 
 import re
 import time
+import warnings
 import torch
 from pathlib import Path
+
+# Suppress tokenizer warnings
+warnings.filterwarnings("ignore", message=".*incorrect regex pattern.*")
+warnings.filterwarnings("ignore", message=".*torch_dtype.*deprecated.*")
+
 from transformers import AutoTokenizer, AutoModelForCausalLM, StoppingCriteria, StoppingCriteriaList
+import transformers
+transformers.logging.set_verbosity_error()
 
 # Default model path
 DEFAULT_MODEL_DIR = Path(__file__).parent.parent / "models" / "localfinance-v1"

@@ -111,6 +111,11 @@ def format_results(results: list, question: str) -> str:
     if len(results) == 1 and len(results[0]) == 1:
         key = list(results[0].keys())[0]
         value = results[0][key]
+        
+        # Handle NULL results
+        if value is None:
+            return "📭 No matching transactions found."
+        
         if isinstance(value, (int, float)):
             if 'total' in key.lower() or 'sum' in key.lower() or 'amount' in key.lower():
                 return f"💰 **${value:,.2f}**"

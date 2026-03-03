@@ -1,6 +1,6 @@
 # AGENTS.md — LocalFinance Project
 
-**Last Updated:** 2026-02-28
+**Last Updated:** 2026-03-02
 
 ---
 
@@ -49,7 +49,7 @@
 
 ---
 
-## 📊 Current Status (Feb 28, 2026)
+## 📊 Current Status (Mar 2, 2026)
 
 ### ✅ Done
 - [x] Architecture planned (docs/)
@@ -61,17 +61,26 @@
 - [x] Telegram bot created (`finance_bot.py`) — needs token to test
 - [x] Training data generated: **2,944 examples** in `training/data/combined.jsonl`
 - [x] Training script ready (`training/train.py`)
+- [x] **Model trained!** (Mar 2, 2026)
+  - Runtime: 36h 13m on CPU
+  - Final eval loss: 0.22
+  - Model saved to `models/localfinance-v1/` (1.97GB)
+- [x] **Test script with stop tokens** (`training/test_model.py`)
+  - SQLStoppingCriteria halts at semicolons/newlines
+  - Post-processing cleanup for edge cases
+  - Results: 8/8 queries produce clean SQL
+  - ~19s per query on CPU
+- [x] **GGUF converter script** (`scripts/convert_to_gguf.py`)
 
 ### 🔄 In Progress
-- [ ] Generate more training data (target: 5,000 examples)
-- [ ] Run model training (Qwen2-0.5B fine-tune)
 - [ ] WiFi provisioning for device (captive portal)
 
-### ⏳ TODO
-- [ ] Export trained model to GGUF (for llama.cpp)
-- [ ] Integrate AI model with Telegram bot
-- [ ] Raspberry Pi setup scripts
+### ⏳ TODO (Next Steps)
+- [ ] Run GGUF conversion (for llama.cpp — faster inference)
+- [ ] Integrate AI model with Telegram bot (end-to-end test)
+- [ ] Raspberry Pi / Mac Mini setup scripts
 - [ ] First-run onboarding experience
+- [ ] Generate more training data if accuracy needs improvement
 - [ ] WhatsApp integration (requires Business API)
 
 ---

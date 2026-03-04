@@ -13,10 +13,15 @@
 | GGUF Conversion | ✅ Complete | F16 (948MB), Q4 (379MB) |
 | Local Testing | ✅ Works | Generates SQL (needs prompt tuning) |
 | Playground Deploy | ❌ Failed | Intel Mac too slow, see `docs/DEPLOYMENT_LOG.md` |
+| **Jetson Hardware** | 🚚 Ordered | Arriving Mar 4! |
 
-**Blockers:**
-- Need Apple Silicon or GPU-equipped hardware for practical inference
-- Intel Mac Mini (Playground) unsuitable — CPU-only inference takes 8+ minutes
+**Next Up (Mar 4):**
+1. Unbox Jetson Orin Nano Super + case
+2. Flash JetPack OS, install Ollama
+3. Deploy model, test inference speed
+4. Connect Telegram bot end-to-end
+
+**Expected:** 2-3 second responses (vs 8+ minutes on Intel Mac)
 
 ---
 

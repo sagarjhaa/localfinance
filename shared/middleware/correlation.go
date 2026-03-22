@@ -36,9 +36,7 @@ type LogEntry struct {
 
 // CorrelationMiddleware creates middleware for correlation ID handling and logging
 func CorrelationMiddleware(serviceName string) gin.HandlerFunc {
-	return gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
-		return "" // We'll handle logging ourselves
-	}), func(c *gin.Context) {
+	return func(c *gin.Context) {
 		startTime := time.Now()
 
 		// Extract or generate correlation ID

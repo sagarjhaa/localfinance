@@ -62,7 +62,7 @@ func (mc *MinIOClient) UploadFile(objectName string, reader io.Reader, size int6
 	ctx := context.Background()
 	
 	// Upload file to MinIO
-	uploadInfo, err := mc.client.PutObject(ctx, mc.bucket, objectName, reader, size, minio.PutObjectOptions{
+	_, err := mc.client.PutObject(ctx, mc.bucket, objectName, reader, size, minio.PutObjectOptions{
 		ContentType: contentType,
 	})
 	if err != nil {

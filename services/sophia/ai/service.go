@@ -53,7 +53,7 @@ func (s *Service) AnswerFinancialQuery(query models.FinancialQuery) (models.AIRe
 	}
 
 	// 2. Create enhanced prompt with user's financial data
-	enhancedPrompt := s.createEnhancedPrompt(query.Question, context)
+	enhancedPrompt := s.createEnhancedPrompt(query.Question, context.Summary)
 
 	// 3. Query Ollama
 	response, err := s.queryOllama(enhancedPrompt)

@@ -1,363 +1,579 @@
 #!/bin/bash
 
-# LocalFinance Build and Deploy Script
-# Builds ARM64 binaries locally and deploys to Jetson
+# LocalFinance Go Microservices Build and Deploy Script
+# Builds correlation ID-enabled services and deploys to Jetson
 
 set -e
 
 # Configuration
-JETSON_IP="10.0.0.16"
+JETSON_HOST="10.0.0.16"
 JETSON_USER="sagar"
 JETSON_PASS="jetson"
-DEPLOY_DIR="/home/sagar/localfinance"
-PROJECT_ROOT="/Users/sagarjha/projects/localfinance"
+REMOTE_DIR="/home/sagar/localfinance"
+
+# Service configuration (using simple variables)
+SERVICES="hermes thesaurus sophia logos"
+HERMES_PORT="3000"
+THESAURUS_PORT="8001" 
+SOPHIA_PORT="8002"
+LOGOS_PORT="8003"
+
+get_service_port() {
+    case "$1" in
+        hermes) echo "3000" ;;
+        thesaurus) echo "8001" ;;
+        sophia) echo "8002" ;;
+        logos) echo "8003" ;;
+        *) echo "8080" ;;
+    esac
+}
 
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
 
-echo -e "${BLUE}🏛️ LocalFinance Build and Deploy Pipeline${NC}"
-echo "=============================================="
+log() { echo -e "${GREEN}[$(date +'%H:%M:%S')]${NC} $1"; }
+error() { echo -e "${RED}[ERROR]${NC} $1"; }
+warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+highlight() { echo -e "${CYAN}$1${NC}"; }
 
-# Step 1: Clean and prepare
-echo -e "${YELLOW}📁 Cleaning previous builds...${NC}"
-cd "$PROJECT_ROOT"
-rm -rf dist/
-mkdir -p dist/{bin,config,scripts,systemd}
+print_header() {
+    echo -e "${CYAN}"
+    echo "╔══════════════════════════════════════════════════════════════╗"
+    echo "║             🔨 LocalFinance Microservices Builder           ║"
+    echo "║                                                              ║"
+    echo "║  Building Go services with correlation ID support           ║"
+    echo "║  Target: Jetson ARM64 (10.0.0.16)                          ║"
+    echo "╚══════════════════════════════════════════════════════════════╝"
+    echo -e "${NC}"
+}
 
-# Step 2: Cross-compile for ARM64
-echo -e "${YELLOW}🔨 Cross-compiling services for ARM64 Linux...${NC}"
-
-export GOOS=linux
-export GOARCH=arm64
-export CGO_ENABLED=0
-
-echo -e "  🏛️ Building Thesaurus (Database service)..."
-go build -ldflags="-s -w" -o dist/bin/thesaurus ./services/thesaurus
-
-echo -e "  🦉 Building Sophia (AI service)..."
-go build -ldflags="-s -w" -o dist/bin/sophia ./services/sophia
-
-echo -e "  📜 Building Logos (Document processing)..."
-go build -ldflags="-s -w" -o dist/bin/logos ./services/logos
-
-echo -e "  🎭 Building Hermes (Gateway service)..."
-go build -ldflags="-s -w" -o dist/bin/hermes ./services/hermes
-
-# Verify binaries
-echo -e "${GREEN}✅ Built binaries:${NC}"
-ls -la dist/bin/
-
-# Step 3: Create configuration files
-echo -e "${YELLOW}⚙️ Creating configuration files...${NC}"
-
-cat > dist/config/environment.env << 'EOF'
-# LocalFinance Environment Configuration
-ENV=production
-LOG_LEVEL=info
-
-# Database Configuration
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=localuser
-DB_PASSWORD=localpass
-DB_NAME=localfinance
-
-# Redis Configuration
-REDIS_HOST=localhost
-REDIS_PORT=6379
-
-# Ollama Configuration
-OLLAMA_HOST=http://localhost:11434
-MODEL_NAME=llama3.2:1b
-
-# Service Ports
-THESAURUS_PORT=8001
-SOPHIA_PORT=8002
-LOGOS_PORT=8003
-HERMES_PORT=3000
-
-# JWT Configuration
-JWT_SECRET=localfinance-production-secret-change-this
-JWT_EXPIRY_DAYS=7
-
-# Storage Configuration
-STORAGE_ENDPOINT=localhost:9000
-STORAGE_ACCESS_KEY=minioadmin
-STORAGE_SECRET_KEY=minioadmin
-STORAGE_BUCKET=documents
-EOF
-
-# Step 4: Create systemd service files
-echo -e "${YELLOW}🔧 Creating systemd service files...${NC}"
-
-create_service_file() {
-    local service_name=$1
-    local service_port=$2
-    local service_description="$3"
+check_local_go() {
+    log "🔍 Checking for local Go installation..."
     
-    cat > "dist/systemd/localfinance-${service_name}.service" << EOF
+    if command -v go >/dev/null 2>&1; then
+        GO_VERSION=$(go version)
+        info "✅ Go found: $GO_VERSION"
+        export HAS_GO=true
+    else
+        warn "❌ Go not found locally - will build on Jetson"
+        export HAS_GO=false
+    fi
+}
+
+prepare_source() {
+    log "📦 Preparing source code for deployment..."
+    
+    # Create deployment package
+    BUILD_DIR="/tmp/localfinance-build-$(date +%s)"
+    mkdir -p "$BUILD_DIR"
+    
+    # Copy source files
+    cp -r services/ shared/ "$BUILD_DIR/"
+    
+    # Create go.mod files if they don't exist
+    for service in $SERVICES; do
+        if [ ! -f "$BUILD_DIR/services/$service/go.mod" ]; then
+            cat > "$BUILD_DIR/services/$service/go.mod" << EOF
+module github.com/sagarjhaa/localfinance/services/$service
+
+go 1.21
+
+require (
+    github.com/gin-gonic/gin v1.9.1
+    github.com/google/uuid v1.3.0
+    modernc.org/sqlite v1.27.0
+)
+EOF
+        fi
+    done
+    
+    # Create shared go.mod
+    if [ ! -f "$BUILD_DIR/shared/go.mod" ]; then
+        cat > "$BUILD_DIR/shared/go.mod" << EOF
+module github.com/sagarjhaa/localfinance/shared
+
+go 1.21
+
+require (
+    github.com/gin-gonic/gin v1.9.1
+    github.com/google/uuid v1.3.0
+)
+EOF
+    fi
+    
+    # Create deployment scripts
+    cat > "$BUILD_DIR/build.sh" << 'EOFBUILD'
+#!/bin/bash
+set -e
+
+echo "🔨 Building LocalFinance microservices on Jetson..."
+
+# Install Go if not present
+if ! command -v go >/dev/null 2>&1; then
+    echo "📥 Installing Go..."
+    wget -q -O /tmp/go.tar.gz https://go.dev/dl/go1.21.6.linux-arm64.tar.gz
+    sudo tar -C /usr/local -xzf /tmp/go.tar.gz
+    export PATH=/usr/local/go/bin:$PATH
+    echo 'export PATH=/usr/local/go/bin:$PATH' >> ~/.bashrc
+fi
+
+export PATH=/usr/local/go/bin:$PATH
+
+# Create bin directory
+mkdir -p bin
+
+# Build each service
+for service in hermes thesaurus sophia logos; do
+    echo "🎯 Building $service..."
+    cd "services/$service"
+    go mod tidy
+    go build -o "../../bin/$service" main.go
+    cd ../..
+    echo "✅ $service built successfully"
+done
+
+echo "📦 All services built!"
+ls -la bin/
+EOFBUILD
+
+    chmod +x "$BUILD_DIR/build.sh"
+    
+    # Create systemd service files
+    mkdir -p "$BUILD_DIR/systemd"
+    
+    for service in $SERVICES; do
+        port=$(get_service_port "$service")
+        cat > "$BUILD_DIR/systemd/localfinance-$service.service" << EOF
 [Unit]
-Description=LocalFinance ${service_description}
-After=network.target postgresql.service redis-server.service
-Wants=postgresql.service redis-server.service
+Description=LocalFinance $service Service
+After=network.target
 
 [Service]
 Type=simple
 User=sagar
-Group=sagar
-WorkingDirectory=${DEPLOY_DIR}
-Environment=PATH=/usr/local/go/bin:/usr/bin:/bin
-EnvironmentFile=${DEPLOY_DIR}/config/environment.env
-ExecStart=${DEPLOY_DIR}/bin/${service_name}
+WorkingDirectory=$REMOTE_DIR
+ExecStart=$REMOTE_DIR/bin/$service
+Environment=PORT=$port
+Environment=DATABASE_PATH=$REMOTE_DIR/data/localfinance.db
+Environment=LOG_LEVEL=info
 Restart=always
 RestartSec=10
-StandardOutput=append:${DEPLOY_DIR}/logs/${service_name}.log
-StandardError=append:${DEPLOY_DIR}/logs/${service_name}_error.log
-
-# Security settings
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ReadWritePaths=${DEPLOY_DIR}
+StandardOutput=append:$REMOTE_DIR/logs/$service.log
+StandardError=append:$REMOTE_DIR/logs/$service-error.log
 
 [Install]
 WantedBy=multi-user.target
 EOF
-}
-
-create_service_file "thesaurus" "8001" "Database Service"
-create_service_file "sophia" "8002" "AI Service" 
-create_service_file "logos" "8003" "Document Processing Service"
-create_service_file "hermes" "3000" "API Gateway Service"
-
-# Step 5: Create deployment scripts
-echo -e "${YELLOW}📝 Creating deployment scripts...${NC}"
-
-cat > dist/scripts/setup-database.sh << 'EOF'
+    done
+    
+    # Create service management script
+    cat > "$BUILD_DIR/manage-services.sh" << 'EOFMANAGE'
 #!/bin/bash
-# Database setup script
 
-echo "🗄️ Setting up PostgreSQL database..."
+SERVICES="hermes thesaurus sophia logos"
+ACTION=${1:-status}
 
-# Start PostgreSQL
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
+case "$ACTION" in
+    start)
+        echo "🚀 Starting LocalFinance microservices..."
+        for service in $SERVICES; do
+            echo "Starting localfinance-$service..."
+            sudo systemctl start localfinance-$service
+        done
+        ;;
+    stop)
+        echo "🛑 Stopping LocalFinance microservices..."
+        for service in $SERVICES; do
+            echo "Stopping localfinance-$service..."
+            sudo systemctl stop localfinance-$service || true
+        done
+        ;;
+    restart)
+        echo "🔄 Restarting LocalFinance microservices..."
+        $0 stop
+        sleep 3
+        $0 start
+        ;;
+    status)
+        echo "📊 LocalFinance microservices status:"
+        for service in $SERVICES; do
+            status=$(systemctl is-active localfinance-$service 2>/dev/null || echo "inactive")
+            if [ "$status" = "active" ]; then
+                echo "✅ localfinance-$service: $status"
+            else
+                echo "❌ localfinance-$service: $status"
+            fi
+        done
+        ;;
+    logs)
+        service=${2:-hermes}
+        echo "📋 Logs for localfinance-$service:"
+        journalctl -u localfinance-$service -f
+        ;;
+    install)
+        echo "📦 Installing systemd services..."
+        sudo cp systemd/*.service /etc/systemd/system/
+        sudo systemctl daemon-reload
+        for service in $SERVICES; do
+            sudo systemctl enable localfinance-$service
+        done
+        echo "✅ Services installed and enabled"
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|status|logs|install} [service-name]"
+        exit 1
+        ;;
+esac
+EOFMANAGE
 
-# Create database and user
-sudo -u postgres psql << SQL
-DROP DATABASE IF EXISTS localfinance;
-DROP USER IF EXISTS localuser;
-CREATE DATABASE localfinance;
-CREATE USER localuser WITH PASSWORD 'localpass';
-GRANT ALL PRIVILEGES ON DATABASE localfinance TO localuser;
-\q
-SQL
-
-echo "✅ Database setup complete"
-EOF
-
-cat > dist/scripts/install-services.sh << 'EOF'
+    chmod +x "$BUILD_DIR/manage-services.sh"
+    
+    # Create testing script
+    cat > "$BUILD_DIR/test-services.sh" << 'EOFTEST'
 #!/bin/bash
-# Service installation script
 
-set -e
+echo "🧪 Testing LocalFinance microservices..."
 
-DEPLOY_DIR="/home/sagar/localfinance"
+BASE_URL="http://localhost"
+SERVICES=("hermes:3000" "thesaurus:8001" "sophia:8002" "logos:8003")
 
-echo "🔧 Installing LocalFinance services..."
-
-# Create directories
-mkdir -p $DEPLOY_DIR/{logs,data,uploads}
-
-# Copy systemd service files
-sudo cp systemd/*.service /etc/systemd/system/
-sudo systemctl daemon-reload
-
-# Set proper permissions
-chmod +x bin/*
-chmod +x scripts/*.sh
-
-# Install and enable services
-services=("localfinance-thesaurus" "localfinance-sophia" "localfinance-logos" "localfinance-hermes")
-
-for service in "${services[@]}"; do
-    echo "  📦 Installing $service..."
-    sudo systemctl enable $service
-done
-
-echo "✅ Services installed successfully"
-EOF
-
-cat > dist/scripts/start-services.sh << 'EOF'
-#!/bin/bash
-# Start all LocalFinance services
-
-services=("localfinance-thesaurus" "localfinance-sophia" "localfinance-logos" "localfinance-hermes")
-
-echo "🚀 Starting LocalFinance services..."
-
-for service in "${services[@]}"; do
-    echo "  ▶️ Starting $service..."
-    sudo systemctl start $service
-    sleep 2
-done
-
-echo ""
-echo "📊 Service Status:"
-for service in "${services[@]}"; do
-    status=$(sudo systemctl is-active $service)
-    if [ "$status" = "active" ]; then
-        echo "  ✅ $service: $status"
+for service_port in "${SERVICES[@]}"; do
+    service=$(echo $service_port | cut -d: -f1)
+    port=$(echo $service_port | cut -d: -f2)
+    
+    echo "🔍 Testing $service on port $port..."
+    
+    # Test health endpoint
+    response=$(curl -s --connect-timeout 5 "$BASE_URL:$port/health" || echo "ERROR")
+    
+    if [ "$response" = "ERROR" ]; then
+        echo "❌ $service: Not responding"
     else
-        echo "  ❌ $service: $status"
+        echo "✅ $service: Responding"
+        # Try to parse correlation ID
+        correlation_id=$(echo "$response" | grep -o '"correlation_id":"[^"]*"' || echo "")
+        if [ -n "$correlation_id" ]; then
+            echo "   🔗 Correlation ID: $(echo "$correlation_id" | cut -d'"' -f4)"
+        fi
     fi
 done
 
 echo ""
-echo "🌐 Service URLs:"
-echo "  🎭 Hermes (API Gateway): http://10.0.0.16:3000"
-echo "  🏛️ Thesaurus (Database): http://10.0.0.16:8001"
-echo "  🦉 Sophia (AI): http://10.0.0.16:8002"  
-echo "  📜 Logos (Processing): http://10.0.0.16:8003"
+echo "🌐 Testing gateway (Hermes)..."
+curl -s "$BASE_URL:3000/health" | head -3
+
+echo ""
+echo "🎯 Microservices testing complete!"
+EOFTEST
+
+    chmod +x "$BUILD_DIR/test-services.sh"
+    
+    echo "$BUILD_DIR"
+}
+
+upload_and_build() {
+    local BUILD_DIR="$1"
+    log "📤 Uploading source code to Jetson..."
+    
+    # Create tarball
+    tar -czf "/tmp/localfinance-microservices.tar.gz" -C "$(dirname "$BUILD_DIR")" "$(basename "$BUILD_DIR")"
+    
+    # Upload to Jetson
+    expect << EOF
+set timeout 60
+spawn scp /tmp/localfinance-microservices.tar.gz ${JETSON_USER}@${JETSON_HOST}:/tmp/
+expect "password:"
+send "${JETSON_PASS}\r"
+expect eof
 EOF
 
-cat > dist/scripts/stop-services.sh << 'EOF'
-#!/bin/bash
-# Stop all LocalFinance services
+    log "🔨 Building microservices on Jetson..."
+    
+    expect << EOF
+set timeout 300
+spawn ssh ${JETSON_USER}@${JETSON_HOST}
+expect "password:"
+send "${JETSON_PASS}\r"
+expect "$ "
 
-services=("localfinance-hermes" "localfinance-logos" "localfinance-sophia" "localfinance-thesaurus")
+# Extract source
+send "cd /tmp && tar -xzf localfinance-microservices.tar.gz\r"
+expect "$ "
 
-echo "🛑 Stopping LocalFinance services..."
+# Find the build directory
+send "BUILD_DIR=\$(ls -d localfinance-build-* | head -1)\r"
+expect "$ "
 
-for service in "${services[@]}"; do
-    echo "  ⏹️ Stopping $service..."
-    sudo systemctl stop $service || true
+send "cd \$BUILD_DIR\r"
+expect "$ "
+
+# Run build script
+send "./build.sh\r"
+expect {
+    "All services built!" {
+        expect "$ "
+    }
+    timeout {
+        send "\003\r"
+        exit 1
+    }
+}
+
+# Copy to localfinance directory
+send "cp -r bin systemd *.sh ${REMOTE_DIR}/\r"
+expect "$ "
+
+send "cd ${REMOTE_DIR}\r"
+expect "$ "
+
+send "exit\r"
+expect eof
+EOF
+
+    if [ $? -eq 0 ]; then
+        log "✅ Build and copy successful"
+    else
+        error "❌ Build failed"
+        return 1
+    fi
+}
+
+stop_existing_services() {
+    log "🛑 Stopping existing services..."
+    
+    expect << EOF
+set timeout 30
+spawn ssh ${JETSON_USER}@${JETSON_HOST}
+expect "password:"
+send "${JETSON_PASS}\r"
+expect "$ "
+
+send "cd ${REMOTE_DIR}\r"
+expect "$ "
+
+# Stop Python services
+send "sudo pkill -f python3 || echo 'No Python services to stop'\r"
+expect {
+    "password:" {
+        send "${JETSON_PASS}\r"
+        expect "$ "
+    }
+    "$ " {}
+}
+
+# Stop Go services if they exist
+send "sudo pkill -f hermes || echo 'Hermes not running'\r"
+expect "$ "
+send "sudo pkill -f thesaurus || echo 'Thesaurus not running'\r"  
+expect "$ "
+send "sudo pkill -f sophia || echo 'Sophia not running'\r"
+expect "$ "
+send "sudo pkill -f logos || echo 'Logos not running'\r"
+expect "$ "
+
+send "sleep 3\r"
+expect "$ "
+
+send "exit\r"
+expect eof
+EOF
+
+    log "✅ Existing services stopped"
+}
+
+install_services() {
+    log "📦 Installing microservices as systemd services..."
+    
+    expect << EOF
+set timeout 60
+spawn ssh ${JETSON_USER}@${JETSON_HOST}
+expect "password:"
+send "${JETSON_PASS}\r"
+expect "$ "
+
+send "cd ${REMOTE_DIR}\r"
+expect "$ "
+
+# Install systemd services
+send "./manage-services.sh install\r"
+expect {
+    "password:" {
+        send "${JETSON_PASS}\r"
+        expect "$ "
+    }
+    "Services installed" {
+        expect "$ "
+    }
+}
+
+send "exit\r"
+expect eof
+EOF
+
+    log "✅ Services installed"
+}
+
+start_services() {
+    log "🚀 Starting microservices..."
+    
+    expect << EOF
+set timeout 60
+spawn ssh ${JETSON_USER}@${JETSON_HOST}
+expect "password:"
+send "${JETSON_PASS}\r"
+expect "$ "
+
+send "cd ${REMOTE_DIR}\r"
+expect "$ "
+
+# Start services
+send "./manage-services.sh start\r"
+expect {
+    "password:" {
+        send "${JETSON_PASS}\r"
+        expect "Starting LocalFinance microservices"
+    }
+    "Starting LocalFinance microservices" {
+        expect "$ "
+    }
+}
+
+send "sleep 10\r"
+expect "$ "
+
+# Check status
+send "./manage-services.sh status\r"
+expect "$ "
+
+send "exit\r"
+expect eof
+EOF
+
+    log "✅ Services started"
+}
+
+test_deployment() {
+    log "🧪 Testing microservices deployment..."
+    
+    sleep 5
+    
+    # Test each service
+    for service in $SERVICES; do
+        port=$(get_service_port "$service")
+        info "Testing $service on port $port..."
+        
+        response=$(curl -s --connect-timeout 10 "http://${JETSON_HOST}:${port}/health" 2>/dev/null || echo "ERROR")
+        
+        if [ "$response" = "ERROR" ]; then
+            warn "❌ $service: Not responding"
+        else
+            highlight "✅ $service: Responding"
+            # Try to extract correlation ID
+            if echo "$response" | grep -q "correlation_id"; then
+                correlation_id=$(echo "$response" | python3 -c "
+import json, sys
+try:
+    data = json.load(sys.stdin)
+    print(data.get('correlation_id', 'none'))
+except:
+    print('parse_error')
+" 2>/dev/null)
+                if [ "$correlation_id" != "none" ] && [ "$correlation_id" != "parse_error" ]; then
+                    echo "   🔗 Correlation ID: $correlation_id"
+                fi
+            fi
+        fi
+    done
+    
+    # Test gateway specifically
+    echo ""
+    info "🌐 Testing main gateway (Hermes)..."
+    gateway_response=$(curl -s "http://${JETSON_HOST}:3000/health" 2>/dev/null)
+    if [ -n "$gateway_response" ]; then
+        echo "$gateway_response" | python3 -c "
+import json, sys
+try:
+    data = json.load(sys.stdin)
+    print(f'Service: {data.get(\"service\", \"unknown\")}')
+    print(f'Version: {data.get(\"version\", \"unknown\")}')
+    print(f'Correlation ID: {data.get(\"correlation_id\", \"none\")}')
+except:
+    print('Gateway response (raw):')
+    print('$gateway_response')
+"
+    fi
+}
+
+show_summary() {
+    echo ""
+    echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║               🎉 MICROSERVICES DEPLOYED                      ║${NC}"
+    echo -e "${GREEN}╠══════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${GREEN}║                                                              ║${NC}"
+    echo -e "${GREEN}║  🏗️  LocalFinance Go Microservices Architecture             ║${NC}"
+    echo -e "${GREEN}║                                                              ║${NC}"
+    echo -e "${GREEN}║  🎭 Hermes (Gateway):     http://${JETSON_HOST}:3000        ║${NC}"
+    echo -e "${GREEN}║  🏛️  Thesaurus (Database): http://${JETSON_HOST}:8001        ║${NC}"
+    echo -e "${GREEN}║  🦉 Sophia (AI):         http://${JETSON_HOST}:8002        ║${NC}"
+    echo -e "${GREEN}║  📜 Logos (Processing):   http://${JETSON_HOST}:8003        ║${NC}"
+    echo -e "${GREEN}║                                                              ║${NC}"
+    echo -e "${GREEN}║  ✨ Features:                                                ║${NC}"
+    echo -e "${GREEN}║    🔗 Correlation ID threading across all services         ║${NC}"
+    echo -e "${GREEN}║    📊 Structured logging with request tracing              ║${NC}"
+    echo -e "${GREEN}║    🔐 JWT authentication and sessions                      ║${NC}"
+    echo -e "${GREEN}║    📤 Document upload and processing                       ║${NC}"
+    echo -e "${GREEN}║    🗄️  SQLite database with transactions                    ║${NC}"
+    echo -e "${GREEN}║    ⚙️  Systemd service management                          ║${NC}"
+    echo -e "${GREEN}║                                                              ║${NC}"
+    echo -e "${GREEN}║  🛠️  Management:                                            ║${NC}"
+    echo -e "${GREEN}║    sudo systemctl status localfinance-hermes               ║${NC}"
+    echo -e "${GREEN}║    ./manage-services.sh {start|stop|restart|status}        ║${NC}"
+    echo -e "${GREEN}║    ./test-services.sh                                      ║${NC}"
+    echo -e "${GREEN}║                                                              ║${NC}"
+    echo -e "${GREEN}║  📋 Logs: journalctl -u localfinance-hermes -f             ║${NC}"
+    echo -e "${GREEN}║                                                              ║${NC}"
+    echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+}
+
+main() {
+    print_header
+    
+    check_local_go
+    
+    BUILD_DIR=$(prepare_source)
+    info "📁 Source prepared in: $BUILD_DIR"
+    
+    upload_and_build "$BUILD_DIR"
+    stop_existing_services
+    install_services
+    start_services
+    test_deployment
+    
+    # Cleanup
+    rm -rf "$BUILD_DIR"
+    rm -f "/tmp/localfinance-microservices.tar.gz"
+    
+    show_summary
+    log "🎯 Microservices deployment completed successfully!"
+}
+
+# Handle interruption
+trap 'error "🛑 Deployment interrupted"; exit 1' INT TERM
+
+# Check dependencies
+for cmd in expect curl; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        error "❌ Required command not found: $cmd"
+        exit 1
+    fi
 done
 
-echo "✅ All services stopped"
-EOF
-
-# Make scripts executable
-chmod +x dist/scripts/*.sh
-
-# Step 6: Create deployment archive
-echo -e "${YELLOW}📦 Creating deployment archive...${NC}"
-cd dist/
-tar -czf ../localfinance-deploy.tar.gz .
-cd ..
-
-echo -e "${GREEN}✅ Build complete! Archive: $(pwd)/localfinance-deploy.tar.gz${NC}"
-
-# Step 7: Deploy to Jetson
-echo -e "${YELLOW}🚀 Deploying to Jetson...${NC}"
-
-echo -e "  📤 Uploading deployment archive..."
-expect -c "
-    spawn scp localfinance-deploy.tar.gz ${JETSON_USER}@${JETSON_IP}:/tmp/
-    expect \"password:\"
-    send \"${JETSON_PASS}\\r\"
-    expect eof
-"
-
-echo -e "  📋 Extracting and installing on Jetson..."
-expect -c "
-    spawn ssh ${JETSON_USER}@${JETSON_IP}
-    expect \"password:\"
-    send \"${JETSON_PASS}\\r\"
-    expect \"$ \"
-    
-    # Clean previous installation
-    send \"sudo systemctl stop localfinance-* 2>/dev/null || true\\r\"
-    expect \"$ \"
-    
-    send \"rm -rf ${DEPLOY_DIR}\\r\"
-    expect \"$ \"
-    
-    send \"mkdir -p ${DEPLOY_DIR}\\r\"
-    expect \"$ \"
-    
-    # Extract deployment
-    send \"cd ${DEPLOY_DIR}\\r\"
-    expect \"$ \"
-    
-    send \"tar -xzf /tmp/localfinance-deploy.tar.gz\\r\"
-    expect \"$ \"
-    
-    # Setup database
-    send \"chmod +x scripts/*.sh\\r\"
-    expect \"$ \"
-    
-    send \"./scripts/setup-database.sh\\r\"
-    expect {
-        \"password:\" {
-            send \"${JETSON_PASS}\\r\"
-            exp_continue
-        }
-        \"$ \" {
-            send \"echo 'Database setup complete'\\r\"
-            expect \"$ \"
-        }
-    }
-    
-    # Install services
-    send \"./scripts/install-services.sh\\r\"
-    expect {
-        \"password:\" {
-            send \"${JETSON_PASS}\\r\"
-            exp_continue
-        }
-        \"$ \" {
-            send \"echo 'Services installed'\\r\"
-            expect \"$ \"
-        }
-    }
-    
-    # Start services
-    send \"./scripts/start-services.sh\\r\"
-    expect {
-        \"password:\" {
-            send \"${JETSON_PASS}\\r\"
-            exp_continue
-        }
-        \"$ \" {
-            send \"echo 'Services started'\\r\"
-            expect \"$ \"
-        }
-    }
-    
-    send \"exit\\r\"
-    expect eof
-"
-
-# Step 8: Verify deployment
-echo -e "${YELLOW}🔍 Verifying deployment...${NC}"
-
-sleep 5
-
-echo -e "  🏛️ Testing Thesaurus service..."
-curl -s http://${JETSON_IP}:8001/health || echo "❌ Thesaurus not responding"
-
-echo -e "  🦉 Testing Sophia service..."
-curl -s http://${JETSON_IP}:8002/health || echo "❌ Sophia not responding"
-
-echo -e "  📜 Testing Logos service..."
-curl -s http://${JETSON_IP}:8003/health || echo "❌ Logos not responding"
-
-echo -e "  🎭 Testing Hermes gateway..."
-curl -s http://${JETSON_IP}:3000/health || echo "❌ Hermes not responding"
-
-echo ""
-echo -e "${GREEN}🎉 Deployment Complete!${NC}"
-echo ""
-echo -e "${BLUE}📱 Access your LocalFinance application at:${NC}"
-echo -e "  ${GREEN}http://${JETSON_IP}:3000${NC}"
-echo ""
-echo -e "${YELLOW}🔧 Management commands on Jetson:${NC}"
-echo -e "  Start:   ./scripts/start-services.sh"
-echo -e "  Stop:    ./scripts/stop-services.sh" 
-echo -e "  Status:  systemctl status localfinance-*"
-echo -e "  Logs:    tail -f logs/*.log"
+# Run main function
+main "$@"

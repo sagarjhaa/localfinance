@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/sagarjhaa/localfinance/services/thesaurus/auth"
 	"github.com/sagarjhaa/localfinance/services/thesaurus/models"
 	"gorm.io/gorm"

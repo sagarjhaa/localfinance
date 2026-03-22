@@ -5,14 +5,16 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sagarjhaa/localfinance/services/logos/api"
 	"github.com/sagarjhaa/localfinance/services/logos/config"
 	"github.com/sagarjhaa/localfinance/shared/middleware"
 )
 
 func main() {
 	// Load configuration
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
 
 	// Set up Gin router
 	router := gin.New()
@@ -23,8 +25,17 @@ func main() {
 	// Add recovery middleware
 	router.Use(gin.Recovery())
 
-	// Setup routes
-	api.SetupRoutes(router, cfg)
+	// Setup routes (for now, use simplified setup)
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status": "healthy",
+			"service": "logos",
+			"version": "1.0.0",
+		})
+	})
+	
+	// TODO: Initialize processors and storage when ready
+	// api.SetupRoutes(router, processorManager, storageClient, cfg)
 
 	// Get port from environment or use default
 	port := os.Getenv("PORT")

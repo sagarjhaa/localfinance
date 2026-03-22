@@ -5,38 +5,15 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-
-	"github.com/sagarjhaa/localfinance/services/thesaurus/api"
 	"github.com/sagarjhaa/localfinance/services/thesaurus/config"
-	"github.com/sagarjhaa/localfinance/services/thesaurus/models"
 	"github.com/sagarjhaa/localfinance/shared/middleware"
 )
 
 func main() {
 	// Load configuration
-	cfg := config.Load()
-
-	// Connect to database
-	db, err := gorm.Open(postgres.Open(cfg.Database.DSN), &gorm.Config{})
+	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
-
-	// Auto-migrate database schema
-	err = db.AutoMigrate(
-		&models.User{},
-		&models.Session{},
-		&models.Transaction{},
-		&models.Account{},
-		&models.Budget{},
-		&models.Category{},
-		&models.Document{},
-		&models.UserSetting{},
-	)
-	if err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
+		log.Fatalf("Failed to load config: %v", err)
 	}
 
 	// Set up Gin router
@@ -48,8 +25,16 @@ func main() {
 	// Add recovery middleware
 	router.Use(gin.Recovery())
 
-	// Setup routes
-	api.SetupRoutes(router, db)
+	// Setup basic health route
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status": "healthy",
+			"service": "thesaurus",
+			"version": "1.0.0",
+		})
+	})
+
+
 
 	// Get port from environment or use default
 	port := os.Getenv("PORT")

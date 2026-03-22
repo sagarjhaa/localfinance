@@ -3,9 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -65,11 +63,20 @@ func (h *UploadHandler) UploadDocument(c *gin.Context) {
 		return
 	}
 
-	// Create document record
+	// Create document record  
 	documentID := fmt.Sprintf("doc_%s", uuid.New().String()[:16])
+	userUUID, err := uuid.Parse(userID.(string))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":          "Invalid user ID",
+			"correlation_id": correlationID,
+		})
+		return
+	}
+	
 	document := models.Document{
 		ID:               documentID,
-		UserID:          userID.(string),
+		UserID:          userUUID,
 		Filename:        file.Filename,
 		OriginalFilename: file.Filename,
 		FileSize:        file.Size,

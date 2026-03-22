@@ -53,7 +53,9 @@ func (s *Service) AnswerFinancialQuery(query models.FinancialQuery) (models.AIRe
 	}
 
 	// 2. Create enhanced prompt with user's financial data
-	enhancedPrompt := s.createEnhancedPrompt(query.Question, context.Summary)
+	summaryText := fmt.Sprintf("Total: %d transactions, Spent: $%.2f, Income: $%.2f, Categories: %v", 
+		context.Summary.TotalTransactions, context.Summary.TotalSpent, context.Summary.TotalIncome, context.Summary.Categories)
+	enhancedPrompt := s.createEnhancedPrompt(query.Question, summaryText)
 
 	// 3. Query Ollama
 	response, err := s.queryOllama(enhancedPrompt)

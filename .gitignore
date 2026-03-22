@@ -38,3 +38,16 @@ logs/*.log
 
 # Config with secrets
 config.json
+
+# Sensitive Data - Never Commit
+data/
+inbox/statements/*.pdf
+inbox/processed/*.pdf  
+inbox/failed/*.csv
+inbox/**/*.pdf
+inbox/**/*.csv
+*.db
+**/finances.db
+personal_*
+private_*
+sensitive_*

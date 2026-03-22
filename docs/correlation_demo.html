@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LocalFinance - Correlation ID Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .content {
+            padding: 20px;
+        }
+        .demo-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            background: #f8f9fa;
+        }
+        .correlation-display {
+            background: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 4px;
+            padding: 12px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .correlation-id {
+            background: #fff;
+            border: 1px solid #ccc;
+            padding: 4px 8px;
+            border-radius: 3px;
+            color: #495057;
+            user-select: all;
+        }
+        .copy-btn {
+            background: #007bff;
+            border: none;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin-left: 8px;
+        }
+        .copy-btn:hover {
+            background: #0056b3;
+        }
+        .error-demo {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success-demo {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #218838;
+        }
+        .log-entry {
+            background: #2d3748;
+            color: #a0aec0;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            margin: 5px 0;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏛️ LocalFinance</h1>
+            <p>Correlation ID Demo - Full Request Traceability</p>
+        </div>
+        
+        <div class="content">
+            <h2>🔗 How Correlation IDs Help You</h2>
+            <p>Every request in LocalFinance gets a unique correlation ID that lets you track exactly what happened, making debugging and support much easier.</p>
+            
+            <div class="demo-section">
+                <h3>📤 File Upload Example</h3>
+                <button class="btn" onclick="simulateUpload()">Simulate File Upload</button>
+                <div id="uploadResponse"></div>
+            </div>
+            
+            <div class="demo-section">
+                <h3>❌ Error Example</h3>
+                <button class="btn" onclick="simulateError()">Simulate Error</button>
+                <div id="errorResponse"></div>
+            </div>
+            
+            <div class="demo-section">
+                <h3>📊 Status Check Example</h3>
+                <button class="btn" onclick="simulateStatusCheck()">Check Processing Status</button>
+                <div id="statusResponse"></div>
+            </div>
+            
+            <div class="demo-section">
+                <h3>📋 Request History</h3>
+                <button class="btn" onclick="showHistory()">Show Request History</button>
+                <div id="historyDisplay"></div>
+            </div>
+            
+            <div class="demo-section">
+                <h3>🔍 Server Logs Example</h3>
+                <p>With correlation ID <code>lf_abc123456789</code>, you can trace the complete request through server logs:</p>
+                <div class="log-entry">2026-03-22 02:30:00 - lf_abc123456789 - INFO - [REQUEST] {"correlation_id":"lf_abc123456789","service":"hermes","method":"POST","path":"/api/v1/upload"}</div>
+                <div class="log-entry">2026-03-22 02:30:00 - lf_abc123456789 - INFO - [BUSINESS_LOGIC] {"correlation_id":"lf_abc123456789","message":"Starting document upload"}</div>
+                <div class="log-entry">2026-03-22 02:30:01 - lf_abc123456789 - ERROR - [PROCESSING] {"correlation_id":"lf_abc123456789","message":"File type 'pdf' not yet supported"}</div>
+                <div class="log-entry">2026-03-22 02:30:01 - lf_abc123456789 - INFO - [RESPONSE] {"correlation_id":"lf_abc123456789","status_code":200,"duration":"1.2s"}</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Simulate correlation ID tracking
+        let requestHistory = [];
+        let correlationCounter = 1;
+
+        function generateCorrelationId() {
+            return `lf_${Date.now().toString(36)}${Math.random().toString(36).substr(2, 5)}`;
+        }
+
+        function addToHistory(operation, correlationId, status) {
+            requestHistory.push({
+                operation: operation,
+                correlationId: correlationId,
+                status: status,
+                timestamp: new Date().toLocaleString()
+            });
+        }
+
+        function copyCorrelationId(correlationId) {
+            navigator.clipboard.writeText(correlationId).then(() => {
+                showToast(`Copied: ${correlationId}`);
+            }).catch(() => {
+                showToast(`Failed to copy. ID: ${correlationId}`);
+            });
+        }
+
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #333;
+                color: white;
+                padding: 10px 15px;
+                border-radius: 4px;
+                z-index: 10000;
+            `;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => document.body.removeChild(toast), 3000);
+        }
+
+        function simulateUpload() {
+            const correlationId = generateCorrelationId();
+            addToHistory('File Upload', correlationId, 'Success');
+            
+            const response = `
+                <div class="success-demo">
+                    <strong>Upload Successful!</strong>
+                    <div class="correlation-display">
+                        <strong>Request ID:</strong> 
+                        <span class="correlation-id">${correlationId}</span>
+                        <button class="copy-btn" onclick="copyCorrelationId('${correlationId}')">📋 Copy</button>
+                    </div>
+                    <p>Your file is being processed. Use this Request ID if you need support.</p>
+                </div>
+            `;
+            document.getElementById('uploadResponse').innerHTML = response;
+        }
+
+        function simulateError() {
+            const correlationId = generateCorrelationId();
+            addToHistory('PDF Upload Error', correlationId, 'Error');
+            
+            const response = `
+                <div class="error-demo">
+                    <strong>Upload Failed:</strong> File type 'pdf' is not yet supported
+                    <div class="correlation-display">
+                        <strong>Request ID:</strong> 
+                        <span class="correlation-id">${correlationId}</span>
+                        <button class="copy-btn" onclick="copyCorrelationId('${correlationId}')">📋 Copy</button>
+                    </div>
+                    <p><strong>Need help?</strong> Share this Request ID with support to get exact details about what went wrong.</p>
+                </div>
+            `;
+            document.getElementById('errorResponse').innerHTML = response;
+        }
+
+        function simulateStatusCheck() {
+            const correlationId = generateCorrelationId();
+            addToHistory('Status Check', correlationId, 'Processing');
+            
+            const response = `
+                <div class="success-demo">
+                    <strong>Processing Status:</strong> Analyzing transactions (75% complete)
+                    <div class="correlation-display">
+                        <strong>Upload Request ID:</strong> 
+                        <span class="correlation-id">lf_upload456789</span>
+                        <button class="copy-btn" onclick="copyCorrelationId('lf_upload456789')">📋</button>
+                    </div>
+                    <div class="correlation-display">
+                        <strong>Status Request ID:</strong> 
+                        <span class="correlation-id">${correlationId}</span>
+                        <button class="copy-btn" onclick="copyCorrelationId('${correlationId}')">📋</button>
+                    </div>
+                    <p>Track both the original upload and this status check separately!</p>
+                </div>
+            `;
+            document.getElementById('statusResponse').innerHTML = response;
+        }
+
+        function showHistory() {
+            let historyHtml = '<h4>Recent Requests:</h4>';
+            
+            if (requestHistory.length === 0) {
+                historyHtml += '<p>No requests yet. Try the buttons above!</p>';
+            } else {
+                requestHistory.slice(-5).forEach(item => {
+                    historyHtml += `
+                        <div class="correlation-display">
+                            <strong>${item.operation}</strong> (${item.status})<br>
+                            <small>${item.timestamp}</small><br>
+                            <span class="correlation-id">${item.correlationId}</span>
+                            <button class="copy-btn" onclick="copyCorrelationId('${item.correlationId}')">📋</button>
+                        </div>
+                    `;
+                });
+            }
+            
+            document.getElementById('historyDisplay').innerHTML = historyHtml;
+        }
+
+        // Show initial demo
+        setTimeout(() => {
+            const demoId = generateCorrelationId();
+            addToHistory('Demo Page Load', demoId, 'Success');
+        }, 1000);
+    </script>
+</body>
+</html>

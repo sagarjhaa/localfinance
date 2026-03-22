@@ -7,34 +7,36 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sagarjhaa/localfinance/services/sophia/api"
 	"github.com/sagarjhaa/localfinance/services/sophia/config"
-	"github.com/sagarjhaa/localfinance/services/sophia/ai"
+	"github.com/sagarjhaa/localfinance/shared/middleware"
 )
 
 func main() {
 	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatal("Failed to load configuration:", err)
-	}
+	cfg := config.Load()
 
-	// Initialize AI service
-	aiService, err := ai.NewService(cfg.AI)
-	if err != nil {
-		log.Fatal("Failed to initialize AI service:", err)
-	}
+	// Set up Gin router
+	router := gin.New()
+
+	// Add correlation middleware as the first middleware
+	router.Use(middleware.CorrelationMiddleware("sophia"))
+
+	// Add recovery middleware
+	router.Use(gin.Recovery())
 
 	// Setup routes
-	router := gin.Default()
-	api.SetupRoutes(router, aiService, cfg.Thesaurus)
+	api.SetupRoutes(router, cfg)
 
-	// Start server
+	// Get port from environment or use default
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8002"
 	}
 
-	log.Printf("🦉 Sophia AI service starting on port %s", port)
+	log.Printf("🦉 Sophia service starting on port %s", port)
+	log.Printf("📊 Correlation ID tracking enabled")
+	log.Printf("🤖 AI model endpoint: %s", cfg.AI.ModelEndpoint)
+
 	if err := router.Run(":" + port); err != nil {
-		log.Fatal("Failed to start server:", err)
+		log.Fatalf("Failed to start Sophia service: %v", err)
 	}
 }

@@ -1,138 +1,173 @@
 package api
 
 import (
+	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strings"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/sagarjhaa/localfinance/services/hermes/auth"
 	"github.com/sagarjhaa/localfinance/services/hermes/config"
+	"github.com/sagarjhaa/localfinance/shared/middleware"
 )
 
-// SetupRoutes configures the API gateway and frontend routes with authentication
+// SetupRoutes configures the API gateway and frontend routes with correlation ID propagation
 func SetupRoutes(router *gin.Engine, cfg *config.Config) {
-	// CORS configuration for frontend
-	corsConfig := cors.DefaultConfig()
-	corsConfig.AllowOrigins = []string{"http://localhost:3000", "http://localhost:3001"}
-	corsConfig.AllowCredentials = true
-	corsConfig.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization"}
-	router.Use(cors.New(corsConfig))
-
-	// Initialize auth proxy
-	authProxy := auth.NewAuthProxy(cfg)
-
 	// Serve static frontend files
 	router.Static("/static", "./frontend/build/static")
 	router.StaticFile("/favicon.ico", "./frontend/build/favicon.ico")
 	
-	// API Gateway routes
+	// API Gateway routes with correlation ID propagation
 	api := router.Group("/api")
 	{
-		// Public authentication routes (no auth required)
-		authRoutes := api.Group("/auth")
-		{
-			authRoutes.POST("/login", authProxy.LoginHandler)
-			authRoutes.POST("/register", authProxy.RegisterHandler)
-			authRoutes.POST("/validate", authProxy.ValidateHandler)
-		}
+		// Thesaurus (CRUD/Database) service routes
+		api.Any("/v1/transactions/*path", createProxyWithCorrelation(cfg.Services.Thesaurus, "thesaurus"))
+		api.Any("/v1/users/*path", createProxyWithCorrelation(cfg.Services.Thesaurus, "thesaurus"))
+		api.Any("/v1/accounts/*path", createProxyWithCorrelation(cfg.Services.Thesaurus, "thesaurus"))
+		api.Any("/v1/budgets/*path", createProxyWithCorrelation(cfg.Services.Thesaurus, "thesaurus"))
+		api.Any("/v1/upload/*path", createProxyWithCorrelation(cfg.Services.Thesaurus, "thesaurus"))
+		api.Any("/v1/documents/*path", createProxyWithCorrelation(cfg.Services.Thesaurus, "thesaurus"))
+		api.Any("/v1/settings/*path", createProxyWithCorrelation(cfg.Services.Thesaurus, "thesaurus"))
+		api.Any("/v1/dashboard/*path", createProxyWithCorrelation(cfg.Services.Thesaurus, "thesaurus"))
+		api.Any("/v1/processing-status/*path", createProxyWithCorrelation(cfg.Services.Thesaurus, "thesaurus"))
 
-		// Protected authentication routes (require auth)
-		authProtected := api.Group("/auth")
-		authProtected.Use(authProxy.AuthMiddleware())
-		{
-			authProtected.POST("/logout", authProxy.LogoutHandler)
-			authProtected.POST("/refresh", authProxy.RefreshHandler)
-			authProtected.POST("/change-password", authProxy.ChangePasswordHandler)
-		}
+		// Authentication routes (handled by Thesaurus)
+		api.Any("/auth/*path", createProxyWithCorrelation(cfg.Services.Thesaurus, "thesaurus"))
 
-		// Protected API routes (require authentication)
-		protected := api.Group("/v1")
-		protected.Use(authProxy.AuthMiddleware())
-		{
-			// Thesaurus (CRUD/Database) service routes
-			protected.Any("/transactions/*path", proxyToService(cfg.Services.Thesaurus, "/api/v1/transactions"))
-			protected.Any("/accounts/*path", proxyToService(cfg.Services.Thesaurus, "/api/v1/accounts"))
-			protected.Any("/budgets/*path", proxyToService(cfg.Services.Thesaurus, "/api/v1/budgets"))
-			protected.Any("/users/*path", proxyToService(cfg.Services.Thesaurus, "/api/v1/users"))
+		// Sophia (AI) service routes
+		api.Any("/ai/*path", createProxyWithCorrelation(cfg.Services.Sophia, "sophia"))
+		api.Any("/chat/*path", createProxyWithCorrelation(cfg.Services.Sophia, "sophia"))
 
-			// Sophia (AI) service routes  
-			protected.Any("/ai/*path", proxyToService(cfg.Services.Sophia, "/api/v1"))
-			protected.Any("/insights/*path", proxyToService(cfg.Services.Sophia, "/api/v1/insights"))
-			protected.Any("/chat/*path", proxyToService(cfg.Services.Sophia, "/api/v1/chat"))
-			protected.Any("/categorize/*path", proxyToService(cfg.Services.Sophia, "/api/v1/categorize"))
-
-			// Logos (Document Processing) service routes
-			protected.Any("/documents/*path", proxyToService(cfg.Services.Logos, "/api/v1/documents"))
-			protected.Any("/upload/*path", proxyToService(cfg.Services.Logos, "/api/v1/upload"))
-			protected.Any("/processing/*path", proxyToService(cfg.Services.Logos, "/api/v1/processing"))
-		}
+		// Logos (Document Processing) service routes
+		api.Any("/process/*path", createProxyWithCorrelation(cfg.Services.Logos, "logos"))
 	}
 
-	// Health check endpoint
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":   "healthy",
-			"service":  "hermes-gateway",
-			"services": gin.H{
-				"thesaurus": cfg.Services.Thesaurus + "/health",
-				"sophia":    cfg.Services.Sophia + "/health",
-				"logos":     cfg.Services.Logos + "/health",
-			},
-		})
-	})
-
-	// Frontend route (catch-all for React Router)
+	// Default route serves React frontend
 	router.NoRoute(func(c *gin.Context) {
-		// If it's an API request and not found, return 404
-		if strings.HasPrefix(c.Request.URL.Path, "/api") {
-			c.JSON(http.StatusNotFound, gin.H{"error": "API endpoint not found"})
-			return
-		}
-
-		// Otherwise, serve the React app
+		// Add correlation ID to frontend response
+		correlationID := middleware.GetCorrelationID(c)
+		c.Header("X-Correlation-ID", correlationID)
+		
 		c.File("./frontend/build/index.html")
 	})
 }
 
-// proxyToService creates a reverse proxy to a backend service with path rewriting
-func proxyToService(serviceURL, targetPath string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		remote, err := url.Parse(serviceURL)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid service URL"})
-			return
-		}
-
-		// Create reverse proxy
-		proxy := httputil.NewSingleHostReverseProxy(remote)
-		
-		// Custom director to handle path rewriting and auth forwarding
-		proxy.Director = func(req *http.Request) {
-			req.URL.Scheme = remote.Scheme
-			req.URL.Host = remote.Host
-			
-			// Rewrite the path to target service path
-			originalPath := req.URL.Path
-			pathSuffix := strings.TrimPrefix(originalPath, strings.Split(targetPath, "*")[0])
-			req.URL.Path = targetPath + pathSuffix
-			
-			// Forward authentication headers and user context
-			req.Header.Set("X-Forwarded-Host", req.Header.Get("Host"))
-			req.Host = remote.Host
-		}
-
-		// Handle errors
-		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadGateway)
-			io.WriteString(w, `{"error":"Backend service unavailable","details":"`+err.Error()+`"}`)
-		}
-
-		// Serve the request
-		proxy.ServeHTTP(c.Writer, c.Request)
+// createProxyWithCorrelation creates a reverse proxy that propagates correlation IDs
+func createProxyWithCorrelation(targetURL, targetService string) gin.HandlerFunc {
+	target, err := url.Parse(targetURL)
+	if err != nil {
+		panic(fmt.Sprintf("Invalid target URL for %s: %v", targetService, err))
 	}
+
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	
+	// Custom director to add correlation ID and service headers
+	originalDirector := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		// Get correlation ID from gin context
+		correlationID := req.Header.Get(middleware.CorrelationIDHeader)
+		
+		// Call original director
+		originalDirector(req)
+		
+		// Add correlation and service headers
+		req.Header.Set(middleware.CorrelationIDHeader, correlationID)
+		req.Header.Set("X-Forwarded-By", "hermes")
+		req.Header.Set("X-Target-Service", targetService)
+		
+		// Preserve original host and add proxy headers
+		req.Header.Set("X-Forwarded-Host", req.Header.Get("Host"))
+	}
+
+	// Custom error handler
+	proxy.ErrorHandler = func(rw http.ResponseWriter, req *http.Request, err error) {
+		correlationID := req.Header.Get(middleware.CorrelationIDHeader)
+		
+		rw.Header().Set("X-Correlation-ID", correlationID)
+		rw.Header().Set("Content-Type", "application/json")
+		rw.WriteHeader(http.StatusBadGateway)
+		
+		response := fmt.Sprintf(`{
+			"error": "Service unavailable",
+			"service": "%s",
+			"correlation_id": "%s",
+			"details": "%v"
+		}`, targetService, correlationID, err)
+		
+		rw.Write([]byte(response))
+	}
+
+	// Custom response modifier to ensure correlation ID is preserved
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		correlationID := resp.Header.Get(middleware.CorrelationIDHeader)
+		if correlationID != "" {
+			resp.Header.Set(middleware.CorrelationIDHeader, correlationID)
+		}
+		return nil
+	}
+
+	return gin.WrapH(proxy)
+}
+
+// loggingRoundTripper wraps http.RoundTripper to log outgoing requests
+type loggingRoundTripper struct {
+	next          http.RoundTripper
+	correlationID string
+	targetService string
+}
+
+func (l *loggingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Log outgoing request
+	logOutgoingRequest(req, l.correlationID, l.targetService)
+	
+	// Make request
+	resp, err := l.next.RoundTrip(req)
+	
+	// Log response
+	if err == nil {
+		logIncomingResponse(resp, l.correlationID, l.targetService)
+	}
+	
+	return resp, err
+}
+
+// logOutgoingRequest logs requests going to downstream services
+func logOutgoingRequest(req *http.Request, correlationID, targetService string) {
+	var body interface{}
+	if req.Body != nil {
+		bodyBytes, _ := io.ReadAll(req.Body)
+		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+		
+		if len(bodyBytes) > 0 {
+			body = string(bodyBytes)
+			if len(bodyBytes) > 500 {
+				body = string(bodyBytes[:500]) + "..."
+			}
+		}
+	}
+
+	fmt.Printf(`[OUTGOING] {"correlation_id":"%s","service":"hermes","target":"%s","method":"%s","url":"%s","body":%q}`,
+		correlationID, targetService, req.Method, req.URL.String(), body)
+}
+
+// logIncomingResponse logs responses from downstream services  
+func logIncomingResponse(resp *http.Response, correlationID, targetService string) {
+	var body interface{}
+	if resp.Body != nil {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+		
+		if len(bodyBytes) > 0 {
+			body = string(bodyBytes)
+			if len(bodyBytes) > 500 {
+				body = string(bodyBytes[:500]) + "..."
+			}
+		}
+	}
+
+	fmt.Printf(`[INCOMING] {"correlation_id":"%s","service":"hermes","from":"%s","status":%d,"body":%q}`,
+		correlationID, targetService, resp.StatusCode, body)
 }

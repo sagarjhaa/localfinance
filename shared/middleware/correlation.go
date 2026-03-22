@@ -215,14 +215,3 @@ func logJSON(entry LogEntry) {
 }
 
 // GetCorrelationID extracts correlation ID from gin context
-func GetCorrelationID(c *gin.Context) string {
-	if id, exists := c.Get("correlation_id"); exists {
-		return id.(string)
-	}
-	return ""
-}
-
-// PropagateCorrelationID adds correlation ID to outgoing HTTP requests
-func PropagateCorrelationID(req *http.Request, correlationID string) {
-	req.Header.Set(CorrelationIDHeader, correlationID)
-}

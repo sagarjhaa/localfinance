@@ -39,6 +39,10 @@ logs/*.log
 # Config with secrets
 config.json
 
+# Build artifacts and binaries
+dist/
+*.exe
+
 # Sensitive Data - Never Commit
 data/
 inbox/statements/*.pdf

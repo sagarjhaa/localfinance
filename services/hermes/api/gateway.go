@@ -15,6 +15,23 @@ import (
 
 // SetupRoutes configures the API gateway and frontend routes with correlation ID propagation
 func SetupRoutes(router *gin.Engine, cfg *config.Config) {
+	// Health check endpoint for Hermes gateway
+	router.GET("/health", func(c *gin.Context) {
+		correlationID := middleware.GetCorrelationID(c)
+		c.JSON(http.StatusOK, gin.H{
+			"status":         "healthy",
+			"service":        "hermes-gateway",
+			"version":        "2.0.0",
+			"correlation_id": correlationID,
+			"features":       []string{"correlation_id", "microservices", "proxy_gateway"},
+			"upstream_services": map[string]string{
+				"thesaurus": cfg.Services.Thesaurus,
+				"sophia":    cfg.Services.Sophia,
+				"logos":     cfg.Services.Logos,
+			},
+		})
+	})
+
 	// Serve static frontend files
 	router.Static("/static", "./frontend/build/static")
 	router.StaticFile("/favicon.ico", "./frontend/build/favicon.ico")

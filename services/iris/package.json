@@ -1,0 +1,41 @@
+{
+  "name": "iris-server",
+  "version": "1.0.0",
+  "description": "Iris frontend service for LocalFinance",
+  "main": "server/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "node server/index.js",
+    "client": "cd client && npm start",
+    "install:all": "npm install && cd client && npm install",
+    "build": "cd client && npm run build",
+    "start": "NODE_ENV=production node server/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "multer": "^1.4.5-lts.1",
+    "jsonwebtoken": "^9.0.0",
+    "dotenv": "^16.0.3",
+    "axios": "^1.4.0",
+    "concurrently": "^8.0.0",
+    "path": "^0.12.7",
+    "helmet": "^7.0.0",
+    "compression": "^1.7.4"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": [
+    "localfinance",
+    "iris",
+    "frontend",
+    "react",
+    "express"
+  ],
+  "author": "LocalFinance Team",
+  "license": "MIT"
+}

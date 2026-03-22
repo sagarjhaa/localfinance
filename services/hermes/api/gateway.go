@@ -7,12 +7,24 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/sagarjhaa/localfinance/services/hermes/auth"
 	"github.com/sagarjhaa/localfinance/services/hermes/config"
 )
 
-// SetupRoutes configures the API gateway and frontend routes
+// SetupRoutes configures the API gateway and frontend routes with authentication
 func SetupRoutes(router *gin.Engine, cfg *config.Config) {
+	// CORS configuration for frontend
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowOrigins = []string{"http://localhost:3000", "http://localhost:3001"}
+	corsConfig.AllowCredentials = true
+	corsConfig.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization"}
+	router.Use(cors.New(corsConfig))
+
+	// Initialize auth proxy
+	authProxy := auth.NewAuthProxy(cfg)
+
 	// Serve static frontend files
 	router.Static("/static", "./frontend/build/static")
 	router.StaticFile("/favicon.ico", "./frontend/build/favicon.ico")
@@ -20,28 +32,51 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 	// API Gateway routes
 	api := router.Group("/api")
 	{
-		// Thesaurus (CRUD/Database) service routes
-		api.Any("/v1/transactions/*path", proxyToService(cfg.Services.Thesaurus))
-		api.Any("/v1/accounts/*path", proxyToService(cfg.Services.Thesaurus))
-		api.Any("/v1/budgets/*path", proxyToService(cfg.Services.Thesaurus))
-		api.Any("/v1/users/*path", proxyToService(cfg.Services.Thesaurus))
+		// Public authentication routes (no auth required)
+		authRoutes := api.Group("/auth")
+		{
+			authRoutes.POST("/login", authProxy.LoginHandler)
+			authRoutes.POST("/register", authProxy.RegisterHandler)
+			authRoutes.POST("/validate", authProxy.ValidateHandler)
+		}
 
-		// Sophia (AI) service routes  
-		api.Any("/v1/ai/*path", proxyToService(cfg.Services.Sophia))
-		api.Any("/v1/insights/*path", proxyToService(cfg.Services.Sophia))
-		api.Any("/v1/chat/*path", proxyToService(cfg.Services.Sophia))
+		// Protected authentication routes (require auth)
+		authProtected := api.Group("/auth")
+		authProtected.Use(authProxy.AuthMiddleware())
+		{
+			authProtected.POST("/logout", authProxy.LogoutHandler)
+			authProtected.POST("/refresh", authProxy.RefreshHandler)
+			authProtected.POST("/change-password", authProxy.ChangePasswordHandler)
+		}
 
-		// Logos (Document Processing) service routes
-		api.Any("/v1/documents/*path", proxyToService(cfg.Services.Logos))
-		api.Any("/v1/upload/*path", proxyToService(cfg.Services.Logos))
-		api.Any("/v1/processing/*path", proxyToService(cfg.Services.Logos))
+		// Protected API routes (require authentication)
+		protected := api.Group("/v1")
+		protected.Use(authProxy.AuthMiddleware())
+		{
+			// Thesaurus (CRUD/Database) service routes
+			protected.Any("/transactions/*path", proxyToService(cfg.Services.Thesaurus, "/api/v1/transactions"))
+			protected.Any("/accounts/*path", proxyToService(cfg.Services.Thesaurus, "/api/v1/accounts"))
+			protected.Any("/budgets/*path", proxyToService(cfg.Services.Thesaurus, "/api/v1/budgets"))
+			protected.Any("/users/*path", proxyToService(cfg.Services.Thesaurus, "/api/v1/users"))
+
+			// Sophia (AI) service routes  
+			protected.Any("/ai/*path", proxyToService(cfg.Services.Sophia, "/api/v1"))
+			protected.Any("/insights/*path", proxyToService(cfg.Services.Sophia, "/api/v1/insights"))
+			protected.Any("/chat/*path", proxyToService(cfg.Services.Sophia, "/api/v1/chat"))
+			protected.Any("/categorize/*path", proxyToService(cfg.Services.Sophia, "/api/v1/categorize"))
+
+			// Logos (Document Processing) service routes
+			protected.Any("/documents/*path", proxyToService(cfg.Services.Logos, "/api/v1/documents"))
+			protected.Any("/upload/*path", proxyToService(cfg.Services.Logos, "/api/v1/upload"))
+			protected.Any("/processing/*path", proxyToService(cfg.Services.Logos, "/api/v1/processing"))
+		}
 	}
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":   "healthy",
-			"service":  "hermes",
+			"service":  "hermes-gateway",
 			"services": gin.H{
 				"thesaurus": cfg.Services.Thesaurus + "/health",
 				"sophia":    cfg.Services.Sophia + "/health",
@@ -63,8 +98,8 @@ func SetupRoutes(router *gin.Engine, cfg *config.Config) {
 	})
 }
 
-// proxyToService creates a reverse proxy to a backend service
-func proxyToService(serviceURL string) gin.HandlerFunc {
+// proxyToService creates a reverse proxy to a backend service with path rewriting
+func proxyToService(serviceURL, targetPath string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		remote, err := url.Parse(serviceURL)
 		if err != nil {
@@ -75,39 +110,26 @@ func proxyToService(serviceURL string) gin.HandlerFunc {
 		// Create reverse proxy
 		proxy := httputil.NewSingleHostReverseProxy(remote)
 		
-		// Modify the request
-		c.Request.URL.Host = remote.Host
-		c.Request.URL.Scheme = remote.Scheme
-		c.Request.Header.Set("X-Forwarded-Host", c.Request.Header.Get("Host"))
-		c.Request.Host = remote.Host
-
-		// Custom director to handle path rewriting
+		// Custom director to handle path rewriting and auth forwarding
 		proxy.Director = func(req *http.Request) {
 			req.URL.Scheme = remote.Scheme
 			req.URL.Host = remote.Host
 			
-			// Remove the service prefix from the path
+			// Rewrite the path to target service path
 			originalPath := req.URL.Path
-			if strings.HasPrefix(originalPath, "/api/v1/ai") {
-				req.URL.Path = strings.Replace(originalPath, "/api/v1/ai", "/api/v1", 1)
-			} else if strings.HasPrefix(originalPath, "/api/v1/documents") {
-				req.URL.Path = strings.Replace(originalPath, "/api/v1/documents", "/api/v1", 1)
-			} else if strings.HasPrefix(originalPath, "/api/v1/upload") {
-				req.URL.Path = strings.Replace(originalPath, "/api/v1/upload", "/api/v1", 1)
-			} else if strings.HasPrefix(originalPath, "/api/v1/processing") {
-				req.URL.Path = strings.Replace(originalPath, "/api/v1/processing", "/api/v1", 1)
-			} else if strings.HasPrefix(originalPath, "/api/v1/insights") {
-				req.URL.Path = strings.Replace(originalPath, "/api/v1/insights", "/api/v1", 1)
-			} else if strings.HasPrefix(originalPath, "/api/v1/chat") {
-				req.URL.Path = strings.Replace(originalPath, "/api/v1/chat", "/api/v1", 1)
-			}
+			pathSuffix := strings.TrimPrefix(originalPath, strings.Split(targetPath, "*")[0])
+			req.URL.Path = targetPath + pathSuffix
+			
+			// Forward authentication headers and user context
+			req.Header.Set("X-Forwarded-Host", req.Header.Get("Host"))
+			req.Host = remote.Host
 		}
 
 		// Handle errors
 		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadGateway)
-			io.WriteString(w, `{"error":"Service unavailable"}`)
+			io.WriteString(w, `{"error":"Backend service unavailable","details":"`+err.Error()+`"}`)
 		}
 
 		// Serve the request

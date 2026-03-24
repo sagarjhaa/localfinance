@@ -21,19 +21,19 @@ app.use(helmet({
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "http://localhost:3000", "http://localhost:3002", "http://localhost:3003", "http://localhost:3004"]
+      connectSrc: ["'self'", "http://localhost:*", "http://10.0.0.16:*"],
+      upgradeInsecureRequests: null
     }
-  }
+  },
+  crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
 // Compression middleware
 app.use(compression());
 
-// CORS configuration
+// CORS configuration — allow local network access
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['http://localhost:3001'] 
-    : ['http://localhost:3000', 'http://localhost:3001'],
+  origin: true,
   credentials: true,
   optionsSuccessStatus: 200
 }));

@@ -1,0 +1,17 @@
+[Unit]
+Description=LocalFinance Sophia (AI Service)
+After=network.target
+
+[Service]
+Type=simple
+User=sagar
+WorkingDirectory=/home/sagar/localfinance
+ExecStart=/home/sagar/localfinance/bin/sophia
+EnvironmentFile=/home/sagar/localfinance/.env
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

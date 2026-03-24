@@ -1,5 +1,0 @@
-{
-    "bot_token": "YOUR_TELEGRAM_BOT_TOKEN_HERE",
-    "db_path": "test_data.db",
-    "model_path": "models/localfinance-v1"
-}

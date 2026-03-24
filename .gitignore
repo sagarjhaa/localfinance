@@ -1,27 +1,10 @@
-# Virtual environment
-.venv/
-.venv-mlx/
-venv/
-env/
+# Build artifacts
+dist/
+*.exe
 
-# Python cache
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Model files (large binaries)
-models/
-*.gguf
-*.safetensors
-
-# Training artifacts
-training/train.log
-*.pt
-*.bin
-
-# Local data
-*.db
-test_data.db
+# Node
+node_modules/
+services/iris/client/build/
 
 # IDE
 .idea/
@@ -33,25 +16,23 @@ test_data.db
 Thumbs.db
 
 # Logs
-logs/*.log
-.bot.pid
+logs/
+*.log
 
 # Config with secrets
+.env
 config.json
+deployment/jetson.env
 
-# Build artifacts and binaries
-dist/
-*.exe
-
-# Sensitive Data - Never Commit
+# Data - Never commit
 data/
-inbox/statements/*.pdf
-inbox/processed/*.pdf  
-inbox/failed/*.csv
-inbox/**/*.pdf
-inbox/**/*.csv
 *.db
-**/finances.db
+inbox/
 personal_*
 private_*
 sensitive_*
+
+# Models (large binaries)
+models/
+*.gguf
+*.safetensors

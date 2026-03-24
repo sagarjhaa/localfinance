@@ -1,0 +1,19 @@
+[Unit]
+Description=LocalFinance Iris (Web Dashboard)
+After=network.target
+
+[Service]
+Type=simple
+User=sagar
+WorkingDirectory=/home/sagar/localfinance/iris
+ExecStart=/home/sagar/localfinance/iris/node/bin/node server/index.js
+EnvironmentFile=/home/sagar/localfinance/.env
+Environment=NODE_ENV=production
+Environment=PATH=/home/sagar/localfinance/iris/node/bin:/usr/local/bin:/usr/bin:/bin
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

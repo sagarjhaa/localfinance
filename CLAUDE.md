@@ -1,5 +1,35 @@
 # LocalFinance - Privacy-First Personal Finance Assistant
 
+## Architecture Principles
+
+### Iris is a DUMB Frontend
+Iris (React + Express) is a **pure presentation layer**. It serves static files and proxies API calls to backend services. It NEVER:
+- Parses files (CSV, PDF, Excel)
+- Transforms or processes data
+- Runs business logic
+- Stores state beyond auth tokens
+
+All processing happens in Go backend services (Thesaurus, Logos, Sophia).
+
+### Document Processing Flow
+```
+User drops file in browser
+  → Iris proxies multipart upload to Thesaurus
+  → Thesaurus stores document record (status=processing), saves file, fires to Logos
+  → Logos parses CSV/PDF, extracts transactions, sends to Thesaurus /transactions/bulk
+  → Logos updates document status to "processed"
+  → Iris polls GET /documents/:id until status=processed
+  → Iris fetches GET /transactions/by-document?document_id=:id
+  → React renders transaction table
+```
+
+### Service Responsibilities
+- **Iris** (port 3001): React UI + Express proxy. Zero business logic.
+- **Hermes** (port 3000): API Gateway (future routing/aggregation)
+- **Thesaurus** (port 8001): Auth, CRUD, PostgreSQL. Source of truth for all data.
+- **Logos** (port 8003): Document parsing (CSV, PDF). Stateless processor.
+- **Sophia** (port 8002): AI/Ollama integration for insights.
+
 ## Project Overview
 
 LocalFinance is a complete privacy-first personal finance management system designed for local deployment on NVIDIA Jetson devices. The system provides AI-powered financial insights while ensuring all data processing remains local, with no cloud dependencies.

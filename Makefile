@@ -142,6 +142,28 @@ $(foreach svc,$(GO_SERVICES) iris,$(eval $(call LOGS_SERVICE,$(svc))))
 ssh:
 	@sshpass -p $(JETSON_PASS) ssh -o StrictHostKeyChecking=no $(JETSON_USER)@$(JETSON_HOST)
 
+# ─── Tests ──────────────────────────────────────────────
+
+.PHONY: test test-thesaurus test-logos test-iris
+
+test: test-thesaurus test-logos test-iris
+	@echo "✅ All tests passed"
+
+test-thesaurus:
+	@echo "🧪 Testing Thesaurus (Go)..."
+	@cd services/thesaurus && go test ./... -v -count=1 2>&1 | tail -40
+	@echo ""
+
+test-logos:
+	@echo "🧪 Testing Logos (Go — CSV & PDF parsers)..."
+	@cd services/logos && go test ./... -v -count=1 2>&1 | tail -40
+	@echo ""
+
+test-iris:
+	@echo "🧪 Testing Iris (auth routes)..."
+	@cd services/iris && PATH=$(NODE_BIN):$$PATH node server/__tests__/auth-routes.test.js
+	@echo ""
+
 # ─── Help ───────────────────────────────────────────────
 
 .PHONY: help
@@ -160,6 +182,12 @@ help:
 	@echo ""
 	@echo "Setup:"
 	@echo "  make setup-jetson       First-time Jetson setup (dirs, systemd, .env)"
+	@echo ""
+	@echo "Test:"
+	@echo "  make test               Run all tests"
+	@echo "  make test-thesaurus     Run Thesaurus Go tests (auth, models)"
+	@echo "  make test-logos         Run Logos Go tests (CSV & PDF parsers)"
+	@echo "  make test-iris          Run Iris Node tests (auth routes)"
 	@echo ""
 	@echo "Monitor:"
 	@echo "  make status             Check health of all services"

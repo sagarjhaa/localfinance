@@ -51,10 +51,17 @@ apiClient.interceptors.response.use(
 // Auth API
 export const authAPI = {
   login: (credentials) => apiClient.post('/auth/login', credentials),
+  register: (data) => apiClient.post('/auth/register', data),
   logout: () => apiClient.post('/auth/logout'),
   getMe: () => apiClient.get('/auth/me'),
   refresh: () => apiClient.post('/auth/refresh'),
   validate: (token) => apiClient.post('/auth/validate', { token }),
+};
+
+// Document API (polling for processing status)
+export const documentAPI = {
+  getStatus: (documentId) => apiClient.get(`/upload/status/${documentId}`),
+  getTransactions: (documentId) => apiClient.get('/upload/transactions', { params: { document_id: documentId } }),
 };
 
 // Upload API

@@ -21,7 +21,7 @@ app.use(helmet({
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "http://localhost:*", "http://10.0.0.16:*"],
+      connectSrc: ["'self'", "http://localhost:*", "http://10.0.0.*:*"],
       upgradeInsecureRequests: null
     }
   },

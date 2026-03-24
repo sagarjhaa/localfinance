@@ -34,6 +34,118 @@ func (h *TransactionHandler) CreateTransaction(c *gin.Context) {
 	c.JSON(http.StatusCreated, transaction)
 }
 
+// CreateBulkTransactions creates transactions and optionally processes statement metadata
+func (h *TransactionHandler) CreateBulkTransactions(c *gin.Context) {
+	var req struct {
+		AccountID    uuid.UUID            `json:"account_id" binding:"required"`
+		Transactions []models.Transaction `json:"transactions" binding:"required"`
+		Metadata     *struct {
+			AccountType     string  `json:"account_type"`
+			Institution     string  `json:"institution"`
+			AccountNumber   string  `json:"account_number"`
+			PeriodStart     *string `json:"period_start"`
+			PeriodEnd       *string `json:"period_end"`
+			PaymentDueDate  *string `json:"payment_due_date"`
+			PaymentDueDay   int     `json:"payment_due_day"`
+			CreditLimit     float64 `json:"credit_limit"`
+			MinPaymentDue   float64 `json:"min_payment_due"`
+			OpeningBalance  float64 `json:"opening_balance"`
+			ClosingBalance  float64 `json:"closing_balance"`
+			BillingCycleDay int     `json:"billing_cycle_day"`
+		} `json:"metadata"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Set account_id on all transactions
+	for i := range req.Transactions {
+		req.Transactions[i].AccountID = req.AccountID
+	}
+
+	if err := h.db.Create(&req.Transactions).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create transactions"})
+		return
+	}
+
+	// Update account with detected metadata
+	if req.Metadata != nil {
+		updates := map[string]interface{}{}
+		if req.Metadata.AccountType != "" {
+			updates["type"] = req.Metadata.AccountType
+		}
+		if req.Metadata.Institution != "" {
+			updates["institution"] = req.Metadata.Institution
+		}
+		if req.Metadata.AccountNumber != "" {
+			updates["account_number"] = req.Metadata.AccountNumber
+		}
+		if req.Metadata.CreditLimit > 0 {
+			updates["credit_limit"] = req.Metadata.CreditLimit
+		}
+		if req.Metadata.PaymentDueDay > 0 {
+			updates["payment_due_day"] = req.Metadata.PaymentDueDay
+		}
+		if req.Metadata.BillingCycleDay > 0 {
+			updates["billing_cycle_day"] = req.Metadata.BillingCycleDay
+		}
+		if len(updates) > 0 {
+			h.db.Model(&models.Account{}).Where("id = ?", req.AccountID).Updates(updates)
+		}
+
+		// Create StatementPeriod record
+		documentID := ""
+		if len(req.Transactions) > 0 {
+			documentID = req.Transactions[0].DocumentID
+		}
+
+		var totalCredits, totalDebits float64
+		for _, t := range req.Transactions {
+			if t.Amount > 0 {
+				totalCredits += t.Amount
+			} else {
+				totalDebits += t.Amount
+			}
+		}
+
+		period := models.StatementPeriod{
+			AccountID:        req.AccountID,
+			DocumentID:       documentID,
+			OpeningBalance:   req.Metadata.OpeningBalance,
+			ClosingBalance:   req.Metadata.ClosingBalance,
+			TotalCredits:     totalCredits,
+			TotalDebits:      totalDebits,
+			MinPaymentDue:    req.Metadata.MinPaymentDue,
+			TransactionCount: len(req.Transactions),
+		}
+
+		if req.Metadata.PeriodStart != nil {
+			if t, err := time.Parse(time.RFC3339, *req.Metadata.PeriodStart); err == nil {
+				period.PeriodStart = t
+			}
+		}
+		if req.Metadata.PeriodEnd != nil {
+			if t, err := time.Parse(time.RFC3339, *req.Metadata.PeriodEnd); err == nil {
+				period.PeriodEnd = t
+			}
+		}
+		if req.Metadata.PaymentDueDate != nil {
+			if t, err := time.Parse(time.RFC3339, *req.Metadata.PaymentDueDate); err == nil {
+				period.PaymentDueDate = &t
+			}
+		}
+
+		h.db.Create(&period)
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message":      "Transactions created",
+		"count":        len(req.Transactions),
+		"transactions": req.Transactions,
+	})
+}
+
 func (h *TransactionHandler) GetTransaction(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {

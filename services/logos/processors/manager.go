@@ -31,7 +31,6 @@ func NewManager() *Manager {
 	// Register available processors
 	manager.RegisterProcessor(&CSVProcessor{})
 	manager.RegisterProcessor(&PDFProcessor{})
-	manager.RegisterProcessor(&ExcelProcessor{})
 
 	return manager
 }
@@ -52,11 +51,6 @@ func (m *Manager) ProcessDocument(file io.Reader, filename string) (models.Proce
 	processor, exists := m.processors[fileType]
 	if !exists {
 		return models.ProcessingResult{}, fmt.Errorf("unsupported file type: %s", fileType)
-	}
-
-	// Validate file format
-	if err := processor.ValidateFormat(file); err != nil {
-		return models.ProcessingResult{}, fmt.Errorf("invalid file format: %w", err)
 	}
 
 	// Process document to extract transactions

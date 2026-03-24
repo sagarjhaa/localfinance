@@ -1,245 +1,96 @@
 const express = require('express');
 const multer = require('multer');
-const path = require('path');
+const axios = require('axios');
+const FormData = require('form-data');
 const fs = require('fs');
+const path = require('path');
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
+const THESAURUS_URL = process.env.THESAURUS_URL || 'http://localhost:8001';
 
-// Create uploads directory if it doesn't exist
-const uploadsDir = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    // Create user-specific directory
-    const userDir = path.join(uploadsDir, req.user.username);
-    if (!fs.existsSync(userDir)) {
-      fs.mkdirSync(userDir, { recursive: true });
-    }
-    cb(null, userDir);
-  },
-  filename: (req, file, cb) => {
-    // Generate unique filename with timestamp
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const extension = path.extname(file.originalname);
-    const baseName = path.basename(file.originalname, extension);
-    cb(null, `${baseName}-${uniqueSuffix}${extension}`);
-  }
-});
-
-// File filter for allowed file types
-const fileFilter = (req, file, cb) => {
-  const allowedTypes = [
-    'text/csv',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'text/plain',
-    'application/json',
-    'application/pdf'
-  ];
-
-  const allowedExtensions = ['.csv', '.xlsx', '.xls', '.txt', '.json', '.pdf'];
-  const fileExtension = path.extname(file.originalname).toLowerCase();
-
-  if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(fileExtension)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Invalid file type. Only CSV, Excel, TXT, JSON, and PDF files are allowed.'), false);
-  }
-};
-
-const upload = multer({
-  storage: storage,
-  fileFilter: fileFilter,
-  limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit
-    files: 10 // Max 10 files per request
-  }
-});
+// Temp storage — file is immediately forwarded to Thesaurus then deleted
+const upload = multer({ dest: path.join(__dirname, '../uploads') });
 
 /**
  * POST /api/upload/single
- * Upload a single file
+ * Proxy file upload to Thesaurus. Returns document_id for polling.
+ * Iris does NO parsing — that's Logos' job.
  */
-router.post('/single', authenticateToken, upload.single('file'), (req, res) => {
+router.post('/single', authenticateToken, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({
-        message: 'No file uploaded',
-        code: 'NO_FILE'
-      });
+      return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    const fileInfo = {
-      id: Date.now().toString(),
-      originalName: req.file.originalname,
-      filename: req.file.filename,
-      size: req.file.size,
-      mimetype: req.file.mimetype,
-      path: req.file.path,
-      uploadedBy: req.user.username,
-      uploadedAt: new Date().toISOString(),
-      status: 'uploaded'
-    };
+    // Forward the file to Thesaurus as multipart
+    const form = new FormData();
+    form.append('file', fs.createReadStream(req.file.path), req.file.originalname);
 
-    res.json({
-      message: 'File uploaded successfully',
-      file: fileInfo
+    const response = await axios.post(`${THESAURUS_URL}/api/v1/upload`, form, {
+      headers: {
+        ...form.getHeaders(),
+        'Authorization': req.headers.authorization,
+      },
+      timeout: 30000,
+      maxContentLength: 50 * 1024 * 1024,
     });
 
+    // Clean up temp file
+    fs.unlink(req.file.path, () => {});
+
+    res.status(response.status).json(response.data);
   } catch (error) {
-    console.error('File upload error:', error);
-    res.status(500).json({
-      message: 'File upload failed',
-      code: 'UPLOAD_ERROR'
-    });
+    // Clean up temp file on error
+    if (req.file) fs.unlink(req.file.path, () => {});
+
+    if (error.response) {
+      return res.status(error.response.status).json(error.response.data);
+    }
+    console.error('Upload proxy error:', error.message);
+    res.status(503).json({ message: 'Upload service unavailable' });
   }
 });
 
 /**
- * POST /api/upload/multiple
- * Upload multiple files
+ * GET /api/upload/status/:documentId
+ * Proxy document status check to Thesaurus
  */
-router.post('/multiple', authenticateToken, upload.array('files', 10), (req, res) => {
+router.get('/status/:documentId', authenticateToken, async (req, res) => {
   try {
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({
-        message: 'No files uploaded',
-        code: 'NO_FILES'
-      });
-    }
-
-    const filesInfo = req.files.map(file => ({
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      originalName: file.originalname,
-      filename: file.filename,
-      size: file.size,
-      mimetype: file.mimetype,
-      path: file.path,
-      uploadedBy: req.user.username,
-      uploadedAt: new Date().toISOString(),
-      status: 'uploaded'
-    }));
-
-    res.json({
-      message: `${req.files.length} files uploaded successfully`,
-      files: filesInfo,
-      count: req.files.length
-    });
-
+    const response = await axios.get(
+      `${THESAURUS_URL}/api/v1/documents/${req.params.documentId}`,
+      { timeout: 5000 }
+    );
+    res.json(response.data);
   } catch (error) {
-    console.error('Multiple file upload error:', error);
-    res.status(500).json({
-      message: 'File upload failed',
-      code: 'UPLOAD_ERROR'
-    });
+    if (error.response) {
+      return res.status(error.response.status).json(error.response.data);
+    }
+    res.status(503).json({ message: 'Service unavailable' });
   }
 });
 
 /**
- * GET /api/upload/files
- * List uploaded files for the current user
+ * GET /api/upload/transactions
+ * Proxy transaction query by document_id to Thesaurus
  */
-router.get('/files', authenticateToken, (req, res) => {
+router.get('/transactions', authenticateToken, async (req, res) => {
   try {
-    const userDir = path.join(uploadsDir, req.user.username);
-    
-    if (!fs.existsSync(userDir)) {
-      return res.json({
-        files: [],
-        count: 0
-      });
-    }
-
-    const files = fs.readdirSync(userDir).map(filename => {
-      const filePath = path.join(userDir, filename);
-      const stats = fs.statSync(filePath);
-      
-      return {
-        filename,
-        size: stats.size,
-        uploadedAt: stats.mtime.toISOString(),
-        path: filePath
-      };
-    });
-
-    res.json({
-      files,
-      count: files.length
-    });
-
+    const response = await axios.get(
+      `${THESAURUS_URL}/api/v1/transactions/by-document`,
+      {
+        params: { document_id: req.query.document_id },
+        timeout: 10000,
+      }
+    );
+    res.json(response.data);
   } catch (error) {
-    console.error('File list error:', error);
-    res.status(500).json({
-      message: 'Failed to retrieve file list',
-      code: 'LIST_ERROR'
-    });
-  }
-});
-
-/**
- * DELETE /api/upload/files/:filename
- * Delete a specific file
- */
-router.delete('/files/:filename', authenticateToken, (req, res) => {
-  try {
-    const filename = req.params.filename;
-    const filePath = path.join(uploadsDir, req.user.username, filename);
-
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({
-        message: 'File not found',
-        code: 'FILE_NOT_FOUND'
-      });
+    if (error.response) {
+      return res.status(error.response.status).json(error.response.data);
     }
-
-    fs.unlinkSync(filePath);
-
-    res.json({
-      message: 'File deleted successfully',
-      filename
-    });
-
-  } catch (error) {
-    console.error('File delete error:', error);
-    res.status(500).json({
-      message: 'Failed to delete file',
-      code: 'DELETE_ERROR'
-    });
+    res.status(503).json({ message: 'Service unavailable' });
   }
-});
-
-/**
- * Error handling for multer
- */
-router.use((error, req, res, next) => {
-  if (error instanceof multer.MulterError) {
-    if (error.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({
-        message: 'File too large. Maximum size is 50MB.',
-        code: 'FILE_TOO_LARGE'
-      });
-    }
-    if (error.code === 'LIMIT_FILE_COUNT') {
-      return res.status(400).json({
-        message: 'Too many files. Maximum is 10 files per upload.',
-        code: 'TOO_MANY_FILES'
-      });
-    }
-  }
-
-  if (error.message.includes('Invalid file type')) {
-    return res.status(400).json({
-      message: error.message,
-      code: 'INVALID_FILE_TYPE'
-    });
-  }
-
-  next(error);
 });
 
 module.exports = router;

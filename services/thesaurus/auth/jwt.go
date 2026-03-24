@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -10,9 +11,16 @@ import (
 
 // JWT configuration
 var (
-	jwtSecret = []byte("your-secret-key-change-this-in-production") // TODO: Move to environment variable
-	tokenTTL  = time.Hour * 24 * 7                                 // 7 days
+	tokenTTL = time.Hour * 24 * 7 // 7 days
 )
+
+func getJWTSecret() []byte {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		secret = "localfinance-dev-secret-change-in-production"
+	}
+	return []byte(secret)
+}
 
 // Claims represents the JWT claims
 type Claims struct {
@@ -38,7 +46,7 @@ func GenerateToken(userID uuid.UUID, email string) (string, int64, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(jwtSecret)
+	tokenString, err := token.SignedString(getJWTSecret())
 	if err != nil {
 		return "", 0, err
 	}
@@ -51,7 +59,7 @@ func ValidateToken(tokenString string) (*Claims, error) {
 	claims := &Claims{}
 
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-		return jwtSecret, nil
+		return getJWTSecret(), nil
 	})
 
 	if err != nil {

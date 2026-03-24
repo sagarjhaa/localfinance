@@ -214,3 +214,11 @@ func logJSON(entry LogEntry) {
 }
 
 // GetCorrelationID extracts correlation ID from gin context
+func GetCorrelationID(c *gin.Context) string {
+	if id, exists := c.Get("correlation_id"); exists {
+		if s, ok := id.(string); ok {
+			return s
+		}
+	}
+	return c.GetHeader("X-Correlation-ID")
+}

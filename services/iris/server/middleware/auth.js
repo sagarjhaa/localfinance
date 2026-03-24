@@ -1,80 +1,69 @@
-const jwt = require('jsonwebtoken');
+const axios = require('axios');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'iris-dev-secret-key-change-in-production';
+const THESAURUS_URL = process.env.THESAURUS_URL || 'http://localhost:8001';
 
 /**
- * Middleware to verify JWT tokens
+ * Middleware to verify tokens via Thesaurus auth service
  */
-const authenticateToken = (req, res, next) => {
+const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+  const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ 
+    return res.status(401).json({
       message: 'Access token required',
-      code: 'NO_TOKEN' 
+      code: 'NO_TOKEN'
     });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) {
-      console.error('JWT verification error:', err.message);
-      return res.status(403).json({ 
+  try {
+    const response = await axios.post(`${THESAURUS_URL}/api/v1/auth/validate`, {
+      token
+    }, { timeout: 5000 });
+
+    if (response.data.valid && response.data.user) {
+      req.user = response.data.user;
+      next();
+    } else {
+      res.status(401).json({
         message: 'Invalid or expired token',
-        code: 'INVALID_TOKEN' 
+        code: 'INVALID_TOKEN'
       });
     }
-
-    req.user = user;
-    next();
-  });
+  } catch (error) {
+    console.error('Token validation error:', error.message);
+    res.status(503).json({
+      message: 'Auth service unavailable',
+      code: 'AUTH_SERVICE_DOWN'
+    });
+  }
 };
 
 /**
  * Middleware for optional authentication (non-blocking)
  */
-const optionalAuth = (req, res, next) => {
+const optionalAuth = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
   if (token) {
-    jwt.verify(token, JWT_SECRET, (err, user) => {
-      if (!err) {
-        req.user = user;
+    try {
+      const response = await axios.post(`${THESAURUS_URL}/api/v1/auth/validate`, {
+        token
+      }, { timeout: 5000 });
+
+      if (response.data.valid && response.data.user) {
+        req.user = response.data.user;
       }
-    });
+    } catch (error) {
+      // Silently continue without auth
+    }
   }
 
   next();
 };
 
-/**
- * Generate JWT token
- */
-const generateToken = (payload, options = {}) => {
-  const defaultOptions = {
-    expiresIn: '24h',
-    issuer: 'iris-service'
-  };
-
-  return jwt.sign(payload, JWT_SECRET, { ...defaultOptions, ...options });
-};
-
-/**
- * Verify JWT token
- */
-const verifyToken = (token) => {
-  try {
-    return jwt.verify(token, JWT_SECRET);
-  } catch (error) {
-    throw new Error('Invalid token');
-  }
-};
-
 module.exports = {
   authenticateToken,
-  optionalAuth,
-  generateToken,
-  verifyToken,
-  JWT_SECRET
+  optionalAuth
 };

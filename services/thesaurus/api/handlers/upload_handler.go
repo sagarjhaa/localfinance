@@ -1,231 +1,159 @@
 package handlers
 
 import (
-	"context"
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"gorm.io/gorm"
-
 	"github.com/sagarjhaa/localfinance/services/thesaurus/models"
-	"github.com/sagarjhaa/localfinance/shared"
-	"github.com/sagarjhaa/localfinance/shared/middleware"
+	"gorm.io/gorm"
 )
 
 type UploadHandler struct {
-	db          *gorm.DB
-	logosClient *shared.HTTPClient
+	db       *gorm.DB
+	logosURL string
 }
 
 func NewUploadHandler(db *gorm.DB) *UploadHandler {
-	return &UploadHandler{
-		db:          db,
-		logosClient: shared.NewHTTPClient("thesaurus", "http://logos:8003"),
+	logosURL := os.Getenv("LOGOS_URL")
+	if logosURL == "" {
+		logosURL = "http://localhost:8003"
 	}
+	return &UploadHandler{db: db, logosURL: logosURL}
 }
 
-// UploadDocument handles file upload with correlation ID threading
+// UploadDocument handles file upload, stores document record, fires to Logos
 func (h *UploadHandler) UploadDocument(c *gin.Context) {
-	correlationID := middleware.GetCorrelationID(c)
-	
-	// Log the start of upload processing
-	shared.LogBusinessLogic(correlationID, "thesaurus", "Starting document upload processing")
-
-	// Get user ID from auth middleware
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":          "User not authenticated",
-			"correlation_id": correlationID,
-		})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
-	// Get uploaded file
 	file, err := c.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":          "No file provided",
-			"correlation_id": correlationID,
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No file provided"})
 		return
 	}
 
-	// Validate file
-	if !h.isAllowedFileType(file.Filename) {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":          "File type not allowed",
-			"correlation_id": correlationID,
-		})
+	// Validate file type
+	ext := filepath.Ext(file.Filename)
+	allowed := map[string]bool{".csv": true, ".pdf": true, ".xlsx": true, ".xls": true, ".txt": true}
+	if !allowed[ext] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "File type not allowed"})
 		return
 	}
 
-	// Create document record  
-	documentID := fmt.Sprintf("doc_%s", uuid.New().String()[:16])
-	userUUID, err := uuid.Parse(userID.(string))
+	// Ensure user has a default account
+	uid := userID.(uuid.UUID)
+	accountID, err := h.ensureAccount(uid)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":          "Invalid user ID",
-			"correlation_id": correlationID,
-		})
-		return
-	}
-	
-	document := models.Document{
-		ID:               documentID,
-		UserID:          userUUID,
-		Filename:        file.Filename,
-		OriginalFilename: file.Filename,
-		FileSize:        file.Size,
-		Status:          "uploaded",
-		CorrelationID:   correlationID, // Store correlation ID with document
-	}
-
-	// Save to database
-	if err := h.db.Create(&document).Error; err != nil {
-		shared.LogDatabaseError(correlationID, "thesaurus", "create document", err)
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":          "Failed to save document",
-			"correlation_id": correlationID,
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user account"})
 		return
 	}
 
-	// Save file to disk (this would normally be done more securely)
-	filePath := fmt.Sprintf("/tmp/%s_%s", documentID, file.Filename)
+	// Save file to disk
+	uploadDir := "/tmp/localfinance/uploads"
+	os.MkdirAll(uploadDir, 0755)
+	documentID := fmt.Sprintf("doc_%s", uuid.New().String()[:16])
+	filePath := filepath.Join(uploadDir, fmt.Sprintf("%s_%s", documentID, file.Filename))
+
 	if err := c.SaveUploadedFile(file, filePath); err != nil {
-		shared.LogEntry{
-			CorrelationID: correlationID,
-			ServiceName:   "thesaurus",
-			Type:          "file_error",
-			Message:       fmt.Sprintf("Failed to save file: %v", err),
-			Path:          c.Request.URL.Path,
-			Timestamp:     time.Now().Format(time.RFC3339Nano),
-		}.Log("")
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":          "Failed to save file",
-			"correlation_id": correlationID,
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
 		return
 	}
 
-	// Send to Logos service for processing with correlation ID
-	processingRequest := map[string]interface{}{
-		"document_id":    documentID,
-		"file_path":      filePath,
-		"file_type":      getFileExtension(file.Filename),
-		"user_id":        userID,
-		"correlation_id": correlationID,
+	// Create document record
+	doc := models.Document{
+		ID:               documentID,
+		UserID:           uid,
+		Filename:         file.Filename,
+		OriginalFilename: file.Filename,
+		FileSize:         file.Size,
+		Status:           "processing",
 	}
 
-	ctx := context.Background()
-	opts := &shared.RequestOptions{
-		CorrelationID: correlationID,
-		Headers: map[string]string{
-			"X-Request-Source": "thesaurus-upload",
-		},
+	if err := h.db.Create(&doc).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create document record"})
+		return
 	}
 
-	// Call Logos service asynchronously
-	go func() {
-		shared.LogServiceCall(correlationID, "thesaurus", "logos", "/api/process/document")
-		
-		resp, err := h.logosClient.Post(ctx, "/api/process/document", processingRequest, opts)
-		if err != nil {
-			shared.LogServiceError(correlationID, "thesaurus", "logos", err)
+	// Fire to Logos for processing (async)
+	go h.sendToLogos(documentID, filePath, ext, uid, accountID)
 
-			// Update document status to error
-			h.db.Model(&document).Updates(map[string]interface{}{
-				"status":        "error",
-				"error_message": fmt.Sprintf("Processing service unavailable: %v", err),
-			})
-			return
-		}
-		resp.Body.Close()
-
-		shared.LogBusinessLogic(correlationID, "thesaurus", "Successfully sent document to Logos for processing")
-	}()
-
-	// Return success response
-	c.JSON(http.StatusOK, gin.H{
-		"message":        "File uploaded successfully",
-		"document_id":    documentID,
-		"filename":       file.Filename,
-		"status":         "processing",
-		"correlation_id": correlationID,
+	c.JSON(http.StatusAccepted, gin.H{
+		"message":     "File uploaded, processing started",
+		"document_id": documentID,
+		"filename":    file.Filename,
+		"status":      "processing",
 	})
-
-	shared.LogBusinessLogic(correlationID, "thesaurus", "Document upload processing completed successfully")
 }
 
-// GetProcessingStatus returns the processing status of a document
+func (h *UploadHandler) ensureAccount(userID uuid.UUID) (uuid.UUID, error) {
+	var account models.Account
+	err := h.db.Where("user_id = ?", userID).First(&account).Error
+	if err == nil {
+		return account.ID, nil
+	}
+
+	// Create default account
+	account = models.Account{
+		UserID:   userID,
+		Name:     "Primary Account",
+		Type:     "checking",
+		Currency: "INR",
+		IsActive: true,
+	}
+	if err := h.db.Create(&account).Error; err != nil {
+		return uuid.Nil, err
+	}
+	return account.ID, nil
+}
+
+func (h *UploadHandler) sendToLogos(documentID, filePath, fileType string, userID, accountID uuid.UUID) {
+	payload, _ := json.Marshal(map[string]interface{}{
+		"document_id": documentID,
+		"file_path":   filePath,
+		"file_type":   fileType,
+		"user_id":     userID,
+		"account_id":  accountID,
+	})
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Post(h.logosURL+"/api/v1/process", "application/json", bytes.NewReader(payload))
+	if err != nil {
+		log.Printf("[%s] Failed to send to Logos: %v", documentID, err)
+		h.db.Model(&models.Document{}).Where("id = ?", documentID).Updates(map[string]interface{}{
+			"status":        "error",
+			"error_message": fmt.Sprintf("Logos service unavailable: %v", err),
+		})
+		return
+	}
+	defer resp.Body.Close()
+	log.Printf("[%s] Sent to Logos, status: %d", documentID, resp.StatusCode)
+}
+
+// GetProcessingStatus returns document processing status
 func (h *UploadHandler) GetProcessingStatus(c *gin.Context) {
-	correlationID := middleware.GetCorrelationID(c)
 	documentID := c.Param("id")
 
-	shared.LogBusinessLogic(correlationID, "thesaurus", fmt.Sprintf("Checking processing status for document: %s", documentID))
-
-	var document models.Document
-	if err := h.db.Where("id = ?", documentID).First(&document).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":          "Document not found",
-			"correlation_id": correlationID,
-		})
+	var doc models.Document
+	if err := h.db.Where("id = ?", documentID).First(&doc).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Document not found"})
 		return
 	}
 
-	// Get status from Logos service if still processing
-	if document.Status == "processing" {
-		ctx := context.Background()
-		opts := &shared.RequestOptions{
-			CorrelationID: correlationID,
-		}
-
-		var statusResp map[string]interface{}
-		err := h.logosClient.GetJSON(ctx, fmt.Sprintf("/api/process/status/%s", documentID), &statusResp, opts)
-		if err == nil && statusResp != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"status":         statusResp["status"],
-				"progress":       statusResp["progress"],
-				"message":        statusResp["message"],
-				"correlation_id": correlationID,
-			})
-			return
-		}
-	}
-
-	// Return status from database
 	c.JSON(http.StatusOK, gin.H{
-		"status":         document.Status,
-		"progress":       100,
-		"message":        "Processing completed",
-		"correlation_id": correlationID,
+		"document_id": doc.ID,
+		"status":      doc.Status,
+		"filename":    doc.Filename,
+		"file_size":   doc.FileSize,
 	})
-}
-
-// Helper functions
-func (h *UploadHandler) isAllowedFileType(filename string) bool {
-	allowedExtensions := []string{".pdf", ".csv", ".xlsx", ".xls"}
-	ext := getFileExtension(filename)
-	
-	for _, allowed := range allowedExtensions {
-		if ext == allowed {
-			return true
-		}
-	}
-	return false
-}
-
-func getFileExtension(filename string) string {
-	for i := len(filename) - 1; i >= 0; i-- {
-		if filename[i] == '.' {
-			return filename[i:]
-		}
-	}
-	return ""
 }

@@ -1,312 +1,321 @@
-import React, { useState, useEffect } from 'react';
-import { proxyAPI, uploadAPI, handleAsync, formatFileSize } from '../api/client';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { uploadAPI, documentAPI } from '../api/client';
+
+const categoryIcons = {
+  Food: '🍽️', Transport: '✈️', Shopping: '🛍️', Entertainment: '🎬',
+  Utilities: '⚡', Housing: '🏠', Income: '💰', Transfer: '↗️',
+  Health: '💊', Cash: '🏧', EMI: '📋', Education: '📚', Other: '⚙️',
+};
 
 const Dashboard = ({ user }) => {
-  const [stats, setStats] = useState({
-    totalFiles: 0,
-    totalSize: 0,
-    recentFiles: [],
-    services: []
-  });
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [documentId, setDocumentId] = useState(null);
+  const [allTransactions, setAllTransactions] = useState([]);
+  const [visibleTransactions, setVisibleTransactions] = useState([]);
+  const [currentTicker, setCurrentTicker] = useState(null);
+  const [revealing, setRevealing] = useState(false);
+  const [error, setError] = useState('');
+  const pollRef = useRef(null);
+  const revealRef = useRef(null);
 
+  // Poll for document status
   useEffect(() => {
-    loadDashboardData();
-  }, []);
+    if (!documentId || !processing) return;
+    const poll = async () => {
+      try {
+        const res = await documentAPI.getStatus(documentId);
+        if (res.data.status === 'processed') {
+          setProcessing(false);
+          const txnRes = await documentAPI.getTransactions(documentId);
+          const txns = txnRes.data.transactions || [];
+          setAllTransactions(txns);
+          if (txns.length > 0) {
+            setRevealing(true);
+            revealTransactionsOneByOne(txns);
+          }
+        } else if (res.data.status === 'error') {
+          setProcessing(false);
+          setError(res.data.error_message || 'Processing failed');
+        }
+      } catch (e) { /* keep polling */ }
+    };
+    pollRef.current = setInterval(poll, 2000);
+    poll();
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [documentId, processing]);
 
-  const loadDashboardData = async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // Load files
-      const { data: filesData, error: filesError } = await handleAsync(
-        () => uploadAPI.getFiles(),
-        'Failed to load files'
-      );
-
-      // Load service health
-      const { data: healthData, error: healthError } = await handleAsync(
-        () => proxyAPI.health(),
-        'Failed to load service status'
-      );
-
-      if (filesError && healthError) {
-        setError('Failed to load dashboard data');
+  // Reveal transactions one by one with ticker animation
+  const revealTransactionsOneByOne = (txns) => {
+    let idx = 0;
+    const reveal = () => {
+      if (idx >= txns.length) {
+        setCurrentTicker(null);
+        setRevealing(false);
         return;
       }
-
-      const files = filesData?.files || [];
-      const services = healthData?.services || [];
-
-      // Calculate stats
-      const totalFiles = files.length;
-      const totalSize = files.reduce((sum, file) => sum + (file.size || 0), 0);
-      const recentFiles = files
-        .sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))
-        .slice(0, 5);
-
-      setStats({
-        totalFiles,
-        totalSize,
-        recentFiles,
-        services
-      });
-    } catch (error) {
-      setError('An unexpected error occurred');
-      console.error('Dashboard load error:', error);
-    } finally {
-      setIsLoading(false);
-    }
+      const txn = txns[idx];
+      setCurrentTicker(txn);
+      setVisibleTransactions(prev => [txn, ...prev]);
+      idx++;
+      revealRef.current = setTimeout(reveal, 600);
+    };
+    reveal();
   };
 
-  const getServiceStatusColor = (status) => {
-    switch (status) {
-      case 'healthy':
-        return 'bg-green-400';
-      case 'unhealthy':
-        return 'bg-red-400';
-      default:
-        return 'bg-gray-400';
-    }
+  useEffect(() => {
+    return () => { if (revealRef.current) clearTimeout(revealRef.current); };
+  }, []);
+
+  const handleDragOver = useCallback((e) => { e.preventDefault(); setIsDragging(true); }, []);
+  const handleDragLeave = useCallback(() => setIsDragging(false), []);
+  const handleDrop = useCallback(async (e) => {
+    e.preventDefault(); setIsDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) await uploadFile(files[0]);
+  }, []);
+
+  const handleBrowse = () => {
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = '.pdf,.csv,.xlsx,.xls,.txt';
+    input.onchange = (e) => {
+      if (e.target.files.length > 0) uploadFile(e.target.files[0]);
+    };
+    input.click();
   };
 
-  const getServiceStatusText = (status) => {
-    switch (status) {
-      case 'healthy':
-        return 'Online';
-      case 'unhealthy':
-        return 'Offline';
-      default:
-        return 'Unknown';
-    }
+  const uploadFile = async (file) => {
+    setUploading(true); setError(''); setAllTransactions([]); setVisibleTransactions([]);
+    setCurrentTicker(null); setDocumentId(null); setRevealing(false);
+    try {
+      const res = await uploadAPI.single(file);
+      if (res.data.document_id) {
+        setDocumentId(res.data.document_id);
+        setProcessing(true);
+      } else { setError('No document ID returned'); }
+    } catch (err) { setError(err.message || 'Upload failed'); }
+    finally { setUploading(false); }
   };
 
-  if (isLoading) {
-    return (
-      <div className="p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="animate-pulse space-y-6">
-            <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="card p-6">
-                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
-                  <div className="h-8 bg-gray-200 rounded w-1/2"></div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const reset = () => {
+    setAllTransactions([]); setVisibleTransactions([]); setCurrentTicker(null);
+    setDocumentId(null); setError(''); setProcessing(false); setRevealing(false);
+    if (pollRef.current) clearInterval(pollRef.current);
+    if (revealRef.current) clearTimeout(revealRef.current);
+  };
 
-  if (error) {
-    return (
-      <div className="p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="card p-8 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
-              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Dashboard</h3>
-            <p className="text-gray-600 mb-4">{error}</p>
-            <button
-              onClick={loadDashboardData}
-              className="btn btn-primary"
-            >
-              Try Again
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const fmtAmt = (a) => {
+    const abs = Math.abs(a);
+    const s = abs.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return a < 0 ? `-$${s}` : `$${s}`;
+  };
+  const fmtDate = (d) => {
+    try { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }); }
+    catch { return d; }
+  };
+
+  const isActive = uploading || processing || revealing;
+  const hasResults = visibleTransactions.length > 0;
 
   return (
-    <div className="p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
+    <div style={S.page}>
+      {/* Sidebar */}
+      <aside style={S.sidebar}>
+        <div style={{ padding: '0 32px', marginBottom: 16 }}>
+          <h1 style={S.sidebarLogo}>LocalFinance</h1>
+          <p style={S.sidebarTier}>Premium Institutional</p>
+        </div>
+        <nav>
+          <a href="#upload" style={S.navActive}>
+            <span style={{ fontSize: 20 }}>&#128196;</span>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>Statement Upload</span>
+          </a>
+          <a href="#vault" style={S.navItem}>
+            <span style={{ fontSize: 20 }}>&#128274;</span>
+            <span style={{ fontSize: 14 }}>The Vault</span>
+          </a>
+          <a href="#chat" style={S.navItem}>
+            <span style={{ fontSize: 20 }}>&#128172;</span>
+            <span style={{ fontSize: 14 }}>Ollama Chat</span>
+          </a>
+        </nav>
+        <div style={S.sidebarFooter}>
+          <div style={S.avatar}>{user?.first_name?.[0] || 'U'}</div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Welcome back, {user?.username}! 👋
-            </h1>
-            <p className="text-gray-600 mt-1">
-              Here's what's happening with your LocalFinance data.
-            </p>
+            <p style={{ fontSize: 12, fontWeight: 700, margin: 0 }}>{user?.first_name} {user?.last_name}</p>
+            <p style={{ fontSize: 10, color: '#a0a0a0', margin: 0 }}>Manage Account</p>
           </div>
-          <button
-            onClick={loadDashboardData}
-            className="btn btn-secondary"
-            disabled={isLoading}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Refresh
-          </button>
         </div>
+      </aside>
 
-        {/* Stats cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Files</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalFiles}</p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+      {/* Main */}
+      <main style={S.main}>
+        {/* Top header */}
+        <header style={S.topBar}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
+            <h2 style={{ fontFamily: "'Newsreader', serif", fontSize: 20, margin: 0 }}>Dashboard</h2>
+            <nav style={{ display: 'flex', gap: 24 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, borderBottom: '2px solid #1A1A1A', paddingBottom: 4 }}>Overview</span>
+              <span style={{ fontSize: 14, color: '#a0a0a0' }}>Analytics</span>
+              <span style={{ fontSize: 14, color: '#a0a0a0' }}>Reports</span>
+            </nav>
+          </div>
+        </header>
+
+        <div style={S.content}>
+          {/* Title */}
+          <header style={{ marginBottom: 48 }}>
+            <h2 style={S.pageTitle}>Statement Ingestion Zone</h2>
+            <p style={{ color: '#737373', maxWidth: 480 }}>Upload your financial records for immediate neural processing and institutional-grade ledgering.</p>
+          </header>
+
+          {error && <div style={S.error}>{error}</div>}
+
+          {/* Rolling Transaction Ticker */}
+          {(isActive || currentTicker) && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+              <div style={S.ticker}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={S.pulseDot} />
+                  <span style={S.tickerLabel}>Real-time Processing</span>
+                </div>
+                {currentTicker && (<>
+                  <div style={{ width: 1, height: 16, background: '#e0e0e0' }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={S.tickerIcon}>{categoryIcons[currentTicker.category] || '⚙️'}</div>
+                    <div>
+                      <p style={{ fontSize: 12, fontWeight: 700, margin: 0 }}>{currentTicker.description}</p>
+                      <p style={{ fontSize: 10, color: '#a0a0a0', margin: 0 }}>{currentTicker.category || 'Processing...'}</p>
+                    </div>
+                    <span style={{ fontFamily: "'Newsreader', serif", fontSize: 14, fontWeight: 500, marginLeft: 16 }}>{fmtAmt(currentTicker.amount)}</span>
+                  </div>
+                </>)}
+                {!currentTicker && isActive && (
+                  <span style={{ fontSize: 12, color: '#a0a0a0', marginLeft: 16 }}>Waiting for Logos to parse...</span>
+                )}
               </div>
             </div>
-          </div>
+          )}
 
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Storage Used</p>
-                <p className="text-2xl font-bold text-gray-900">{formatFileSize(stats.totalSize)}</p>
-              </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Active Services</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {stats.services.filter(s => s.status === 'healthy').length}/{stats.services.length}
+          {/* Drop Zone */}
+          <section style={S.uploadSection}>
+            <div style={{ padding: 16 }}>
+              <div
+                style={{ ...S.dropZone, ...(isDragging ? S.dropZoneActive : {}), ...(isActive ? { opacity: 0.5, pointerEvents: 'none' } : {}) }}
+                onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
+              >
+                <div style={S.uploadIcon}>
+                  {isActive
+                    ? <div style={{ width: 36, height: 36, border: '3px solid #e5e5e5', borderTop: '3px solid #1A1A1A', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                    : <span style={{ fontSize: 36 }}>&#9729;</span>}
+                </div>
+                <h3 style={S.dropTitle}>{isActive ? 'Processing Statement...' : 'Drop PDF or CSV Statements'}</h3>
+                <p style={{ color: '#737373', textAlign: 'center', maxWidth: 380 }}>
+                  {isActive ? 'Logos is extracting and classifying your transactions.' : 'Drag and drop institutional records here for immediate ingestion and neural classification.'}
                 </p>
-              </div>
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12l5 5L20 7" />
-                </svg>
+                {!isActive && <button onClick={handleBrowse} style={S.browseBtn}>Browse Files</button>}
               </div>
             </div>
-          </div>
+          </section>
 
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">User Role</p>
-                <p className="text-2xl font-bold text-gray-900 capitalize">{user?.role || 'User'}</p>
+          {/* Processed Ledger */}
+          {hasResults && (
+            <section style={{ marginTop: 80 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 40 }}>
+                <div>
+                  <h3 style={S.ledgerTitle}>Processed Ledger</h3>
+                  <p style={{ fontSize: 14, color: '#a0a0a0', marginTop: 4 }}>Institutional records post-enrichment</p>
+                </div>
+                <button onClick={reset} style={S.exportBtn}>+ New Upload</button>
               </div>
-              <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
+
+              <div style={S.tableContainer}>
+                <table style={S.table}>
+                  <thead>
+                    <tr style={{ background: 'rgba(245,245,245,0.5)' }}>
+                      <th style={S.th}>Date</th>
+                      <th style={S.th}>Entity / Description</th>
+                      <th style={{ ...S.th, textAlign: 'right' }}>Amount</th>
+                      <th style={S.th}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleTransactions.map((txn, i) => (
+                      <tr key={txn.id || i} style={{ transition: 'all 0.3s', animation: 'fadeIn 0.4s ease-out' }}>
+                        <td style={S.tdDate}>{fmtDate(txn.date)}</td>
+                        <td style={S.tdDesc}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <div style={S.txnIcon}>{categoryIcons[txn.category] || '⚙️'}</div>
+                            <div>
+                              <p style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>{txn.description}</p>
+                              <p style={{ fontSize: 10, color: '#a0a0a0', margin: 0 }}>{txn.category}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={S.tdAmount}>
+                          <span style={{ fontFamily: "'Newsreader', serif", fontWeight: 500, color: txn.amount >= 0 ? '#16a34a' : '#1A1A1A' }}>{fmtAmt(txn.amount)}</span>
+                        </td>
+                        <td style={S.tdStatus}>
+                          <span style={S.verifiedBadge}>Verified</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={S.tableFooter}>
+                  <span style={{ fontSize: 12, color: '#a0a0a0' }}>Showing {visibleTransactions.length} of {allTransactions.length} transactions processed</span>
+                </div>
               </div>
-            </div>
-          </div>
+            </section>
+          )}
         </div>
-
-        {/* Content grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Recent files */}
-          <div className="card">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Recent Files</h3>
-            </div>
-            <div className="p-6">
-              {stats.recentFiles.length > 0 ? (
-                <div className="space-y-4">
-                  {stats.recentFiles.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between py-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 truncate max-w-xs">
-                            {file.filename}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {formatFileSize(file.size)} • {new Date(file.uploadedAt).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  <div className="pt-4 border-t border-gray-200">
-                    <a href="/upload" className="text-sm text-purple-600 hover:text-purple-700 font-medium">
-                      View all files →
-                    </a>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <div className="w-12 h-12 mx-auto bg-gray-100 rounded-lg flex items-center justify-center mb-4">
-                    <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                  </div>
-                  <p className="text-gray-500 text-sm">No files uploaded yet</p>
-                  <a href="/upload" className="btn btn-primary btn-sm mt-4">
-                    Upload Your First File
-                  </a>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Service status */}
-          <div className="card">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Service Health</h3>
-            </div>
-            <div className="p-6">
-              {stats.services.length > 0 ? (
-                <div className="space-y-4">
-                  {stats.services.map((service, index) => (
-                    <div key={index} className="flex items-center justify-between py-2">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-3 h-3 rounded-full ${getServiceStatusColor(service.status)}`}></div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{service.name}</p>
-                          <p className="text-xs text-gray-500">{service.url}</p>
-                        </div>
-                      </div>
-                      <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                        service.status === 'healthy' 
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-red-100 text-red-700'
-                      }`}>
-                        {getServiceStatusText(service.status)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <div className="w-12 h-12 mx-auto bg-gray-100 rounded-lg flex items-center justify-center mb-4">
-                    <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <p className="text-gray-500 text-sm">Service status unavailable</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      </main>
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+      `}</style>
     </div>
   );
+};
+
+const S = {
+  page: { display: 'flex', minHeight: '100vh', fontFamily: "'Manrope', sans-serif", color: '#1A1A1A', background: '#fff' },
+  sidebar: { width: 256, height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 40, background: '#fff', borderRight: '1px solid #f5f5f5', display: 'flex', flexDirection: 'column', paddingTop: 32, paddingBottom: 32 },
+  sidebarLogo: { fontFamily: "'Newsreader', serif", fontSize: 20, fontWeight: 700, margin: 0 },
+  sidebarTier: { fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#a0a0a0', fontWeight: 700, marginTop: 4 },
+  navActive: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: '#1A1A1A', fontWeight: 700, background: '#fafafa', borderRight: '4px solid #1A1A1A', textDecoration: 'none' },
+  navItem: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: '#a0a0a0', textDecoration: 'none' },
+  sidebarFooter: { marginTop: 'auto', padding: '24px 32px', borderTop: '1px solid #f5f5f5', display: 'flex', alignItems: 'center', gap: 12 },
+  avatar: { width: 40, height: 40, borderRadius: '50%', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, textTransform: 'uppercase' },
+  main: { flex: 1, marginLeft: 256, minHeight: '100vh', background: '#fff' },
+  topBar: { position: 'sticky', top: 0, zIndex: 30, background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', borderBottom: '1px solid #f5f5f5', padding: '16px 48px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  content: { maxWidth: 1024, margin: '0 auto', padding: '96px 48px 80px' },
+  pageTitle: { fontFamily: "'Newsreader', serif", fontSize: 48, fontWeight: 500, letterSpacing: '-0.02em', marginBottom: 8 },
+  error: { padding: '12px 20px', background: '#fff7f6', border: '1px solid #fe8983', color: '#752121', borderRadius: 12, fontSize: 14, marginBottom: 24 },
+  ticker: { display: 'inline-flex', alignItems: 'center', gap: 24, padding: '16px 32px', background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(24px)', border: '1px solid #fff', boxShadow: '0 24px 60px -12px rgba(0,0,0,0.12), inset 0 1px 1px rgba(255,255,255,0.8)', borderRadius: 999 },
+  pulseDot: { width: 8, height: 8, borderRadius: '50%', background: '#22c55e', animation: 'pulse 2s infinite' },
+  tickerLabel: { fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 700, color: '#a0a0a0' },
+  tickerIcon: { width: 32, height: 32, borderRadius: 8, background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 },
+  uploadSection: { background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(24px)', border: '1px solid #fff', boxShadow: '0 24px 60px -12px rgba(0,0,0,0.12), inset 0 1px 1px rgba(255,255,255,0.8)', borderRadius: 24, overflow: 'hidden', marginBottom: 0 },
+  dropZone: { border: '2px dashed #e0e0e0', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '96px 48px', background: 'rgba(255,255,255,0.4)', cursor: 'pointer', transition: 'all 0.3s' },
+  dropZoneActive: { borderColor: '#1A1A1A', background: 'rgba(245,245,245,0.6)' },
+  uploadIcon: { width: 80, height: 80, borderRadius: '50%', background: '#fff', boxShadow: '0 10px 30px rgba(0,0,0,0.1), inset 0 0 0 1px rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 32 },
+  dropTitle: { fontFamily: "'Newsreader', serif", fontSize: 28, marginBottom: 16 },
+  browseBtn: { marginTop: 40, padding: '12px 32px', background: '#1A1A1A', color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', borderRadius: 8, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' },
+  ledgerTitle: { fontFamily: "'Newsreader', serif", fontSize: 28, fontWeight: 500 },
+  exportBtn: { padding: '10px 24px', background: '#1A1A1A', color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', borderRadius: 8, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', gap: 8 },
+  tableContainer: { background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(24px)', borderRadius: 24, border: '1px solid #f5f5f5', overflow: 'hidden' },
+  table: { width: '100%', borderCollapse: 'collapse' },
+  th: { padding: '20px 32px', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 700, color: '#a0a0a0', borderBottom: '1px solid #f5f5f5', textAlign: 'left' },
+  tdDate: { padding: '16px 32px', fontSize: 12, fontWeight: 500, color: '#737373', borderBottom: '1px solid #f5f5f5' },
+  tdDesc: { padding: '16px 32px', borderBottom: '1px solid #f5f5f5' },
+  txnIcon: { width: 32, height: 32, borderRadius: '50%', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 },
+  tdAmount: { padding: '16px 32px', textAlign: 'right', borderBottom: '1px solid #f5f5f5', fontSize: 14 },
+  tdStatus: { padding: '16px 32px', borderBottom: '1px solid #f5f5f5' },
+  verifiedBadge: { display: 'inline-block', padding: '4px 8px', background: '#f0fdf4', color: '#15803d', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', borderRadius: 999 },
+  tableFooter: { padding: '24px 32px', background: 'rgba(250,250,250,0.3)', borderTop: '1px solid #f5f5f5' },
 };
 
 export default Dashboard;

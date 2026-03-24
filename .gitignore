@@ -28,6 +28,11 @@ deployment/jetson.env
 data/
 *.db
 inbox/
+**/uploads/
+*.pdf
+*.csv
+*.xlsx
+*.xls
 personal_*
 private_*
 sensitive_*

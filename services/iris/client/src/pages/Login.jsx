@@ -1,186 +1,190 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { authAPI, setAuthData } from '../api/client';
 
+const s = {
+  page: {
+    minHeight: '100vh',
+    background: '#ffffff',
+    fontFamily: "'Hanken Grotesk', 'Manrope', sans-serif",
+    color: '#2d3435',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  texture: {
+    position: 'fixed', inset: 0, zIndex: 0, opacity: 0.4, pointerEvents: 'none',
+    backgroundColor: '#ffffff',
+    backgroundImage: 'radial-gradient(#e5e7eb 0.5px, transparent 0.5px)',
+    backgroundSize: '24px 24px',
+  },
+  blob1: {
+    position: 'fixed', top: '-5%', right: '-2%', width: '45%', height: '45%',
+    borderRadius: '50%', background: '#fafafa', filter: 'blur(140px)', opacity: 0.8, pointerEvents: 'none',
+  },
+  blob2: {
+    position: 'fixed', bottom: '-10%', left: '-5%', width: '40%', height: '40%',
+    borderRadius: '50%', background: '#f5f5f5', filter: 'blur(120px)', opacity: 0.6, pointerEvents: 'none',
+  },
+  header: {
+    position: 'fixed', top: 0, width: '100%', display: 'flex', justifyContent: 'space-between',
+    alignItems: 'center', padding: '32px 48px', zIndex: 50,
+  },
+  logo: {
+    fontSize: 24, fontFamily: "'Instrument Serif', serif", fontStyle: 'italic',
+    color: '#1A1A1A', letterSpacing: '-0.02em',
+  },
+  headerLabel: {
+    fontSize: 12, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#a0a0a0',
+  },
+  panel: {
+    position: 'relative', zIndex: 10, width: '100%', maxWidth: 800, minHeight: 500,
+    background: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(32px)',
+    WebkitBackdropFilter: 'blur(32px)',
+    borderTop: '1px solid rgba(255, 255, 255, 1)', borderLeft: '1px solid rgba(255, 255, 255, 1)',
+    boxShadow: '0px 32px 100px rgba(0, 0, 0, 0.08)',
+    borderRadius: 24, display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center', padding: '80px',
+  },
+  title: {
+    fontFamily: "'Instrument Serif', serif", fontSize: 56, lineHeight: 1.1,
+    color: '#1A1A1A', fontWeight: 400, letterSpacing: '-0.02em', textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 16, color: '#8C8C8C', marginTop: 12, letterSpacing: '0.04em',
+    fontWeight: 300, textAlign: 'center',
+  },
+  form: { width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 48, marginTop: 64 },
+  input: {
+    width: '100%', background: 'transparent', border: 'none',
+    borderBottom: '1px solid #D1D1D1', padding: '16px 0',
+    fontFamily: "'Courier New', Courier, monospace", fontSize: 12,
+    letterSpacing: '0.1em', color: '#2d3435', outline: 'none', transition: 'border-color 0.2s',
+  },
+  btnWrap: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 32, marginTop: 16,
+  },
+  btn: {
+    width: 240, height: 52, background: '#1A1A1A', color: '#ffffff',
+    fontFamily: "'Hanken Grotesk', sans-serif", fontSize: 13, fontWeight: 600,
+    letterSpacing: '0.15em', border: '1px solid #000', borderRadius: 2,
+    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.4), inset 0 -1px 0 rgba(255,255,255,0.1), 0 1px 2px rgba(0,0,0,0.1)',
+    transition: 'all 0.15s',
+  },
+  btnDisabled: { opacity: 0.6, cursor: 'not-allowed' },
+  links: { display: 'flex', gap: 40 },
+  link: {
+    fontFamily: "'Courier New', monospace", fontSize: 11, color: '#8C8C8C',
+    textDecoration: 'none', borderBottom: '1px solid transparent', paddingBottom: 2,
+    transition: 'all 0.2s',
+  },
+  error: {
+    background: '#fff7f6', border: '1px solid #fe8983', color: '#752121',
+    padding: '12px 16px', borderRadius: 8, fontSize: 13, textAlign: 'center', width: '100%', maxWidth: 420,
+  },
+  footer: {
+    position: 'fixed', bottom: 0, width: '100%', display: 'flex', justifyContent: 'space-between',
+    alignItems: 'center', padding: '40px 48px', zIndex: 50,
+  },
+  footerText: {
+    fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#a0a0a0', fontWeight: 500,
+  },
+};
+
 const Login = ({ onLogin }) => {
-  const [formData, setFormData] = useState({
-    username: '',
-    password: '',
-  });
+  const [formData, setFormData] = useState({ email: '', password: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value,
-    }));
-    // Clear error when user starts typing
-    if (error) {
-      setError('');
-    }
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    if (error) setError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
-
     try {
       const response = await authAPI.login(formData);
       const { user, token } = response.data;
-      
-      // Store auth data
-      setAuthData(token, user);
-      
-      // Call parent callback
-      onLogin(user);
-    } catch (error) {
-      setError(error.message || 'Login failed. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const demoLogin = async (username, password) => {
-    setFormData({ username, password });
-    setIsLoading(true);
-    setError('');
-
-    try {
-      const response = await authAPI.login({ username, password });
-      const { user, token } = response.data;
-      
       setAuthData(token, user);
       onLogin(user);
-    } catch (error) {
-      setError(error.message || 'Demo login failed. Please try again.');
+    } catch (err) {
+      setError(err.message || 'Authentication failed.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen gradient-bg flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        {/* Header */}
-        <div className="text-center">
-          <div className="mx-auto h-16 w-16 flex items-center justify-center bg-white bg-opacity-20 backdrop-blur rounded-full mb-6">
-            <span className="text-3xl">🌈</span>
-          </div>
-          <h2 className="text-3xl font-bold text-white">
-            Welcome to Iris
-          </h2>
-          <p className="mt-2 text-lg text-white text-opacity-90">
-            LocalFinance Frontend Service
-          </p>
+    <div style={s.page}>
+      <div style={s.texture} />
+      <div style={s.blob1} />
+      <div style={s.blob2} />
+
+      <header style={s.header}>
+        <div style={s.logo}>LocalFinance</div>
+        <span style={s.headerLabel}>Institutional Gate</span>
+      </header>
+
+      <main style={s.panel}>
+        <div style={{ textAlign: 'center', marginBottom: 0 }}>
+          <h1 style={s.title}>LocalFinance Sign In</h1>
+          <p style={s.subtitle}>Seamless access to your financial world.</p>
         </div>
 
-        {/* Login form */}
-        <div className="card p-8">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                {error}
-              </div>
-            )}
+        {error && <div style={{ ...s.error, marginTop: 32 }}>{error}</div>}
 
-            <div className="form-group">
-              <label htmlFor="username" className="form-label">
-                Username
-              </label>
-              <input
-                id="username"
-                name="username"
-                type="text"
-                required
-                className="form-input"
-                placeholder="Enter your username"
-                value={formData.username}
-                onChange={handleChange}
-                disabled={isLoading}
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="password" className="form-label">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                className="form-input"
-                placeholder="Enter your password"
-                value={formData.password}
-                onChange={handleChange}
-                disabled={isLoading}
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="btn btn-primary w-full btn-lg"
-              disabled={isLoading}
+        <form onSubmit={handleSubmit} style={s.form}>
+          <div>
+            <input
+              name="email" type="email" required placeholder="ADDRESS@DOMAIN.COM"
+              value={formData.email} onChange={handleChange} disabled={isLoading}
+              style={s.input}
+              onFocus={e => e.target.style.borderColor = '#1A1A1A'}
+              onBlur={e => e.target.style.borderColor = '#D1D1D1'}
+            />
+          </div>
+          <div>
+            <input
+              name="password" type="password" required placeholder="••••••••••••"
+              value={formData.password} onChange={handleChange} disabled={isLoading}
+              style={s.input}
+              onFocus={e => e.target.style.borderColor = '#1A1A1A'}
+              onBlur={e => e.target.style.borderColor = '#D1D1D1'}
+            />
+          </div>
+          <div style={s.btnWrap}>
+            <button type="submit" disabled={isLoading}
+              style={{ ...s.btn, ...(isLoading ? s.btnDisabled : {}) }}
+              onMouseDown={e => { if (!isLoading) e.currentTarget.style.transform = 'scale(0.98)'; }}
+              onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
             >
-              {isLoading ? (
-                <>
-                  <span className="spinner mr-2"></span>
-                  Signing in...
-                </>
-              ) : (
-                'Sign in'
-              )}
+              {isLoading ? 'AUTHENTICATING...' : 'AUTHENTICATE'}
             </button>
-          </form>
-
-          {/* Demo accounts */}
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <h3 className="text-sm font-medium text-gray-900 mb-4 text-center">
-              Demo Accounts
-            </h3>
-            <div className="grid grid-cols-1 gap-3">
-              <button
-                onClick={() => demoLogin('demo', 'demo123')}
-                disabled={isLoading}
-                className="btn btn-secondary w-full"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-                Demo User (demo / demo123)
-              </button>
-              
-              <button
-                onClick={() => demoLogin('admin', 'admin123')}
-                disabled={isLoading}
-                className="btn btn-secondary w-full"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.031 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-                Admin User (admin / admin123)
-              </button>
+            <div style={s.links}>
+              <Link to="/register" style={s.link}
+                onMouseOver={e => { e.target.style.color = '#1A1A1A'; e.target.style.borderColor = '#1A1A1A'; }}
+                onMouseOut={e => { e.target.style.color = '#8C8C8C'; e.target.style.borderColor = 'transparent'; }}
+              >Create Account</Link>
+              <span style={{ ...s.link, cursor: 'default' }}>System Status</span>
             </div>
           </div>
+        </form>
+      </main>
 
-          {/* Footer */}
-          <div className="mt-6 text-center text-sm text-gray-500">
-            <p>
-              Powered by{' '}
-              <span className="font-semibold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                LocalFinance
-              </span>
-            </p>
-          </div>
+      <footer style={s.footer}>
+        <div style={s.footerText}>&copy; 2026 LocalFinance &mdash; Secure Infrastructure</div>
+        <div style={{ display: 'flex', gap: 32 }}>
+          <span style={s.footerText}>Legal</span>
+          <span style={s.footerText}>Privacy</span>
         </div>
-
-        {/* Version info */}
-        <div className="text-center text-white text-opacity-75 text-sm">
-          Iris v1.0 • Built with ❤️ for financial data management
-        </div>
-      </div>
+      </footer>
     </div>
   );
 };

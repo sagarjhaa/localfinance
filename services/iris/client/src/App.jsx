@@ -1,16 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { isAuthenticated, authAPI, clearAuthData } from './api/client';
-import Sidebar from './components/Layout/Sidebar';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
-import Upload from './pages/Upload';
-import Settings from './pages/Settings';
 
 function App() {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -25,7 +22,6 @@ function App() {
       }
       setIsLoading(false);
     };
-
     initializeAuth();
   }, []);
 
@@ -44,18 +40,23 @@ function App() {
     }
   };
 
-  const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
-  };
-
   if (isLoading) {
     return (
-      <div className="min-h-screen gradient-bg flex items-center justify-center">
-        <div className="text-center text-white">
-          <div className="spinner mx-auto mb-4" style={{ width: '40px', height: '40px' }}></div>
-          <h1 className="text-2xl font-semibold mb-2">🌈 Iris</h1>
-          <p>Initializing LocalFinance...</p>
+      <div style={{
+        minHeight: '100vh', background: '#fff', display: 'flex',
+        alignItems: 'center', justifyContent: 'center', fontFamily: "'Manrope', sans-serif",
+      }}>
+        <div style={{ textAlign: 'center', color: '#2d3435' }}>
+          <div style={{
+            width: 40, height: 40, border: '3px solid #e5e7eb', borderTop: '3px solid #5f5e5e',
+            borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px',
+          }} />
+          <h1 style={{ fontFamily: "'Instrument Serif', serif", fontSize: 28, fontStyle: 'italic', margin: 0 }}>
+            LocalFinance
+          </h1>
+          <p style={{ fontSize: 13, color: '#8C8C8C', marginTop: 8 }}>Initializing...</p>
         </div>
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
@@ -65,6 +66,7 @@ function App() {
       <Router>
         <Routes>
           <Route path="/login" element={<Login onLogin={handleLogin} />} />
+          <Route path="/register" element={<Register onLogin={handleLogin} />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Router>
@@ -73,53 +75,11 @@ function App() {
 
   return (
     <Router>
-      <div className="flex h-screen bg-gray-100">
-        {/* Sidebar */}
-        <Sidebar 
-          user={user} 
-          onLogout={handleLogout}
-          isOpen={sidebarOpen}
-          onToggle={toggleSidebar}
-        />
-
-        {/* Main content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Mobile header */}
-          <div className="lg:hidden bg-white shadow-sm border-b border-gray-200 px-4 py-3">
-            <div className="flex items-center justify-between">
-              <button
-                onClick={toggleSidebar}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-              <h1 className="text-xl font-semibold text-gray-900">🌈 Iris</h1>
-              <div className="w-6"></div> {/* Spacer */}
-            </div>
-          </div>
-
-          {/* Main content area */}
-          <main className="flex-1 overflow-x-hidden overflow-y-auto">
-            <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<Dashboard user={user} />} />
-              <Route path="/upload" element={<Upload user={user} />} />
-              <Route path="/settings" element={<Settings user={user} onUserUpdate={setUser} />} />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-          </main>
-        </div>
-
-        {/* Mobile sidebar overlay */}
-        {sidebarOpen && (
-          <div 
-            className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
-            onClick={() => setSidebarOpen(false)}
-          ></div>
-        )}
-      </div>
+      <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={<Dashboard user={user} onLogout={handleLogout} />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
     </Router>
   );
 }

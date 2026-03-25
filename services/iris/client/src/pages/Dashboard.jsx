@@ -7,7 +7,7 @@ const categoryIcons = {
   Health: '💊', Cash: '🏧', EMI: '📋', Education: '📚', Other: '⚙️',
 };
 
-const Dashboard = ({ user }) => {
+const Dashboard = ({ user, onLogout }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -135,16 +135,16 @@ const Dashboard = ({ user }) => {
             <span style={{ fontSize: 20 }}>&#128274;</span>
             <span style={{ fontSize: 14 }}>The Vault</span>
           </a>
-          <a href="#chat" style={S.navItem}>
+          <a href="/chat" style={S.navItem}>
             <span style={{ fontSize: 20 }}>&#128172;</span>
             <span style={{ fontSize: 14 }}>Ollama Chat</span>
           </a>
         </nav>
         <div style={S.sidebarFooter}>
-          <div style={S.avatar}>{user?.first_name?.[0] || 'U'}</div>
-          <div>
-            <p style={{ fontSize: 12, fontWeight: 700, margin: 0 }}>{user?.first_name} {user?.last_name}</p>
-            <p style={{ fontSize: 10, color: '#a0a0a0', margin: 0 }}>Manage Account</p>
+          <div style={S.avatar}>{user?.first_name?.[0] || user?.username?.[0] || 'U'}</div>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, margin: 0 }}>{user?.first_name || user?.username} {user?.last_name || ''}</p>
+            <button onClick={onLogout} style={{ background: 'none', border: 'none', padding: 0, margin: '2px 0 0 0', fontSize: 10, color: '#a0a0a0', cursor: 'pointer', textDecoration: 'underline', fontFamily: "'Manrope', sans-serif" }}>Sign Out</button>
           </div>
         </div>
       </aside>

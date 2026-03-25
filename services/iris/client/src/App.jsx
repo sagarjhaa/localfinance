@@ -4,6 +4,7 @@ import { isAuthenticated, authAPI, clearAuthData } from './api/client';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import Chat from './pages/Chat';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -78,6 +79,8 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard user={user} onLogout={handleLogout} />} />
+
+        <Route path="/chat" element={<Chat user={user} onLogout={handleLogout} />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Router>

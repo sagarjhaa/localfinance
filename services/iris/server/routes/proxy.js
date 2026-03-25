@@ -35,7 +35,7 @@ router.get('/health', optionalAuth, async (req, res) => {
         const response = await axios.get(`${config.url}/health`, {
           timeout: 5000,
           headers: req.user ? { 
-            'Authorization': `Bearer ${req.headers.authorization?.split(' ')[1]}` 
+            'Authorization': `Bearer ${req.headers.authorization ? req.headers.authorization.split(' ')[1] : ''}`
           } : {}
         });
         
@@ -85,8 +85,12 @@ const createProxyHandler = (serviceName) => {
         });
       }
 
-      // Construct target URL
-      const targetPath = req.path.replace(`/${serviceName}`, '');
+      // Construct target URL — req.originalUrl contains full path like /api/proxy/sophia/api/v1/chat/
+      // Strip the /api/proxy/<service> prefix to get the downstream path
+      const prefix = `/api/proxy/${serviceName}`;
+      const targetPath = req.originalUrl.startsWith(prefix)
+        ? req.originalUrl.slice(prefix.length) || '/'
+        : req.path;
       const targetUrl = `${service.url}${targetPath}`;
 
       // Prepare headers
@@ -108,12 +112,15 @@ const createProxyHandler = (serviceName) => {
       }
 
       // Make the proxied request
+      // Sophia/AI requests need longer timeout for Ollama inference on Jetson
+      const timeoutMs = serviceName === 'sophia' ? 120000 : 30000;
+
       const axiosConfig = {
         method: req.method.toLowerCase(),
         url: targetUrl,
         headers,
         params: req.query,
-        timeout: 30000, // 30 second timeout
+        timeout: timeoutMs,
         validateStatus: () => true // Accept any status code
       };
 

@@ -33,12 +33,16 @@ func (h *InsightsHandler) GenerateInsights(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"user_id": request.UserID,
+	response := gin.H{
+		"user_id":  request.UserID,
 		"insights": insights,
-		"period": request.Period,
-		"generated_at": insights[0].CreatedAt,
-	})
+		"period":   request.Period,
+	}
+	if len(insights) > 0 {
+		response["generated_at"] = insights[0].CreatedAt
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func (h *InsightsHandler) GetUserInsights(c *gin.Context) {

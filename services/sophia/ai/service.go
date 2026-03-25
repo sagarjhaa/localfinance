@@ -35,7 +35,7 @@ func NewService(aiConfig config.AIConfig) (*Service, error) {
 	return &Service{
 		config: aiConfig,
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: 120 * time.Second,
 		},
 		thesaurusURL: "", // Will be set via dependency injection
 	}, nil
@@ -191,21 +191,48 @@ func (s *Service) buildFinancialContext(userID string) (models.FinancialContext,
 }
 
 func (s *Service) getUserTransactions(userID string, limit int) ([]models.TransactionRef, error) {
-	// TODO: Implement actual HTTP call to Thesaurus service
-	// For now, return empty slice
-	return []models.TransactionRef{}, nil
+	if s.thesaurusURL == "" {
+		return []models.TransactionRef{}, nil
+	}
+
+	url := fmt.Sprintf("%s/api/v1/transactions?user_id=%s&limit=%d", s.thesaurusURL, userID, limit)
+	resp, err := s.httpClient.Get(url)
+	if err != nil {
+		return []models.TransactionRef{}, fmt.Errorf("failed to fetch transactions: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return []models.TransactionRef{}, nil
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return []models.TransactionRef{}, err
+	}
+
+	var result struct {
+		Transactions []models.TransactionRef `json:"transactions"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return []models.TransactionRef{}, err
+	}
+
+	return result.Transactions, nil
 }
 
 func (s *Service) buildTransactionSummary(transactions []models.TransactionRef) models.TransactionSummary {
 	summary := models.TransactionSummary{
 		TotalTransactions: len(transactions),
-		Categories:       make(map[string]float64),
+		Categories:        make(map[string]float64),
 	}
 
 	for _, tx := range transactions {
-		summary.TotalSpent += tx.Amount
-		if tx.Amount < 0 { // Expense
+		if tx.Amount < 0 {
+			summary.TotalSpent += -tx.Amount
 			summary.Categories[tx.Category] += -tx.Amount
+		} else {
+			summary.TotalIncome += tx.Amount
 		}
 	}
 

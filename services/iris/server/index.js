@@ -63,15 +63,14 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Serve static files from React app in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/build')));
-  
-  // Catch all handler: send back React's index.html file for any non-API routes
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
-  });
-}
+// Serve static files from React app
+const buildPath = path.join(__dirname, '../client/build');
+app.use(express.static(buildPath));
+
+// Catch all handler: send back React's index.html for any non-API routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(buildPath, 'index.html'));
+});
 
 // Error handling middleware
 app.use((error, req, res, next) => {

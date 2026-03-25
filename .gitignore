@@ -37,7 +37,8 @@ personal_*
 private_*
 sensitive_*
 
-# Models (large binaries)
-models/
+# AI model binaries (large files)
 *.gguf
 *.safetensors
+*.bin
+*.onnx

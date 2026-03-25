@@ -390,82 +390,43 @@ func (s *Service) buildDataContext(transactions []models.TransactionRef, summary
 	return sb.String()
 }
 
-// cleanMerchantName extracts a readable merchant name from raw bank descriptions
-// e.g., "CHAATBHAVANSUNNYVA00141302SUNNYVALECA408-795-1100" → "Chaat Bhavan"
+// cleanMerchantName does basic cleanup of raw bank descriptions
+// No hardcoded merchant names or locations — keeps it universal
 func cleanMerchantName(raw string) string {
-	// Remove common suffixes: phone numbers, zip codes, state codes, transaction IDs
 	s := raw
 
-	// Remove phone numbers (XXX-XXX-XXXX patterns)
-	for i := len(s) - 1; i >= 12; i-- {
-		tail := s[i-11:]
-		if len(tail) >= 12 && isPhonePattern(tail[:12]) {
-			s = strings.TrimSpace(s[:i-11])
-			break
-		}
-	}
-
-	// Remove trailing numbers (transaction IDs, zip codes)
-	for len(s) > 0 && (s[len(s)-1] >= '0' && s[len(s)-1] <= '9') {
+	// Remove trailing digits (phone numbers, transaction IDs, zip codes)
+	for len(s) > 3 && s[len(s)-1] >= '0' && s[len(s)-1] <= '9' {
 		s = s[:len(s)-1]
 	}
-	s = strings.TrimSpace(s)
+	s = strings.TrimRight(s, "-. #*_")
 
-	// Remove state abbreviations at end (e.g., "CA", "NY", "VA")
-	states := []string{"CA", "NY", "TX", "FL", "WA", "VA", "IL", "PA", "OH", "GA", "NC", "NJ", "MA", "AZ", "CO", "OR"}
-	for _, st := range states {
-		if strings.HasSuffix(strings.ToUpper(s), st) && len(s) > 3 {
-			s = strings.TrimSpace(s[:len(s)-2])
-			break
+	// Remove common payment prefixes
+	for _, prefix := range []string{"TST*", "SQ *", "SQ*", "PP*"} {
+		s = strings.TrimPrefix(s, prefix)
+	}
+
+	// Truncate to first 30 chars if still long (city/state/phone likely after)
+	if len(s) > 30 {
+		s = s[:30]
+		// Don't cut in middle of a word — find last clean break
+		s = strings.TrimRight(s, "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+		if len(s) < 5 {
+			s = raw[:30] // give up on smart trim
 		}
 	}
 
-	// Remove city names that are mushed together at the end
-	cities := []string{"SUNNYVALE", "MOUNTAINVIEW", "SANJOSE", "SANFRANCISCO", "PALOALTO", "CUPERTINO", "LOSANGELES", "SANCARLOS", "LOSALTOS", "SANTACLARA", "MENLOPARK", "REDWOODCITY", "FREMONT"}
-	upper := strings.ToUpper(s)
-	for _, city := range cities {
-		if idx := strings.LastIndex(upper, city); idx > 0 {
-			s = strings.TrimSpace(s[:idx])
-			upper = strings.ToUpper(s)
-			break
-		}
-	}
-
-	// Remove common prefixes
-	for _, prefix := range []string{"TST*", "SQ *", "APLPAY", "AplPay", "PP*"} {
-		if strings.HasPrefix(s, prefix) {
-			s = s[len(prefix):]
-		}
-	}
-
-	// Clean up: remove trailing special chars
-	s = strings.TrimRight(s, "*#-_. 0123456789")
-
+	s = strings.TrimRight(s, "-. #*_,")
 	if len(s) < 2 {
-		return raw // Give up, return original
+		return raw
 	}
 
-	// Title case the result if it's all caps
-	if s == strings.ToUpper(s) {
+	// Title case if all uppercase
+	if s == strings.ToUpper(s) && len(s) > 2 {
 		s = strings.Title(strings.ToLower(s))
 	}
 
 	return s
-}
-
-func isPhonePattern(s string) bool {
-	// Matches patterns like "408-334-5206"
-	if len(s) < 12 {
-		return false
-	}
-	return s[3] == '-' && s[7] == '-' &&
-		isDigit(s[0]) && isDigit(s[1]) && isDigit(s[2]) &&
-		isDigit(s[4]) && isDigit(s[5]) && isDigit(s[6]) &&
-		isDigit(s[8]) && isDigit(s[9]) && isDigit(s[10]) && isDigit(s[11])
-}
-
-func isDigit(b byte) bool {
-	return b >= '0' && b <= '9'
 }
 
 // Pass 2: Generate natural language answer from real data

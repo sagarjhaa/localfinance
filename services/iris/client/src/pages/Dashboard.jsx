@@ -139,6 +139,10 @@ const Dashboard = ({ user, onLogout }) => {
             <span style={{ fontSize: 20 }}>&#128172;</span>
             <span style={{ fontSize: 14 }}>Ollama Chat</span>
           </a>
+          <a href="/settings" style={S.navItem}>
+            <span style={{ fontSize: 20 }}>&#9881;</span>
+            <span style={{ fontSize: 14 }}>Settings</span>
+          </a>
         </nav>
         <div style={S.sidebarFooter}>
           <div style={S.avatar}>{user?.first_name?.[0] || user?.username?.[0] || 'U'}</div>

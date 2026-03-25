@@ -15,6 +15,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 	authHandler := handlers.NewAuthHandler(db)
 	uploadHandler := handlers.NewUploadHandler(db)
 	documentHandler := handlers.NewDocumentHandler(db)
+	categoryRuleHandler := handlers.NewCategoryRuleHandler(db)
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {
@@ -55,6 +56,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 			internal.GET("/transactions", transactionHandler.ListTransactions)
 			internal.POST("/transactions/search", transactionHandler.SearchTransactions)
 			internal.GET("/transactions/summary", transactionHandler.GetSpendingSummary)
+			internal.GET("/category-rules/match", categoryRuleHandler.InternalMatchDescription)
 		}
 
 		// Protected routes
@@ -97,6 +99,16 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 				transactions.GET("/category/:category", transactionHandler.GetTransactionsByCategory)
 				transactions.POST("/search", transactionHandler.SearchTransactions)
 				transactions.GET("/summary", transactionHandler.GetSpendingSummary)
+			}
+
+			// Category Rules
+			categoryRules := protected.Group("/category-rules")
+			{
+				categoryRules.POST("/", categoryRuleHandler.CreateRule)
+				categoryRules.GET("/", categoryRuleHandler.ListRules)
+				categoryRules.PUT("/:id", categoryRuleHandler.UpdateRule)
+				categoryRules.DELETE("/:id", categoryRuleHandler.DeleteRule)
+				categoryRules.GET("/match", categoryRuleHandler.MatchDescription)
 			}
 
 			// Budgets

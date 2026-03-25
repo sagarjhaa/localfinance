@@ -1,420 +1,421 @@
-import React, { useState, useEffect } from 'react';
-import { authAPI, proxyAPI, handleAsync } from '../api/client';
+import React, { useState, useEffect, useCallback } from 'react';
+import { proxyAPI } from '../api/client';
 
-const Settings = ({ user, onUserUpdate }) => {
-  const [activeTab, setActiveTab] = useState('profile');
-  const [serviceHealth, setServiceHealth] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+const FONTS = {
+  headline: '"Newsreader", "Instrument Serif", serif',
+  body: '"Manrope", "Hanken Grotesk", sans-serif',
+};
 
-  const tabs = [
-    { id: 'profile', name: 'Profile', icon: '👤' },
-    { id: 'services', name: 'Services', icon: '⚙️' },
-    { id: 'security', name: 'Security', icon: '🔒' },
-    { id: 'about', name: 'About', icon: 'ℹ️' },
-  ];
+const CATEGORIES = [
+  'Food', 'Transport', 'Shopping', 'Entertainment', 'Utilities',
+  'Housing', 'Income', 'Transfer', 'Health', 'Cash', 'EMI', 'Education', 'Other',
+];
+
+const CATEGORY_COLORS = {
+  Food:          { bg: '#f0fdf4', fg: '#15803d' },
+  Transport:     { bg: '#eff6ff', fg: '#1d4ed8' },
+  Shopping:      { bg: '#fefce8', fg: '#a16207' },
+  Entertainment: { bg: '#fdf2f8', fg: '#be185d' },
+  Utilities:     { bg: '#f0f9ff', fg: '#0369a1' },
+  Housing:       { bg: '#faf5ff', fg: '#7e22ce' },
+  Income:        { bg: '#ecfdf5', fg: '#047857' },
+  Transfer:      { bg: '#f8fafc', fg: '#475569' },
+  Health:        { bg: '#fff1f2', fg: '#be123c' },
+  Cash:          { bg: '#fefce8', fg: '#854d0e' },
+  EMI:           { bg: '#fef2f2', fg: '#b91c1c' },
+  Education:     { bg: '#eef2ff', fg: '#4338ca' },
+  Other:         { bg: '#f5f5f4', fg: '#44403c' },
+};
+
+const getCategoryColor = (category) => CATEGORY_COLORS[category] || CATEGORY_COLORS.Other;
+
+const Settings = ({ user, onLogout }) => {
+  const [rules, setRules] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [pattern, setPattern] = useState('');
+  const [category, setCategory] = useState('Food');
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editPattern, setEditPattern] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+
+  const fetchRules = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await proxyAPI.thesaurus.get('/api/v1/category-rules');
+      setRules(res.data.rules || res.data || []);
+    } catch (err) {
+      setError(err.message || 'Failed to load rules');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (activeTab === 'services') {
-      loadServiceHealth();
-    }
-  }, [activeTab]);
+    fetchRules();
+  }, [fetchRules]);
 
-  const loadServiceHealth = async () => {
-    setIsLoading(true);
-    const { data, error } = await handleAsync(
-      () => proxyAPI.health(),
-      'Failed to load service health'
+  const handleAddRule = async (e) => {
+    e.preventDefault();
+    if (!pattern.trim() || saving) return;
+    setSaving(true);
+    try {
+      const res = await proxyAPI.thesaurus.post('/api/v1/category-rules', {
+        pattern: pattern.trim(),
+        category,
+      });
+      setRules((prev) => [...prev, res.data.rule || res.data]);
+      setPattern('');
+      setCategory('Food');
+    } catch (err) {
+      setError(err.message || 'Failed to add rule');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    const prev = rules;
+    setRules((r) => r.filter((rule) => rule.id !== id));
+    try {
+      await proxyAPI.thesaurus.delete('/api/v1/category-rules/' + id);
+    } catch (err) {
+      setRules(prev);
+      setError(err.message || 'Failed to delete rule');
+    }
+  };
+
+  const startEdit = (rule) => {
+    setEditingId(rule.id);
+    setEditPattern(rule.pattern);
+    setEditCategory(rule.category);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditPattern('');
+    setEditCategory('');
+  };
+
+  const handleUpdate = async (id) => {
+    if (!editPattern.trim()) return;
+    const prev = rules;
+    setRules((r) =>
+      r.map((rule) =>
+        rule.id === id ? { ...rule, pattern: editPattern.trim(), category: editCategory } : rule
+      )
     );
-
-    if (!error && data?.services) {
-      setServiceHealth(data.services);
+    setEditingId(null);
+    try {
+      await proxyAPI.thesaurus.put('/api/v1/category-rules/' + id, {
+        pattern: editPattern.trim(),
+        category: editCategory,
+      });
+    } catch (err) {
+      setRules(prev);
+      setError(err.message || 'Failed to update rule');
     }
-    setIsLoading(false);
   };
 
-  const refreshToken = async () => {
-    const { data, error } = await handleAsync(
-      () => authAPI.refresh(),
-      'Failed to refresh token'
+  const CategoryBadge = ({ cat }) => {
+    const c = getCategoryColor(cat);
+    return (
+      <span
+        style={{
+          display: 'inline-block',
+          padding: '4px 12px',
+          borderRadius: 9999,
+          fontSize: 12,
+          fontWeight: 600,
+          background: c.bg,
+          color: c.fg,
+          letterSpacing: '0.02em',
+        }}
+      >
+        {cat}
+      </span>
     );
-
-    if (!error) {
-      alert('Authentication token refreshed successfully!');
-    } else {
-      alert(`Failed to refresh token: ${error}`);
-    }
-  };
-
-  const getServiceStatusColor = (status) => {
-    switch (status) {
-      case 'healthy':
-        return 'text-green-600 bg-green-100';
-      case 'unhealthy':
-        return 'text-red-600 bg-red-100';
-      default:
-        return 'text-gray-600 bg-gray-100';
-    }
-  };
-
-  const renderProfileTab = () => (
-    <div className="space-y-6">
-      <div className="card p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Profile Information</h3>
-        
-        <div className="space-y-4">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center">
-              <span className="text-white text-2xl font-semibold">
-                {user?.username?.charAt(0)?.toUpperCase() || 'U'}
-              </span>
-            </div>
-            <div>
-              <h4 className="text-xl font-semibold text-gray-900">{user?.username || 'Unknown User'}</h4>
-              <p className="text-gray-600">{user?.email || 'No email provided'}</p>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mt-2">
-                {user?.role || 'User'}
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
-              <input
-                type="text"
-                value={user?.username || ''}
-                disabled
-                className="form-input bg-gray-50"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input
-                type="email"
-                value={user?.email || ''}
-                disabled
-                className="form-input bg-gray-50"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-              <input
-                type="text"
-                value={user?.role || ''}
-                disabled
-                className="form-input bg-gray-50"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">User ID</label>
-              <input
-                type="text"
-                value={user?.id || ''}
-                disabled
-                className="form-input bg-gray-50"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="card p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Preferences</h3>
-        
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-gray-900">Dark Mode</p>
-              <p className="text-sm text-gray-600">Switch between light and dark themes</p>
-            </div>
-            <div className="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
-              <input type="checkbox" name="toggle" id="toggle" className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-gray-300 appearance-none cursor-pointer"/>
-              <label htmlFor="toggle" className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-gray-900">Email Notifications</p>
-              <p className="text-sm text-gray-600">Receive email updates about your uploads</p>
-            </div>
-            <div className="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
-              <input type="checkbox" name="notifications" id="notifications" className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-gray-300 appearance-none cursor-pointer"/>
-              <label htmlFor="notifications" className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderServicesTab = () => (
-    <div className="space-y-6">
-      <div className="card">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">Service Health Monitor</h3>
-            <button
-              onClick={loadServiceHealth}
-              disabled={isLoading}
-              className="btn btn-secondary btn-sm"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Refresh
-            </button>
-          </div>
-        </div>
-
-        <div className="p-6">
-          {isLoading ? (
-            <div className="text-center py-8">
-              <div className="spinner mx-auto mb-4"></div>
-              <p className="text-gray-500">Checking services...</p>
-            </div>
-          ) : serviceHealth.length > 0 ? (
-            <div className="space-y-4">
-              {serviceHealth.map((service, index) => (
-                <div key={index} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-3 h-3 rounded-full ${
-                      service.status === 'healthy' ? 'bg-green-400' : 'bg-red-400'
-                    }`}></div>
-                    <div>
-                      <h4 className="font-medium text-gray-900">{service.name}</h4>
-                      <p className="text-sm text-gray-600">{service.url}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getServiceStatusColor(service.status)}`}>
-                      {service.status}
-                    </span>
-                    {service.responseTime && (
-                      <p className="text-xs text-gray-500 mt-1">{service.responseTime}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <div className="w-12 h-12 mx-auto bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <p className="text-gray-500">No service information available</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="card p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Service Configuration</h3>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Hermes Gateway URL</label>
-            <input
-              type="url"
-              value="http://localhost:3000"
-              disabled
-              className="form-input bg-gray-50"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Default Timeout (seconds)</label>
-            <input
-              type="number"
-              value="30"
-              disabled
-              className="form-input bg-gray-50"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderSecurityTab = () => (
-    <div className="space-y-6">
-      <div className="card p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Authentication</h3>
-        
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-            <div>
-              <p className="font-medium text-gray-900">Session Token</p>
-              <p className="text-sm text-gray-600">Your current authentication session</p>
-            </div>
-            <button
-              onClick={refreshToken}
-              className="btn btn-primary btn-sm"
-            >
-              Refresh Token
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-            <div>
-              <p className="font-medium text-gray-900">Password</p>
-              <p className="text-sm text-gray-600">Change your account password</p>
-            </div>
-            <button className="btn btn-secondary btn-sm" disabled>
-              Change Password
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="card p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Privacy & Data</h3>
-        
-        <div className="space-y-4">
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h4 className="font-medium text-blue-900 mb-2">Data Encryption</h4>
-            <p className="text-sm text-blue-700">All file uploads are stored securely and encrypted at rest.</p>
-          </div>
-
-          <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-            <h4 className="font-medium text-green-900 mb-2">Secure Transmission</h4>
-            <p className="text-sm text-green-700">All data transfers use HTTPS encryption in production.</p>
-          </div>
-
-          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <h4 className="font-medium text-yellow-900 mb-2">Session Management</h4>
-            <p className="text-sm text-yellow-700">Your session expires automatically after 24 hours for security.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderAboutTab = () => (
-    <div className="space-y-6">
-      <div className="card p-6 text-center">
-        <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center">
-          <span className="text-4xl">🌈</span>
-        </div>
-        <h3 className="text-2xl font-bold text-gray-900 mb-2">Iris</h3>
-        <p className="text-gray-600 mb-4">LocalFinance Frontend Service</p>
-        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-          Version 1.0.0
-        </span>
-      </div>
-
-      <div className="card p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">About Iris</h3>
-        <div className="prose text-gray-600 space-y-4">
-          <p>
-            Iris is the modern frontend service for the LocalFinance ecosystem. Named after the Greek goddess 
-            of the rainbow and messenger, Iris serves as the colorful, user-friendly gateway between users 
-            and the LocalFinance platform.
-          </p>
-          <p>
-            Built with React and Node.js, Iris provides a seamless interface for uploading, managing, 
-            and analyzing financial data through an intuitive web application.
-          </p>
-        </div>
-      </div>
-
-      <div className="card p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">System Information</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Frontend</label>
-            <p className="text-sm text-gray-900">React 18.2.0</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Backend</label>
-            <p className="text-sm text-gray-900">Node.js with Express</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Build Date</label>
-            <p className="text-sm text-gray-900">{new Date().toLocaleDateString()}</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Environment</label>
-            <p className="text-sm text-gray-900">{process.env.NODE_ENV || 'development'}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="card p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Support</h3>
-        <div className="space-y-3">
-          <a href="#" className="flex items-center gap-3 text-blue-600 hover:text-blue-700">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C20.832 18.477 19.246 18 17.5 18c-1.746 0-3.332.477-4.5 1.253" />
-            </svg>
-            Documentation
-          </a>
-          <a href="#" className="flex items-center gap-3 text-blue-600 hover:text-blue-700">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            Help & FAQ
-          </a>
-          <a href="#" className="flex items-center gap-3 text-blue-600 hover:text-blue-700">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-            Contact Support
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'profile':
-        return renderProfileTab();
-      case 'services':
-        return renderServicesTab();
-      case 'security':
-        return renderSecurityTab();
-      case 'about':
-        return renderAboutTab();
-      default:
-        return renderProfileTab();
-    }
   };
 
   return (
-    <div className="p-6">
-      <div className="max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-600 mt-1">
-            Manage your account, preferences, and application settings
-          </p>
+    <div style={S.page}>
+      {/* Sidebar */}
+      <aside style={S.sidebar}>
+        <div style={{ padding: '0 32px', marginBottom: 16 }}>
+          <h1 style={S.sidebarLogo}>LocalFinance</h1>
+          <p style={S.sidebarTier}>The Ethereal Vault</p>
         </div>
-
-        {/* Tab navigation */}
-        <div className="flex space-x-1 mb-6 bg-gray-100 p-1 rounded-lg">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 text-sm font-medium rounded-md transition-all ${
-                activeTab === tab.id
-                  ? 'bg-white text-purple-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <span>{tab.icon}</span>
-              <span className="hidden sm:inline">{tab.name}</span>
-            </button>
-          ))}
+        <nav>
+          <a href="/dashboard" style={S.navItem}>
+            <span style={{ fontSize: 20 }}>&#128196;</span>
+            <span style={{ fontSize: 14 }}>Statement Upload</span>
+          </a>
+          <a href="/dashboard" style={S.navItem}>
+            <span style={{ fontSize: 20 }}>&#128274;</span>
+            <span style={{ fontSize: 14 }}>The Vault</span>
+          </a>
+          <a href="/chat" style={S.navItem}>
+            <span style={{ fontSize: 20 }}>&#128172;</span>
+            <span style={{ fontSize: 14 }}>Ollama Chat</span>
+          </a>
+          <a href="/settings" style={S.navActive}>
+            <span style={{ fontSize: 20 }}>&#9881;</span>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>Settings</span>
+          </a>
+        </nav>
+        <div style={S.sidebarFooter}>
+          <div style={S.avatarCircle}>
+            {user?.first_name?.[0] || user?.username?.[0] || 'U'}
+          </div>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, margin: 0 }}>
+              {user?.first_name || user?.username} {user?.last_name || ''}
+            </p>
+            <button onClick={onLogout} style={S.logoutBtn}>Sign Out</button>
+          </div>
         </div>
+      </aside>
 
-        {/* Tab content */}
-        {renderTabContent()}
-      </div>
+      {/* Main content */}
+      <main style={S.main}>
+        <header style={S.topBar}>
+          <div>
+            <h2 style={S.pageTitle}>Settings</h2>
+            <p style={S.pageSubtitle}>Merchant Rules</p>
+          </div>
+        </header>
+
+        <div style={S.content}>
+          {/* Add rule form */}
+          <form onSubmit={handleAddRule} style={S.addForm}>
+            <div style={S.formRow}>
+              <input
+                type="text"
+                placeholder="e.g., Safeway, Trader Joe"
+                value={pattern}
+                onChange={(e) => setPattern(e.target.value)}
+                style={S.input}
+                disabled={saving}
+              />
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                style={S.select}
+                disabled={saving}
+              >
+                {CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+              <button
+                type="submit"
+                disabled={!pattern.trim() || saving}
+                style={{
+                  ...S.addBtn,
+                  ...(!pattern.trim() || saving ? { opacity: 0.4, cursor: 'default' } : {}),
+                }}
+              >
+                {saving ? 'Adding...' : 'Add Rule'}
+              </button>
+            </div>
+          </form>
+
+          {/* Error banner */}
+          {error && (
+            <div style={S.errorBanner}>
+              <span>{error}</span>
+              <button onClick={() => setError(null)} style={S.errorDismiss}>
+                &#10005;
+              </button>
+            </div>
+          )}
+
+          {/* Rules list */}
+          <div style={S.rulesSection}>
+            {loading ? (
+              <div style={S.emptyState}>
+                <p style={S.emptyText}>Loading rules...</p>
+              </div>
+            ) : rules.length === 0 ? (
+              <div style={S.emptyState}>
+                <div style={S.emptyIcon}>&#10022;</div>
+                <p style={S.emptyTitle}>No custom rules yet</p>
+                <p style={S.emptyText}>
+                  AI will categorize all transactions automatically.
+                </p>
+              </div>
+            ) : (
+              <div style={S.rulesList}>
+                {rules.map((rule) => (
+                  <div key={rule.id} style={S.ruleRow}>
+                    {editingId === rule.id ? (
+                      <div style={S.editRow}>
+                        <input
+                          type="text"
+                          value={editPattern}
+                          onChange={(e) => setEditPattern(e.target.value)}
+                          style={S.editInput}
+                          autoFocus
+                        />
+                        <select
+                          value={editCategory}
+                          onChange={(e) => setEditCategory(e.target.value)}
+                          style={S.editSelect}
+                        >
+                          {CATEGORIES.map((cat) => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                        <button onClick={() => handleUpdate(rule.id)} style={S.saveBtn}>
+                          Save
+                        </button>
+                        <button onClick={cancelEdit} style={S.cancelBtn}>
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div style={S.ruleInfo}>
+                          <span style={S.rulePattern}>{rule.pattern}</span>
+                          <CategoryBadge cat={rule.category} />
+                        </div>
+                        <div style={S.ruleActions}>
+                          <button onClick={() => startEdit(rule)} style={S.editBtn}>
+                            Edit
+                          </button>
+                          <button onClick={() => handleDelete(rule.id)} style={S.deleteBtn}>
+                            Delete
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Info section */}
+          <div style={S.infoSection}>
+            <div style={S.infoIcon}>&#9432;</div>
+            <p style={S.infoText}>
+              When you upload statements, transactions matching your rules are categorized first.
+              Everything else is categorized by AI.
+            </p>
+          </div>
+        </div>
+      </main>
     </div>
   );
+};
+
+const S = {
+  // Layout (matches Dashboard / Chat)
+  page: { display: 'flex', minHeight: '100vh', fontFamily: "'Manrope', sans-serif", color: '#1A1A1A', background: '#fff' },
+  sidebar: { width: 256, height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 40, background: '#fff', borderRight: '1px solid #f5f5f5', display: 'flex', flexDirection: 'column', paddingTop: 32, paddingBottom: 32 },
+  sidebarLogo: { fontFamily: "'Newsreader', serif", fontSize: 20, fontWeight: 700, margin: 0 },
+  sidebarTier: { fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#a0a0a0', fontWeight: 700, marginTop: 4 },
+  navActive: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: '#1A1A1A', fontWeight: 700, background: '#fafafa', borderRight: '4px solid #1A1A1A', textDecoration: 'none' },
+  navItem: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: '#a0a0a0', textDecoration: 'none' },
+  sidebarFooter: { marginTop: 'auto', padding: '24px 32px', borderTop: '1px solid #f5f5f5', display: 'flex', alignItems: 'center', gap: 12 },
+  avatarCircle: { width: 40, height: 40, borderRadius: '50%', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, textTransform: 'uppercase', flexShrink: 0 },
+  logoutBtn: { background: 'none', border: 'none', padding: 0, margin: '2px 0 0 0', fontSize: 10, color: '#a0a0a0', cursor: 'pointer', textDecoration: 'underline', fontFamily: "'Manrope', sans-serif" },
+  main: { flex: 1, marginLeft: 256, minHeight: '100vh', background: 'radial-gradient(circle at 50% 50%, #ffffff 0%, #f2f4f4 100%)' },
+  topBar: { position: 'sticky', top: 0, zIndex: 30, background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', borderBottom: '1px solid #f5f5f5', padding: '16px 48px' },
+  pageTitle: { fontFamily: "'Newsreader', serif", fontSize: 20, margin: 0, fontWeight: 700 },
+  pageSubtitle: { fontSize: 13, color: '#a0a0a0', margin: '4px 0 0 0', fontFamily: "'Manrope', sans-serif" },
+
+  // Content area
+  content: { padding: '32px 48px', maxWidth: 800 },
+
+  // Add rule form
+  addForm: { marginBottom: 24 },
+  formRow: { display: 'flex', gap: 12, alignItems: 'center' },
+  input: {
+    flex: 1, padding: '12px 16px', fontSize: 14, fontFamily: "'Manrope', sans-serif",
+    border: '1px solid #e7e5e4', borderRadius: 10, outline: 'none', color: '#1A1A1A',
+    background: '#fff', transition: 'border-color 0.15s ease',
+  },
+  select: {
+    padding: '12px 16px', fontSize: 14, fontFamily: "'Manrope', sans-serif",
+    border: '1px solid #e7e5e4', borderRadius: 10, outline: 'none', color: '#1A1A1A',
+    background: '#fff', cursor: 'pointer', minWidth: 140,
+  },
+  addBtn: {
+    padding: '12px 24px', fontSize: 14, fontWeight: 600, fontFamily: "'Manrope', sans-serif",
+    border: 'none', borderRadius: 10, background: '#1A1A1A', color: '#fff',
+    cursor: 'pointer', whiteSpace: 'nowrap', transition: 'opacity 0.15s ease',
+  },
+
+  // Error
+  errorBanner: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca',
+    borderRadius: 10, marginBottom: 24, fontSize: 14, color: '#b91c1c',
+  },
+  errorDismiss: {
+    background: 'none', border: 'none', cursor: 'pointer', fontSize: 14,
+    color: '#b91c1c', padding: '0 4px', fontFamily: "'Manrope', sans-serif",
+  },
+
+  // Rules list
+  rulesSection: { marginBottom: 32 },
+  rulesList: { display: 'flex', flexDirection: 'column', gap: 1 },
+  ruleRow: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '16px 20px', background: '#fff', borderRadius: 10,
+    border: '1px solid #f5f5f4', marginBottom: 8,
+  },
+  ruleInfo: { display: 'flex', alignItems: 'center', gap: 16 },
+  rulePattern: { fontSize: 15, fontWeight: 600, color: '#1c1917' },
+  ruleActions: { display: 'flex', gap: 8 },
+  editBtn: {
+    padding: '6px 14px', fontSize: 12, fontWeight: 600, fontFamily: "'Manrope', sans-serif",
+    border: '1px solid #e7e5e4', borderRadius: 8, background: '#fff', color: '#44403c',
+    cursor: 'pointer',
+  },
+  deleteBtn: {
+    padding: '6px 14px', fontSize: 12, fontWeight: 600, fontFamily: "'Manrope', sans-serif",
+    border: '1px solid #fecaca', borderRadius: 8, background: '#fff', color: '#b91c1c',
+    cursor: 'pointer',
+  },
+
+  // Edit row
+  editRow: { display: 'flex', gap: 10, alignItems: 'center', width: '100%' },
+  editInput: {
+    flex: 1, padding: '8px 12px', fontSize: 14, fontFamily: "'Manrope', sans-serif",
+    border: '1px solid #e7e5e4', borderRadius: 8, outline: 'none', color: '#1A1A1A',
+  },
+  editSelect: {
+    padding: '8px 12px', fontSize: 14, fontFamily: "'Manrope', sans-serif",
+    border: '1px solid #e7e5e4', borderRadius: 8, outline: 'none', color: '#1A1A1A',
+    background: '#fff', cursor: 'pointer', minWidth: 120,
+  },
+  saveBtn: {
+    padding: '8px 16px', fontSize: 12, fontWeight: 600, fontFamily: "'Manrope', sans-serif",
+    border: 'none', borderRadius: 8, background: '#1A1A1A', color: '#fff', cursor: 'pointer',
+  },
+  cancelBtn: {
+    padding: '8px 16px', fontSize: 12, fontWeight: 600, fontFamily: "'Manrope', sans-serif",
+    border: '1px solid #e7e5e4', borderRadius: 8, background: '#fff', color: '#44403c',
+    cursor: 'pointer',
+  },
+
+  // Empty state
+  emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 20px', textAlign: 'center' },
+  emptyIcon: { fontSize: 32, color: '#d6d3d1', marginBottom: 16 },
+  emptyTitle: { fontFamily: "'Newsreader', serif", fontSize: 18, fontWeight: 400, fontStyle: 'italic', color: '#1c1917', margin: '0 0 8px 0' },
+  emptyText: { fontSize: 14, color: '#78716c', lineHeight: '1.6', maxWidth: 360, margin: 0 },
+
+  // Info section
+  infoSection: {
+    display: 'flex', alignItems: 'flex-start', gap: 12, padding: '20px 24px',
+    background: '#f8fafc', borderRadius: 12, border: '1px solid #f1f5f9',
+  },
+  infoIcon: { fontSize: 18, color: '#64748b', flexShrink: 0, marginTop: 1 },
+  infoText: { fontSize: 13, color: '#64748b', lineHeight: '1.6', margin: 0, fontFamily: "'Manrope', sans-serif" },
 };
 
 export default Settings;

@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	pdf "github.com/ledongthuc/pdf"
 	"github.com/sagarjhaa/localfinance/services/logos/config"
 	"github.com/sagarjhaa/localfinance/services/logos/models"
@@ -111,20 +113,19 @@ func processDocument(req models.ProcessRequest, pm *processors.Manager, cfg *con
 
 	log.Printf("[%s] Parsed %d transactions in %dms", req.DocumentID, result.TransactionsFound, result.ProcessingTimeMs)
 
-	// Set type and do keyword categorization as fallback
+	// Set transaction type
 	for i := range result.Transactions {
 		if result.Transactions[i].Amount >= 0 {
 			result.Transactions[i].Type = "credit"
 		} else {
 			result.Transactions[i].Type = "debit"
 		}
-		// Keyword categorize as baseline
-		if result.Transactions[i].Category == "" {
-			result.Transactions[i].Category = categorize(result.Transactions[i].Description)
-		}
 	}
 
-	// AI categorization — batch all transactions through Ollama for better accuracy
+	// Step 1: Apply user's custom category rules (if any)
+	applyUserRules(result.Transactions, req.UserID)
+
+	// Step 2: AI categorize remaining uncategorized transactions via Ollama
 	aiCategorize(result.Transactions)
 
 	// Detect statement metadata from file content
@@ -388,106 +389,47 @@ Transactions:
 	log.Printf("AI categorized %d/%d transactions", updated, len(transactions))
 }
 
-func categorize(desc string) string {
-	d := strings.ToLower(desc)
-
-	// Order matters — more specific matches first to avoid false positives
-	// e.g., "ubereats" must match Food before "uber" matches Transport
-
-	// Food & Groceries (check before Transport so "ubereats" → Food not Transport)
-	if containsAny(d, "ubereats", "uber eats", "doordash", "grubhub", "postmates") {
-		return "Food"
-	}
-	if containsAny(d,
-		"grocery", "supermarket", "food", "restaurant", "cafe", "coffee",
-		"swiggy", "zomato", "blinkit", "bigbasket",
-		"safeway", "trader joe", "traderjoe", "whole foods", "wholefoods",
-		"kroger", "costco", "target", "walmart",
-		"chipotle", "mcdonald", "starbucks", "dunkin", "subway", "taco bell",
-		"chick-fil", "wendy", "burger king", "popeyes", "five guys",
-		"panera", "panda express", "innoutburger", "in-n-out", "innout",
-		"domino", "pizza", "bakery", "deli", "diner", "grill", "kitchen",
-		"chaatbhavan", "chaat bhavan", "pintsofjoy", "pints of joy",
-		"sweetgreen", "shake shack", "cheesecake factory",
-		"foodandbeverages", "beverages") {
-		return "Food"
+// applyUserRules checks user's custom merchant→category rules from Thesaurus
+func applyUserRules(transactions []models.Transaction, userID uuid.UUID) {
+	thesaurusURL := os.Getenv("THESAURUS_URL")
+	if thesaurusURL == "" {
+		thesaurusURL = "http://localhost:8001"
 	}
 
-	// Entertainment (check before Shopping so "amazon prime" → Entertainment)
-	if containsAny(d,
-		"netflix", "spotify", "amazon prime", "amazonprime", "disney", "hulu",
-		"youtube", "entertainment", "movie", "hotstar", "hbo", "apple tv",
-		"paramount", "peacock", "crunchyroll", "audible") {
-		return "Entertainment"
+	if userID == uuid.Nil || len(transactions) == 0 {
+		return
 	}
 
-	// Transport & Gas
-	if containsAny(d,
-		"fuel", "petrol", "gas station", "gasstation",
-		"uber", "lyft", "ola", "metro", "bus", "train", "caltrain", "bart",
-		"transport", "parking", "irctc", "muni",
-		"shell", "chevron", "exxon", "mobil", "76", "arco", "bp",
-		"amtrak", "greyhound", "toll", "fastrak",
-		"airlines", "united air", "delta air", "southwest", "american air",
-		"airbnb") {
-		return "Transport"
+	client := &http.Client{Timeout: 10 * time.Second}
+	matched := 0
+
+	for i := range transactions {
+		if transactions[i].Category != "" {
+			continue // already categorized
+		}
+		// Query Thesaurus internal match endpoint
+		u := fmt.Sprintf("%s/api/v1/internal/category-rules/match?user_id=%s&description=%s",
+			thesaurusURL, userID.String(), url.QueryEscape(transactions[i].Description))
+		resp, err := client.Get(u)
+		if err != nil {
+			continue
+		}
+		var result struct {
+			Matched  bool   `json:"matched"`
+			Category string `json:"category"`
+		}
+		json.NewDecoder(resp.Body).Decode(&result)
+		resp.Body.Close()
+
+		if result.Matched && result.Category != "" {
+			transactions[i].Category = result.Category
+			matched++
+		}
 	}
 
-	// Utilities
-	if containsAny(d,
-		"electric", "water bill", "gas bill", "pge", "pg&e",
-		"internet", "wifi", "comcast", "xfinity", "att", "at&t",
-		"phone", "mobile", "utility", "broadband", "jio", "airtel",
-		"t-mobile", "verizon", "spectrum") {
-		return "Utilities"
+	if matched > 0 {
+		log.Printf("User rules matched %d/%d transactions", matched, len(transactions))
 	}
-
-	// Housing
-	if containsAny(d, "rent", "mortgage", "housing", "property", "maintenance", "society", "hoa") {
-		return "Housing"
-	}
-
-	// Income & Refunds
-	if containsAny(d, "salary", "wages", "income", "deposit", "refund", "cashback", "interest", "payroll", "direct dep") {
-		return "Income"
-	}
-
-	// Transfers
-	if containsAny(d, "transfer", "upi", "neft", "imps", "rtgs", "nach", "zelle", "venmo", "paypal") {
-		return "Transfer"
-	}
-
-	// Health
-	if containsAny(d, "insurance", "medical", "hospital", "doctor", "pharmacy", "health", "apollo", "cvs", "walgreens", "rite aid", "kaiser") {
-		return "Health"
-	}
-
-	// Education
-	if containsAny(d, "tuition", "university", "college", "school", "udemy", "coursera", "education", "book") {
-		return "Education"
-	}
-
-	// Shopping (broad — check last among specific categories)
-	if containsAny(d,
-		"amazon", "flipkart", "myntra", "shop", "store", "purchase", "buy",
-		"apple store", "applestore", "best buy", "bestbuy",
-		"ikea", "home depot", "homedepot", "lowes",
-		"nordstrom", "macys", "gap", "nike", "adidas",
-		"etsy", "ebay", "wish") {
-		return "Shopping"
-	}
-
-	// Cash
-	if containsAny(d, "atm", "withdrawal", "cash") {
-		return "Cash"
-	}
-
-	// EMI / Loans
-	if containsAny(d, "emi", "loan", "repay") {
-		return "EMI"
-	}
-
-	return "Other"
 }
 
 func containsAny(s string, substrs ...string) bool {

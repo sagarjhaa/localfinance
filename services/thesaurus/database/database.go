@@ -50,6 +50,7 @@ func Migrate(db *gorm.DB) error {
 		&models.Budget{},
 		&models.Document{},
 		&models.StatementPeriod{},
+		&models.CategoryRule{},
 	)
 	
 	if err != nil {

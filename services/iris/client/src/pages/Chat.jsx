@@ -208,6 +208,10 @@ const Chat = ({ user, onLogout }) => {
             <span style={{ fontSize: 20 }}>&#128172;</span>
             <span style={{ fontSize: 14, fontWeight: 700 }}>Ollama Chat</span>
           </a>
+          <a href="/settings" style={S.navItem}>
+            <span style={{ fontSize: 20 }}>&#9881;</span>
+            <span style={{ fontSize: 14 }}>Settings</span>
+          </a>
         </nav>
         <div style={S.sidebarFooter}>
           <div style={S.avatarCircle}>{user?.first_name?.[0] || user?.username?.[0] || 'U'}</div>

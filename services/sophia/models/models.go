@@ -100,3 +100,24 @@ type SpendingTrend struct {
 	Magnitude   float64 `json:"magnitude"`
 	Description string  `json:"description"`
 }
+
+// QueryIntent is the structured output from Pass 1 — LLM parses user question into API params
+type QueryIntent struct {
+	NeedsSummary bool   `json:"needs_summary"`           // call /transactions/summary
+	NeedsSearch  bool   `json:"needs_search"`            // call /transactions/search
+	Category     string `json:"category,omitempty"`       // filter by category
+	Description  string `json:"description,omitempty"`    // ILIKE search on description
+	StartDate    string `json:"start_date,omitempty"`     // YYYY-MM-DD
+	EndDate      string `json:"end_date,omitempty"`       // YYYY-MM-DD
+	MinAmount    float64 `json:"min_amount,omitempty"`
+	MaxAmount    float64 `json:"max_amount,omitempty"`
+	Limit        int    `json:"limit,omitempty"`          // max results
+}
+
+// SpendingSummaryItem matches Thesaurus GET /transactions/summary response
+type SpendingSummaryItem struct {
+	Category    string  `json:"category"`
+	TotalAmount float64 `json:"total_amount"`
+	Count       int     `json:"count"`
+	Percentage  float64 `json:"percentage"`
+}

@@ -40,7 +40,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 			authProtected.POST("/change-password", authHandler.ChangePassword)
 		}
 
-		// Internal service routes (called by Logos — no auth required)
+		// Internal service routes (called by Logos, Sophia — no auth required)
 		documents := v1.Group("/documents")
 		{
 			documents.GET("/:id", documentHandler.GetDocument)
@@ -48,6 +48,14 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 		}
 		v1.GET("/transactions/by-document", documentHandler.GetTransactionsByDocument)
 		v1.POST("/transactions/bulk", transactionHandler.CreateBulkTransactions)
+
+		// Internal query routes for Sophia AI service
+		internal := v1.Group("/internal")
+		{
+			internal.GET("/transactions", transactionHandler.ListTransactions)
+			internal.POST("/transactions/search", transactionHandler.SearchTransactions)
+			internal.GET("/transactions/summary", transactionHandler.GetSpendingSummary)
+		}
 
 		// Protected routes
 		protected := v1.Group("")

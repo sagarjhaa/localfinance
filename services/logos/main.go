@@ -111,17 +111,21 @@ func processDocument(req models.ProcessRequest, pm *processors.Manager, cfg *con
 
 	log.Printf("[%s] Parsed %d transactions in %dms", req.DocumentID, result.TransactionsFound, result.ProcessingTimeMs)
 
-	// Auto-categorize transactions
+	// Set type and do keyword categorization as fallback
 	for i := range result.Transactions {
-		if result.Transactions[i].Category == "" {
-			result.Transactions[i].Category = categorize(result.Transactions[i].Description)
-		}
 		if result.Transactions[i].Amount >= 0 {
 			result.Transactions[i].Type = "credit"
 		} else {
 			result.Transactions[i].Type = "debit"
 		}
+		// Keyword categorize as baseline
+		if result.Transactions[i].Category == "" {
+			result.Transactions[i].Category = categorize(result.Transactions[i].Description)
+		}
 	}
+
+	// AI categorization — batch all transactions through Ollama for better accuracy
+	aiCategorize(result.Transactions)
 
 	// Detect statement metadata from file content
 	var meta processors.StatementMetadata
@@ -274,34 +278,216 @@ func updateDocumentStatus(baseURL, documentID, status, errMsg string) {
 	resp.Body.Close()
 }
 
+// aiCategorize uses Ollama to categorize transactions in a single batch prompt
+func aiCategorize(transactions []models.Transaction) {
+	ollamaHost := os.Getenv("OLLAMA_HOST")
+	if ollamaHost == "" {
+		ollamaHost = "http://127.0.0.1:11434"
+	}
+
+	if len(transactions) == 0 {
+		return
+	}
+
+	// Build a numbered list of descriptions
+	var sb strings.Builder
+	for i, tx := range transactions {
+		desc := tx.Description
+		if len(desc) > 60 {
+			desc = desc[:60]
+		}
+		sb.WriteString(fmt.Sprintf("%d. %s\n", i+1, desc))
+	}
+
+	prompt := fmt.Sprintf(`Categorize each transaction into exactly one category.
+
+Categories: Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Health, Cash, EMI, Education, Other
+
+Rules:
+- Restaurants, grocery stores, food delivery = Food
+- Gas stations, rideshare, flights, trains = Transport
+- Online shopping, retail stores = Shopping
+- Streaming services, movies = Entertainment
+- Only use "Other" if nothing else fits
+
+Respond with ONLY numbered lines in format: NUMBER. CATEGORY
+No explanations.
+
+Transactions:
+%s`, sb.String())
+
+	reqBody, _ := json.Marshal(map[string]interface{}{
+		"model":       "llama3.2:1b",
+		"prompt":      prompt,
+		"stream":      false,
+		"temperature": 0.1,
+	})
+
+	client := &http.Client{Timeout: 120 * time.Second}
+	resp, err := client.Post(ollamaHost+"/api/generate", "application/json", bytes.NewBuffer(reqBody))
+	if err != nil {
+		log.Printf("AI categorization failed (Ollama unreachable): %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("AI categorization failed: status %d", resp.StatusCode)
+		return
+	}
+
+	var ollamaResp struct {
+		Response string `json:"response"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&ollamaResp); err != nil {
+		log.Printf("AI categorization: failed to decode response: %v", err)
+		return
+	}
+
+	// Parse response — expect lines like "1. Food\n2. Transport\n..."
+	validCategories := map[string]bool{
+		"Food": true, "Transport": true, "Shopping": true, "Entertainment": true,
+		"Utilities": true, "Housing": true, "Income": true, "Transfer": true,
+		"Health": true, "Cash": true, "EMI": true, "Education": true, "Other": true,
+	}
+
+	lines := strings.Split(ollamaResp.Response, "\n")
+	updated := 0
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// Parse "1. Food" or "1: Food"
+		parts := strings.SplitN(line, ".", 2)
+		if len(parts) != 2 {
+			parts = strings.SplitN(line, ":", 2)
+		}
+		if len(parts) != 2 {
+			continue
+		}
+
+		numStr := strings.TrimSpace(parts[0])
+		cat := strings.TrimSpace(parts[1])
+		// Clean category — remove any extra text after the category name
+		cat = strings.TrimSpace(strings.Split(cat, " ")[0])
+		cat = strings.TrimSpace(strings.Split(cat, "-")[0])
+		cat = strings.TrimRight(cat, ".,;:")
+
+		idx := 0
+		if _, err := fmt.Sscanf(numStr, "%d", &idx); err != nil || idx < 1 || idx > len(transactions) {
+			continue
+		}
+
+		if validCategories[cat] {
+			transactions[idx-1].Category = cat
+			updated++
+		}
+	}
+
+	log.Printf("AI categorized %d/%d transactions", updated, len(transactions))
+}
+
 func categorize(desc string) string {
 	d := strings.ToLower(desc)
-	switch {
-	case containsAny(d, "grocery", "supermarket", "food", "restaurant", "cafe", "coffee", "swiggy", "zomato", "blinkit", "bigbasket"):
+
+	// Order matters — more specific matches first to avoid false positives
+	// e.g., "ubereats" must match Food before "uber" matches Transport
+
+	// Food & Groceries (check before Transport so "ubereats" → Food not Transport)
+	if containsAny(d, "ubereats", "uber eats", "doordash", "grubhub", "postmates") {
 		return "Food"
-	case containsAny(d, "fuel", "petrol", "uber", "ola", "metro", "bus", "train", "transport", "parking", "irctc"):
-		return "Transport"
-	case containsAny(d, "netflix", "spotify", "amazon prime", "disney", "youtube", "entertainment", "movie", "hotstar"):
-		return "Entertainment"
-	case containsAny(d, "electric", "water", "gas bill", "internet", "wifi", "phone", "mobile", "utility", "broadband", "jio", "airtel"):
-		return "Utilities"
-	case containsAny(d, "rent", "mortgage", "housing", "property", "maintenance", "society"):
-		return "Housing"
-	case containsAny(d, "salary", "wages", "income", "deposit", "refund", "cashback", "interest"):
-		return "Income"
-	case containsAny(d, "transfer", "upi", "neft", "imps", "rtgs", "nach"):
-		return "Transfer"
-	case containsAny(d, "insurance", "medical", "hospital", "doctor", "pharmacy", "health", "apollo"):
-		return "Health"
-	case containsAny(d, "amazon", "flipkart", "myntra", "shop", "store", "purchase", "buy"):
-		return "Shopping"
-	case containsAny(d, "atm", "withdrawal", "cash"):
-		return "Cash"
-	case containsAny(d, "emi", "loan", "repay"):
-		return "EMI"
-	default:
-		return "Other"
 	}
+	if containsAny(d,
+		"grocery", "supermarket", "food", "restaurant", "cafe", "coffee",
+		"swiggy", "zomato", "blinkit", "bigbasket",
+		"safeway", "trader joe", "traderjoe", "whole foods", "wholefoods",
+		"kroger", "costco", "target", "walmart",
+		"chipotle", "mcdonald", "starbucks", "dunkin", "subway", "taco bell",
+		"chick-fil", "wendy", "burger king", "popeyes", "five guys",
+		"panera", "panda express", "innoutburger", "in-n-out", "innout",
+		"domino", "pizza", "bakery", "deli", "diner", "grill", "kitchen",
+		"chaatbhavan", "chaat bhavan", "pintsofjoy", "pints of joy",
+		"sweetgreen", "shake shack", "cheesecake factory",
+		"foodandbeverages", "beverages") {
+		return "Food"
+	}
+
+	// Entertainment (check before Shopping so "amazon prime" → Entertainment)
+	if containsAny(d,
+		"netflix", "spotify", "amazon prime", "amazonprime", "disney", "hulu",
+		"youtube", "entertainment", "movie", "hotstar", "hbo", "apple tv",
+		"paramount", "peacock", "crunchyroll", "audible") {
+		return "Entertainment"
+	}
+
+	// Transport & Gas
+	if containsAny(d,
+		"fuel", "petrol", "gas station", "gasstation",
+		"uber", "lyft", "ola", "metro", "bus", "train", "caltrain", "bart",
+		"transport", "parking", "irctc", "muni",
+		"shell", "chevron", "exxon", "mobil", "76", "arco", "bp",
+		"amtrak", "greyhound", "toll", "fastrak",
+		"airlines", "united air", "delta air", "southwest", "american air",
+		"airbnb") {
+		return "Transport"
+	}
+
+	// Utilities
+	if containsAny(d,
+		"electric", "water bill", "gas bill", "pge", "pg&e",
+		"internet", "wifi", "comcast", "xfinity", "att", "at&t",
+		"phone", "mobile", "utility", "broadband", "jio", "airtel",
+		"t-mobile", "verizon", "spectrum") {
+		return "Utilities"
+	}
+
+	// Housing
+	if containsAny(d, "rent", "mortgage", "housing", "property", "maintenance", "society", "hoa") {
+		return "Housing"
+	}
+
+	// Income & Refunds
+	if containsAny(d, "salary", "wages", "income", "deposit", "refund", "cashback", "interest", "payroll", "direct dep") {
+		return "Income"
+	}
+
+	// Transfers
+	if containsAny(d, "transfer", "upi", "neft", "imps", "rtgs", "nach", "zelle", "venmo", "paypal") {
+		return "Transfer"
+	}
+
+	// Health
+	if containsAny(d, "insurance", "medical", "hospital", "doctor", "pharmacy", "health", "apollo", "cvs", "walgreens", "rite aid", "kaiser") {
+		return "Health"
+	}
+
+	// Education
+	if containsAny(d, "tuition", "university", "college", "school", "udemy", "coursera", "education", "book") {
+		return "Education"
+	}
+
+	// Shopping (broad — check last among specific categories)
+	if containsAny(d,
+		"amazon", "flipkart", "myntra", "shop", "store", "purchase", "buy",
+		"apple store", "applestore", "best buy", "bestbuy",
+		"ikea", "home depot", "homedepot", "lowes",
+		"nordstrom", "macys", "gap", "nike", "adidas",
+		"etsy", "ebay", "wish") {
+		return "Shopping"
+	}
+
+	// Cash
+	if containsAny(d, "atm", "withdrawal", "cash") {
+		return "Cash"
+	}
+
+	// EMI / Loans
+	if containsAny(d, "emi", "loan", "repay") {
+		return "EMI"
+	}
+
+	return "Other"
 }
 
 func containsAny(s string, substrs ...string) bool {

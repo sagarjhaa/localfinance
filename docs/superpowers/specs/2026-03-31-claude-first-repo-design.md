@@ -67,6 +67,62 @@ CLAUDE.md
     └── Step 5: Escalate to user with logs + diagnosis
 ```
 
+### Development Cycle
+
+Every task follows this cycle. No shortcuts, no skipping steps.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    DEVELOPMENT CYCLE                         │
+│                                                             │
+│  1. PLAN                                                    │
+│     │  Receive feature request / bug report from user       │
+│     │  Write brief spec (what, why, which services)         │
+│     │  Get user approval before writing code                │
+│     ▼                                                       │
+│  2. CODE                                                    │
+│     │  Implement changes across services                    │
+│     │  One logical unit at a time                           │
+│     │  Follow per-service CLAUDE.md patterns                │
+│     ▼                                                       │
+│  3. TEST LOCALLY                                            │
+│     │  make test              ← unit tests pass?            │
+│     │  make dev-up            ← local stack running?        │
+│     │  make test-e2e          ← integration tests pass?     │
+│     │                                                       │
+│     │  ✗ Tests fail?                                        │
+│     │  └→ Fix code → go back to step 3                     │
+│     ▼                                                       │
+│  4. COMMIT                                                  │
+│     │  One commit per logical unit                          │
+│     │  Format: type(service): what and why                  │
+│     │  Never batch unrelated changes                        │
+│     ▼                                                       │
+│  5. DEPLOY TO JETSON                                        │
+│     │  make deploy-{service}  ← builds + SCPs + restarts    │
+│     │  (or make deploy-all for multi-service changes)       │
+│     ▼                                                       │
+│  6. VERIFY                                                  │
+│     │  make verify            ← all health checks pass?     │
+│     │                                                       │
+│     │  ✗ Health check fails?                                │
+│     │  └→ make jetson-logs-{service}                        │
+│     │     Read logs, identify root cause                    │
+│     │     Fix code → go back to step 3                      │
+│     │     (max 3 retry cycles, then escalate to user)       │
+│     │                                                       │
+│     │  ✓ All healthy?                                       │
+│     ▼                                                       │
+│  7. REPORT                                                  │
+│     │  Tell user: what was built, which URLs to test        │
+│     │  Clean git log showing all commits                    │
+│     └  Done.                                                │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**The test→fix→test loop is the core of the cycle.** Steps 3-6 repeat as many times as needed. The agent never declares "done" without a passing `make verify` on the Jetson.
+
 ### Key Rules
 
 - Never run raw `ssh`, `scp`, `sshpass` — always use `make deploy-*`, `make jetson-logs-*`

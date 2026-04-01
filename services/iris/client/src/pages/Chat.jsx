@@ -264,7 +264,7 @@ const Chat = ({ user, onLogout }) => {
               {loading && (
                 <div style={S.loadingRow}>
                   <div style={S.aiAvatar}><span role="img" aria-label="AI">&#10022;</span></div>
-                  <div style={S.loadingBubble}>Querying Local LLM (Llama 3)...</div>
+                  <div style={S.loadingBubble}>Querying Local LLM ({modelName || 'AI'})...</div>
                 </div>
               )}
             </div>

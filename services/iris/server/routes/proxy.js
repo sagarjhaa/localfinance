@@ -113,7 +113,7 @@ const createProxyHandler = (serviceName) => {
 
       // Make the proxied request
       // Sophia/AI requests need longer timeout for Ollama inference on Jetson
-      const timeoutMs = serviceName === 'sophia' ? 120000 : 30000;
+      const timeoutMs = serviceName === 'sophia' ? 300000 : 30000;
 
       const axiosConfig = {
         method: req.method.toLowerCase(),

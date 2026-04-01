@@ -24,6 +24,8 @@ const Chat = ({ user, onLogout }) => {
   const [loading, setLoading] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState('checking');
   const [modelName, setModelName] = useState('');
+  const [conversations, setConversations] = useState([]);
+  const [activeConversationId, setActiveConversationId] = useState(null);
   const feedRef = useRef(null);
   const topInputRef = useRef(null);
   const bottomInputRef = useRef(null);
@@ -39,12 +41,48 @@ const Chat = ({ user, onLogout }) => {
       .catch(() => setOllamaStatus('offline'));
   }, []);
 
+  // Fetch conversations on mount
+  useEffect(() => {
+    proxyAPI.thesaurus
+      .get('/api/v1/conversations/')
+      .then((res) => {
+        const convs = res.data || [];
+        setConversations(convs);
+        if (convs.length > 0) {
+          loadConversation(convs[0].id);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Auto-scroll feed on new messages
   useEffect(() => {
     if (feedRef.current) {
       feedRef.current.scrollTop = feedRef.current.scrollHeight;
     }
   }, [messages, loading]);
+
+  const loadConversation = async (convId) => {
+    try {
+      const res = await proxyAPI.thesaurus.get('/api/v1/conversations/' + convId + '/messages');
+      const msgs = (res.data || []).map((m) => ({
+        role: m.role,
+        content: m.content,
+        confidence: m.confidence,
+        timestamp: new Date(m.created_at),
+      }));
+      setMessages(msgs);
+      setActiveConversationId(convId);
+    } catch (err) {
+      console.error('Failed to load conversation:', err);
+    }
+  };
+
+  const startNewChat = () => {
+    setMessages([]);
+    setActiveConversationId(null);
+    setInput('');
+  };
 
   const sendMessage = async (text) => {
     if (!text.trim() || loading) return;
@@ -58,6 +96,7 @@ const Chat = ({ user, onLogout }) => {
       const res = await proxyAPI.sophia.post('/api/v1/chat/', {
         user_id: String(user.id),
         question: text.trim(),
+        conversation_id: activeConversationId || undefined,
       });
       const aiMsg = {
         role: 'assistant',
@@ -69,6 +108,14 @@ const Chat = ({ user, onLogout }) => {
       };
       setMessages((prev) => [...prev, aiMsg]);
       setOllamaStatus('active');
+      if (res.data.conversation_id) {
+        setActiveConversationId(res.data.conversation_id);
+        // Refresh conversation list
+        proxyAPI.thesaurus
+          .get('/api/v1/conversations/')
+          .then((r) => setConversations(r.data || []))
+          .catch(() => {});
+      }
     } catch (err) {
       const errMsg = {
         role: 'assistant',
@@ -199,6 +246,55 @@ const Chat = ({ user, onLogout }) => {
           <h1 style={S.sidebarLogo}>LocalFinance</h1>
           <p style={S.sidebarTier}>The Ethereal Vault</p>
         </div>
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5e5e5' }}>
+          <button
+            onClick={startNewChat}
+            style={{
+              width: '100%',
+              padding: '10px 16px',
+              background: '#1A1A1A',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 8,
+              cursor: 'pointer',
+              fontFamily: FONTS.body,
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            + New Chat
+          </button>
+        </div>
+        {conversations.length > 0 && (
+          <div style={{ padding: '8px 0', borderBottom: '1px solid #e5e5e5', maxHeight: 300, overflowY: 'auto' }}>
+            <div style={{ padding: '4px 24px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: COLORS.stone500, letterSpacing: 1 }}>
+              Recent Chats
+            </div>
+            {conversations.map((conv) => (
+              <div
+                key={conv.id}
+                onClick={() => loadConversation(conv.id)}
+                style={{
+                  padding: '8px 24px',
+                  cursor: 'pointer',
+                  background: conv.id === activeConversationId ? '#f5f5f4' : 'transparent',
+                  borderLeft: conv.id === activeConversationId ? '3px solid #1A1A1A' : '3px solid transparent',
+                  fontFamily: FONTS.body,
+                  fontSize: 13,
+                  color: COLORS.stone700,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {conv.title || 'New Chat'}
+                <div style={{ fontSize: 10, color: COLORS.stone500, marginTop: 2 }}>
+                  {new Date(conv.updated_at).toLocaleDateString()}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         <nav>
           <a href="/dashboard" style={S.navItem}>
             <span style={{ fontSize: 20 }}>&#128196;</span>

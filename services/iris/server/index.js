@@ -64,7 +64,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Serve static files from React app
-const buildPath = path.join(__dirname, '../client/build');
+const buildPath = process.env.BUILD_PATH || path.join(__dirname, '../client/build');
 app.use(express.static(buildPath));
 
 // Catch all handler: send back React's index.html for any non-API routes

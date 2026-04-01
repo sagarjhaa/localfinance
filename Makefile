@@ -135,6 +135,11 @@ build-iris: fetch-node
 	@echo "Building Iris (React + Node)..."
 	@cd services/iris && $(NPM) install --silent 2>/dev/null
 	@cd services/iris/client && $(NPM) install --silent 2>/dev/null && $(NPM) run build 2>&1 | tail -3
+	@echo "  Bundling server with esbuild..."
+	@PATH=$(NODE_BIN):$$PATH npx esbuild services/iris/server/index.js \
+		--bundle --platform=node --target=node18 \
+		--outfile=$(DIST)/iris-server.js 2>&1 | tail -1
+	@echo "  → dist/iris-server.js ($$(du -h $(DIST)/iris-server.js | cut -f1))"
 	@echo "  → services/iris/client/build/"
 
 .PHONY: fetch-node
@@ -213,13 +218,10 @@ $(foreach svc,$(GO_SERVICES),$(eval $(call DEPLOY_SERVICE,$(svc))))
 
 deploy-iris: build-iris
 	@echo "Deploying Iris to Jetson..."
-	@$(JETSON) 'mkdir -p $(JETSON_DIR)/iris/{server,client,node/bin}'
+	@$(JETSON) 'mkdir -p $(JETSON_DIR)/iris/{client/build,node/bin}'
 	@$(JSCP) $(NODE_CACHE)/bin/node $(JETSON_USER)@$(JETSON_HOST):$(JETSON_DIR)/iris/node/bin/node
-	@$(JSCP) -r services/iris/server $(JETSON_USER)@$(JETSON_HOST):$(JETSON_DIR)/iris/
+	@$(JSCP) $(DIST)/iris-server.js $(JETSON_USER)@$(JETSON_HOST):$(JETSON_DIR)/iris/server.js
 	@$(JSCP) -r services/iris/client/build $(JETSON_USER)@$(JETSON_HOST):$(JETSON_DIR)/iris/client/
-	@$(JSCP) services/iris/package.json $(JETSON_USER)@$(JETSON_HOST):$(JETSON_DIR)/iris/
-	@cd services/iris && $(NPM) install --production --silent 2>/dev/null
-	@$(JSCP) -r services/iris/node_modules $(JETSON_USER)@$(JETSON_HOST):$(JETSON_DIR)/iris/
 	@$(JETSON) 'echo $(JETSON_PASS) | sudo -S systemctl restart localfinance-iris' 2>/dev/null || \
 		echo "  Warning: systemd unit not installed — run make setup-jetson first"
 	@sleep 2

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { authAPI, setAuthData } from '../api/client';
+import { FONTS, COLORS, APP } from '../theme';
 
 const s = {
   page: {
     minHeight: '100vh',
     background: '#ffffff',
-    fontFamily: "'Hanken Grotesk', 'Manrope', sans-serif",
+    fontFamily: FONTS.body,
     color: '#2d3435',
     display: 'flex',
     alignItems: 'center',
@@ -33,8 +34,8 @@ const s = {
     alignItems: 'center', padding: '32px 48px', zIndex: 50,
   },
   logo: {
-    fontSize: 24, fontFamily: "'Instrument Serif', serif", fontStyle: 'italic',
-    color: '#1A1A1A', letterSpacing: '-0.02em',
+    fontSize: 24, fontFamily: FONTS.headline, fontStyle: 'italic',
+    color: COLORS.primary, letterSpacing: '-0.02em',
   },
   headerLabel: {
     fontSize: 12, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#a0a0a0',
@@ -49,8 +50,8 @@ const s = {
     alignItems: 'center', justifyContent: 'center', padding: '80px',
   },
   title: {
-    fontFamily: "'Instrument Serif', serif", fontSize: 56, lineHeight: 1.1,
-    color: '#1A1A1A', fontWeight: 400, letterSpacing: '-0.02em', textAlign: 'center',
+    fontFamily: FONTS.headline, fontSize: 56, lineHeight: 1.1,
+    color: COLORS.primary, fontWeight: 400, letterSpacing: '-0.02em', textAlign: 'center',
   },
   subtitle: {
     fontSize: 16, color: '#8C8C8C', marginTop: 12, letterSpacing: '0.04em',
@@ -60,15 +61,15 @@ const s = {
   input: {
     width: '100%', background: 'transparent', border: 'none',
     borderBottom: '1px solid #D1D1D1', padding: '16px 0',
-    fontFamily: "'Courier New', Courier, monospace", fontSize: 12,
+    fontFamily: FONTS.mono, fontSize: 12,
     letterSpacing: '0.1em', color: '#2d3435', outline: 'none', transition: 'border-color 0.2s',
   },
   btnWrap: {
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 32, marginTop: 16,
   },
   btn: {
-    width: 240, height: 52, background: '#1A1A1A', color: '#ffffff',
-    fontFamily: "'Hanken Grotesk', sans-serif", fontSize: 13, fontWeight: 600,
+    width: 240, height: 52, background: COLORS.primary, color: COLORS.white,
+    fontFamily: FONTS.body, fontSize: 13, fontWeight: 600,
     letterSpacing: '0.15em', border: '1px solid #000', borderRadius: 2,
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
     boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.4), inset 0 -1px 0 rgba(255,255,255,0.1), 0 1px 2px rgba(0,0,0,0.1)',
@@ -77,12 +78,12 @@ const s = {
   btnDisabled: { opacity: 0.6, cursor: 'not-allowed' },
   links: { display: 'flex', gap: 40 },
   link: {
-    fontFamily: "'Courier New', monospace", fontSize: 11, color: '#8C8C8C',
+    fontFamily: FONTS.mono, fontSize: 11, color: '#8C8C8C',
     textDecoration: 'none', borderBottom: '1px solid transparent', paddingBottom: 2,
     transition: 'all 0.2s',
   },
   error: {
-    background: '#fff7f6', border: '1px solid #fe8983', color: '#752121',
+    background: COLORS.errorBg, border: '1px solid #fe8983', color: '#752121',
     padding: '12px 16px', borderRadius: 8, fontSize: 13, textAlign: 'center', width: '100%', maxWidth: 420,
   },
   footer: {
@@ -127,13 +128,13 @@ const Login = ({ onLogin }) => {
       <div style={s.blob2} />
 
       <header style={s.header}>
-        <div style={s.logo}>LocalFinance</div>
-        <span style={s.headerLabel}>Institutional Gate</span>
+        <div style={s.logo}>{APP.name}</div>
+        <span style={s.headerLabel}>{APP.tagline}</span>
       </header>
 
       <main style={s.panel}>
         <div style={{ textAlign: 'center', marginBottom: 0 }}>
-          <h1 style={s.title}>LocalFinance Sign In</h1>
+          <h1 style={s.title}>{APP.name} Sign In</h1>
           <p style={s.subtitle}>Seamless access to your financial world.</p>
         </div>
 
@@ -145,7 +146,7 @@ const Login = ({ onLogin }) => {
               name="email" type="email" required placeholder="ADDRESS@DOMAIN.COM"
               value={formData.email} onChange={handleChange} disabled={isLoading}
               style={s.input}
-              onFocus={e => e.target.style.borderColor = '#1A1A1A'}
+              onFocus={e => e.target.style.borderColor = COLORS.primary}
               onBlur={e => e.target.style.borderColor = '#D1D1D1'}
             />
           </div>
@@ -154,7 +155,7 @@ const Login = ({ onLogin }) => {
               name="password" type="password" required placeholder="••••••••••••"
               value={formData.password} onChange={handleChange} disabled={isLoading}
               style={s.input}
-              onFocus={e => e.target.style.borderColor = '#1A1A1A'}
+              onFocus={e => e.target.style.borderColor = COLORS.primary}
               onBlur={e => e.target.style.borderColor = '#D1D1D1'}
             />
           </div>
@@ -169,7 +170,7 @@ const Login = ({ onLogin }) => {
             </button>
             <div style={s.links}>
               <Link to="/register" style={s.link}
-                onMouseOver={e => { e.target.style.color = '#1A1A1A'; e.target.style.borderColor = '#1A1A1A'; }}
+                onMouseOver={e => { e.target.style.color = COLORS.primary; e.target.style.borderColor = COLORS.primary; }}
                 onMouseOut={e => { e.target.style.color = '#8C8C8C'; e.target.style.borderColor = 'transparent'; }}
               >Create Account</Link>
               <span style={{ ...s.link, cursor: 'default' }}>System Status</span>

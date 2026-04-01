@@ -1,10 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { proxyAPI } from '../api/client';
-
-const FONTS = {
-  headline: '"Newsreader", "Instrument Serif", serif',
-  body: '"Manrope", "Hanken Grotesk", sans-serif',
-};
+import { FONTS, COLORS, APP } from '../theme';
 
 const CATEGORIES = [
   'Food', 'Transport', 'Shopping', 'Entertainment', 'Utilities',
@@ -144,8 +140,8 @@ const Settings = ({ user, onLogout }) => {
       {/* Sidebar */}
       <aside style={S.sidebar}>
         <div style={{ padding: '0 32px', marginBottom: 16 }}>
-          <h1 style={S.sidebarLogo}>LocalFinance</h1>
-          <p style={S.sidebarTier}>The Ethereal Vault</p>
+          <h1 style={S.sidebarLogo}>{APP.name}</h1>
+          <p style={S.sidebarTier}>{APP.tagline}</p>
         </div>
         <nav>
           <a href="/dashboard" style={S.navItem}>
@@ -313,19 +309,19 @@ const Settings = ({ user, onLogout }) => {
 
 const S = {
   // Layout (matches Dashboard / Chat)
-  page: { display: 'flex', minHeight: '100vh', fontFamily: "'Manrope', sans-serif", color: '#1A1A1A', background: '#fff' },
-  sidebar: { width: 256, height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 40, background: '#fff', borderRight: '1px solid #f5f5f5', display: 'flex', flexDirection: 'column', paddingTop: 32, paddingBottom: 32 },
-  sidebarLogo: { fontFamily: "'Newsreader', serif", fontSize: 20, fontWeight: 700, margin: 0 },
-  sidebarTier: { fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#a0a0a0', fontWeight: 700, marginTop: 4 },
-  navActive: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: '#1A1A1A', fontWeight: 700, background: '#fafafa', borderRight: '4px solid #1A1A1A', textDecoration: 'none' },
-  navItem: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: '#a0a0a0', textDecoration: 'none' },
-  sidebarFooter: { marginTop: 'auto', padding: '24px 32px', borderTop: '1px solid #f5f5f5', display: 'flex', alignItems: 'center', gap: 12 },
-  avatarCircle: { width: 40, height: 40, borderRadius: '50%', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, textTransform: 'uppercase', flexShrink: 0 },
-  logoutBtn: { background: 'none', border: 'none', padding: 0, margin: '2px 0 0 0', fontSize: 10, color: '#a0a0a0', cursor: 'pointer', textDecoration: 'underline', fontFamily: "'Manrope', sans-serif" },
+  page: { display: 'flex', minHeight: '100vh', fontFamily: FONTS.body, color: COLORS.primary, background: COLORS.white },
+  sidebar: { width: 256, height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 40, background: COLORS.white, borderRight: `1px solid ${COLORS.stone100}`, display: 'flex', flexDirection: 'column', paddingTop: 32, paddingBottom: 32 },
+  sidebarLogo: { fontFamily: FONTS.headline, fontSize: 20, fontWeight: 700, margin: 0 },
+  sidebarTier: { fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: COLORS.stone500, fontWeight: 700, marginTop: 4 },
+  navActive: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: COLORS.primary, fontWeight: 700, background: COLORS.stone50, borderRight: `4px solid ${COLORS.primary}`, textDecoration: 'none' },
+  navItem: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: COLORS.stone500, textDecoration: 'none' },
+  sidebarFooter: { marginTop: 'auto', padding: '24px 32px', borderTop: `1px solid ${COLORS.stone100}`, display: 'flex', alignItems: 'center', gap: 12 },
+  avatarCircle: { width: 40, height: 40, borderRadius: '50%', background: COLORS.stone100, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, textTransform: 'uppercase', flexShrink: 0 },
+  logoutBtn: { background: 'none', border: 'none', padding: 0, margin: '2px 0 0 0', fontSize: 10, color: COLORS.stone500, cursor: 'pointer', textDecoration: 'underline', fontFamily: FONTS.body },
   main: { flex: 1, marginLeft: 256, minHeight: '100vh', background: 'radial-gradient(circle at 50% 50%, #ffffff 0%, #f2f4f4 100%)' },
-  topBar: { position: 'sticky', top: 0, zIndex: 30, background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', borderBottom: '1px solid #f5f5f5', padding: '16px 48px' },
-  pageTitle: { fontFamily: "'Newsreader', serif", fontSize: 20, margin: 0, fontWeight: 700 },
-  pageSubtitle: { fontSize: 13, color: '#a0a0a0', margin: '4px 0 0 0', fontFamily: "'Manrope', sans-serif" },
+  topBar: { position: 'sticky', top: 0, zIndex: 30, background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${COLORS.stone100}`, padding: '16px 48px' },
+  pageTitle: { fontFamily: FONTS.headline, fontSize: 20, margin: 0, fontWeight: 700 },
+  pageSubtitle: { fontSize: 13, color: COLORS.stone500, margin: '4px 0 0 0', fontFamily: FONTS.body },
 
   // Content area
   content: { padding: '32px 48px', maxWidth: 800 },
@@ -334,18 +330,18 @@ const S = {
   addForm: { marginBottom: 24 },
   formRow: { display: 'flex', gap: 12, alignItems: 'center' },
   input: {
-    flex: 1, padding: '12px 16px', fontSize: 14, fontFamily: "'Manrope', sans-serif",
-    border: '1px solid #e7e5e4', borderRadius: 10, outline: 'none', color: '#1A1A1A',
-    background: '#fff', transition: 'border-color 0.15s ease',
+    flex: 1, padding: '12px 16px', fontSize: 14, fontFamily: FONTS.body,
+    border: `1px solid ${COLORS.stone200}`, borderRadius: 10, outline: 'none', color: COLORS.primary,
+    background: COLORS.white, transition: 'border-color 0.15s ease',
   },
   select: {
-    padding: '12px 16px', fontSize: 14, fontFamily: "'Manrope', sans-serif",
-    border: '1px solid #e7e5e4', borderRadius: 10, outline: 'none', color: '#1A1A1A',
-    background: '#fff', cursor: 'pointer', minWidth: 140,
+    padding: '12px 16px', fontSize: 14, fontFamily: FONTS.body,
+    border: `1px solid ${COLORS.stone200}`, borderRadius: 10, outline: 'none', color: COLORS.primary,
+    background: COLORS.white, cursor: 'pointer', minWidth: 140,
   },
   addBtn: {
-    padding: '12px 24px', fontSize: 14, fontWeight: 600, fontFamily: "'Manrope', sans-serif",
-    border: 'none', borderRadius: 10, background: '#1A1A1A', color: '#fff',
+    padding: '12px 24px', fontSize: 14, fontWeight: 600, fontFamily: FONTS.body,
+    border: 'none', borderRadius: 10, background: COLORS.primary, color: COLORS.white,
     cursor: 'pointer', whiteSpace: 'nowrap', transition: 'opacity 0.15s ease',
   },
 
@@ -357,7 +353,7 @@ const S = {
   },
   errorDismiss: {
     background: 'none', border: 'none', cursor: 'pointer', fontSize: 14,
-    color: '#b91c1c', padding: '0 4px', fontFamily: "'Manrope', sans-serif",
+    color: '#b91c1c', padding: '0 4px', fontFamily: FONTS.body,
   },
 
   // Rules list
@@ -365,49 +361,49 @@ const S = {
   rulesList: { display: 'flex', flexDirection: 'column', gap: 1 },
   ruleRow: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '16px 20px', background: '#fff', borderRadius: 10,
-    border: '1px solid #f5f5f4', marginBottom: 8,
+    padding: '16px 20px', background: COLORS.white, borderRadius: 10,
+    border: `1px solid ${COLORS.stone100}`, marginBottom: 8,
   },
   ruleInfo: { display: 'flex', alignItems: 'center', gap: 16 },
-  rulePattern: { fontSize: 15, fontWeight: 600, color: '#1c1917' },
+  rulePattern: { fontSize: 15, fontWeight: 600, color: COLORS.stone900 },
   ruleActions: { display: 'flex', gap: 8 },
   editBtn: {
-    padding: '6px 14px', fontSize: 12, fontWeight: 600, fontFamily: "'Manrope', sans-serif",
-    border: '1px solid #e7e5e4', borderRadius: 8, background: '#fff', color: '#44403c',
+    padding: '6px 14px', fontSize: 12, fontWeight: 600, fontFamily: FONTS.body,
+    border: `1px solid ${COLORS.stone200}`, borderRadius: 8, background: COLORS.white, color: COLORS.stone700,
     cursor: 'pointer',
   },
   deleteBtn: {
-    padding: '6px 14px', fontSize: 12, fontWeight: 600, fontFamily: "'Manrope', sans-serif",
-    border: '1px solid #fecaca', borderRadius: 8, background: '#fff', color: '#b91c1c',
+    padding: '6px 14px', fontSize: 12, fontWeight: 600, fontFamily: FONTS.body,
+    border: '1px solid #fecaca', borderRadius: 8, background: COLORS.white, color: '#b91c1c',
     cursor: 'pointer',
   },
 
   // Edit row
   editRow: { display: 'flex', gap: 10, alignItems: 'center', width: '100%' },
   editInput: {
-    flex: 1, padding: '8px 12px', fontSize: 14, fontFamily: "'Manrope', sans-serif",
-    border: '1px solid #e7e5e4', borderRadius: 8, outline: 'none', color: '#1A1A1A',
+    flex: 1, padding: '8px 12px', fontSize: 14, fontFamily: FONTS.body,
+    border: `1px solid ${COLORS.stone200}`, borderRadius: 8, outline: 'none', color: COLORS.primary,
   },
   editSelect: {
-    padding: '8px 12px', fontSize: 14, fontFamily: "'Manrope', sans-serif",
-    border: '1px solid #e7e5e4', borderRadius: 8, outline: 'none', color: '#1A1A1A',
-    background: '#fff', cursor: 'pointer', minWidth: 120,
+    padding: '8px 12px', fontSize: 14, fontFamily: FONTS.body,
+    border: `1px solid ${COLORS.stone200}`, borderRadius: 8, outline: 'none', color: COLORS.primary,
+    background: COLORS.white, cursor: 'pointer', minWidth: 120,
   },
   saveBtn: {
-    padding: '8px 16px', fontSize: 12, fontWeight: 600, fontFamily: "'Manrope', sans-serif",
-    border: 'none', borderRadius: 8, background: '#1A1A1A', color: '#fff', cursor: 'pointer',
+    padding: '8px 16px', fontSize: 12, fontWeight: 600, fontFamily: FONTS.body,
+    border: 'none', borderRadius: 8, background: COLORS.primary, color: COLORS.white, cursor: 'pointer',
   },
   cancelBtn: {
-    padding: '8px 16px', fontSize: 12, fontWeight: 600, fontFamily: "'Manrope', sans-serif",
-    border: '1px solid #e7e5e4', borderRadius: 8, background: '#fff', color: '#44403c',
+    padding: '8px 16px', fontSize: 12, fontWeight: 600, fontFamily: FONTS.body,
+    border: `1px solid ${COLORS.stone200}`, borderRadius: 8, background: COLORS.white, color: COLORS.stone700,
     cursor: 'pointer',
   },
 
   // Empty state
   emptyState: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 20px', textAlign: 'center' },
-  emptyIcon: { fontSize: 32, color: '#d6d3d1', marginBottom: 16 },
-  emptyTitle: { fontFamily: "'Newsreader', serif", fontSize: 18, fontWeight: 400, fontStyle: 'italic', color: '#1c1917', margin: '0 0 8px 0' },
-  emptyText: { fontSize: 14, color: '#78716c', lineHeight: '1.6', maxWidth: 360, margin: 0 },
+  emptyIcon: { fontSize: 32, color: COLORS.stone300, marginBottom: 16 },
+  emptyTitle: { fontFamily: FONTS.headline, fontSize: 18, fontWeight: 400, fontStyle: 'italic', color: COLORS.stone900, margin: '0 0 8px 0' },
+  emptyText: { fontSize: 14, color: COLORS.stone500, lineHeight: '1.6', maxWidth: 360, margin: 0 },
 
   // Info section
   infoSection: {
@@ -415,7 +411,7 @@ const S = {
     background: '#f8fafc', borderRadius: 12, border: '1px solid #f1f5f9',
   },
   infoIcon: { fontSize: 18, color: '#64748b', flexShrink: 0, marginTop: 1 },
-  infoText: { fontSize: 13, color: '#64748b', lineHeight: '1.6', margin: 0, fontFamily: "'Manrope', sans-serif" },
+  infoText: { fontSize: 13, color: '#64748b', lineHeight: '1.6', margin: 0, fontFamily: FONTS.body },
 };
 
 export default Settings;

@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { uploadAPI, documentAPI } from '../api/client';
+import { FONTS, COLORS, APP } from '../theme';
 
 const categoryIcons = {
   Food: '🍽️', Transport: '✈️', Shopping: '🛍️', Entertainment: '🎬',
@@ -123,8 +124,8 @@ const Dashboard = ({ user, onLogout }) => {
       {/* Sidebar */}
       <aside style={S.sidebar}>
         <div style={{ padding: '0 32px', marginBottom: 16 }}>
-          <h1 style={S.sidebarLogo}>LocalFinance</h1>
-          <p style={S.sidebarTier}>Premium Institutional</p>
+          <h1 style={S.sidebarLogo}>{APP.name}</h1>
+          <p style={S.sidebarTier}>{APP.tagline}</p>
         </div>
         <nav>
           <a href="#upload" style={S.navActive}>
@@ -148,7 +149,7 @@ const Dashboard = ({ user, onLogout }) => {
           <div style={S.avatar}>{user?.first_name?.[0] || user?.username?.[0] || 'U'}</div>
           <div style={{ flex: 1 }}>
             <p style={{ fontSize: 12, fontWeight: 700, margin: 0 }}>{user?.first_name || user?.username} {user?.last_name || ''}</p>
-            <button onClick={onLogout} style={{ background: 'none', border: 'none', padding: 0, margin: '2px 0 0 0', fontSize: 10, color: '#a0a0a0', cursor: 'pointer', textDecoration: 'underline', fontFamily: "'Manrope', sans-serif" }}>Sign Out</button>
+            <button onClick={onLogout} style={{ background: 'none', border: 'none', padding: 0, margin: '2px 0 0 0', fontSize: 10, color: COLORS.stone500, cursor: 'pointer', textDecoration: 'underline', fontFamily: FONTS.body }}>Sign Out</button>
           </div>
         </div>
       </aside>
@@ -158,11 +159,11 @@ const Dashboard = ({ user, onLogout }) => {
         {/* Top header */}
         <header style={S.topBar}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
-            <h2 style={{ fontFamily: "'Newsreader', serif", fontSize: 20, margin: 0 }}>Dashboard</h2>
+            <h2 style={{ fontFamily: FONTS.headline, fontSize: 20, margin: 0 }}>Dashboard</h2>
             <nav style={{ display: 'flex', gap: 24 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, borderBottom: '2px solid #1A1A1A', paddingBottom: 4 }}>Overview</span>
-              <span style={{ fontSize: 14, color: '#a0a0a0' }}>Analytics</span>
-              <span style={{ fontSize: 14, color: '#a0a0a0' }}>Reports</span>
+              <span style={{ fontSize: 14, fontWeight: 700, borderBottom: `2px solid ${COLORS.primary}`, paddingBottom: 4 }}>Overview</span>
+              <span style={{ fontSize: 14, color: COLORS.stone500 }}>Analytics</span>
+              <span style={{ fontSize: 14, color: COLORS.stone500 }}>Reports</span>
             </nav>
           </div>
         </header>
@@ -190,13 +191,13 @@ const Dashboard = ({ user, onLogout }) => {
                     <div style={S.tickerIcon}>{categoryIcons[currentTicker.category] || '⚙️'}</div>
                     <div>
                       <p style={{ fontSize: 12, fontWeight: 700, margin: 0 }}>{currentTicker.description}</p>
-                      <p style={{ fontSize: 10, color: '#a0a0a0', margin: 0 }}>{currentTicker.category || 'Processing...'}</p>
+                      <p style={{ fontSize: 10, color: COLORS.stone500, margin: 0 }}>{currentTicker.category || 'Processing...'}</p>
                     </div>
-                    <span style={{ fontFamily: "'Newsreader', serif", fontSize: 14, fontWeight: 500, marginLeft: 16 }}>{fmtAmt(currentTicker.amount)}</span>
+                    <span style={{ fontFamily: FONTS.headline, fontSize: 14, fontWeight: 500, marginLeft: 16 }}>{fmtAmt(currentTicker.amount)}</span>
                   </div>
                 </>)}
                 {!currentTicker && isActive && (
-                  <span style={{ fontSize: 12, color: '#a0a0a0', marginLeft: 16 }}>Waiting for Logos to parse...</span>
+                  <span style={{ fontSize: 12, color: COLORS.stone500, marginLeft: 16 }}>Waiting for Logos to parse...</span>
                 )}
               </div>
             </div>
@@ -211,7 +212,7 @@ const Dashboard = ({ user, onLogout }) => {
               >
                 <div style={S.uploadIcon}>
                   {isActive
-                    ? <div style={{ width: 36, height: 36, border: '3px solid #e5e5e5', borderTop: '3px solid #1A1A1A', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                    ? <div style={{ width: 36, height: 36, border: '3px solid #e5e5e5', borderTop: `3px solid ${COLORS.primary}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
                     : <span style={{ fontSize: 36 }}>&#9729;</span>}
                 </div>
                 <h3 style={S.dropTitle}>{isActive ? 'Processing Statement...' : 'Drop PDF or CSV Statements'}</h3>
@@ -229,7 +230,7 @@ const Dashboard = ({ user, onLogout }) => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 40 }}>
                 <div>
                   <h3 style={S.ledgerTitle}>Processed Ledger</h3>
-                  <p style={{ fontSize: 14, color: '#a0a0a0', marginTop: 4 }}>Institutional records post-enrichment</p>
+                  <p style={{ fontSize: 14, color: COLORS.stone500, marginTop: 4 }}>Institutional records post-enrichment</p>
                 </div>
                 <button onClick={reset} style={S.exportBtn}>+ New Upload</button>
               </div>
@@ -253,12 +254,12 @@ const Dashboard = ({ user, onLogout }) => {
                             <div style={S.txnIcon}>{categoryIcons[txn.category] || '⚙️'}</div>
                             <div>
                               <p style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>{txn.description}</p>
-                              <p style={{ fontSize: 10, color: '#a0a0a0', margin: 0 }}>{txn.category}</p>
+                              <p style={{ fontSize: 10, color: COLORS.stone500, margin: 0 }}>{txn.category}</p>
                             </div>
                           </div>
                         </td>
                         <td style={S.tdAmount}>
-                          <span style={{ fontFamily: "'Newsreader', serif", fontWeight: 500, color: txn.amount >= 0 ? '#16a34a' : '#1A1A1A' }}>{fmtAmt(txn.amount)}</span>
+                          <span style={{ fontFamily: FONTS.headline, fontWeight: 500, color: txn.amount >= 0 ? COLORS.green : COLORS.primary }}>{fmtAmt(txn.amount)}</span>
                         </td>
                         <td style={S.tdStatus}>
                           <span style={S.verifiedBadge}>Verified</span>
@@ -268,7 +269,7 @@ const Dashboard = ({ user, onLogout }) => {
                   </tbody>
                 </table>
                 <div style={S.tableFooter}>
-                  <span style={{ fontSize: 12, color: '#a0a0a0' }}>Showing {visibleTransactions.length} of {allTransactions.length} transactions processed</span>
+                  <span style={{ fontSize: 12, color: COLORS.stone500 }}>Showing {visibleTransactions.length} of {allTransactions.length} transactions processed</span>
                 </div>
               </div>
             </section>
@@ -285,41 +286,41 @@ const Dashboard = ({ user, onLogout }) => {
 };
 
 const S = {
-  page: { display: 'flex', minHeight: '100vh', fontFamily: "'Manrope', sans-serif", color: '#1A1A1A', background: '#fff' },
-  sidebar: { width: 256, height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 40, background: '#fff', borderRight: '1px solid #f5f5f5', display: 'flex', flexDirection: 'column', paddingTop: 32, paddingBottom: 32 },
-  sidebarLogo: { fontFamily: "'Newsreader', serif", fontSize: 20, fontWeight: 700, margin: 0 },
-  sidebarTier: { fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#a0a0a0', fontWeight: 700, marginTop: 4 },
-  navActive: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: '#1A1A1A', fontWeight: 700, background: '#fafafa', borderRight: '4px solid #1A1A1A', textDecoration: 'none' },
-  navItem: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: '#a0a0a0', textDecoration: 'none' },
-  sidebarFooter: { marginTop: 'auto', padding: '24px 32px', borderTop: '1px solid #f5f5f5', display: 'flex', alignItems: 'center', gap: 12 },
-  avatar: { width: 40, height: 40, borderRadius: '50%', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, textTransform: 'uppercase' },
-  main: { flex: 1, marginLeft: 256, minHeight: '100vh', background: '#fff' },
-  topBar: { position: 'sticky', top: 0, zIndex: 30, background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', borderBottom: '1px solid #f5f5f5', padding: '16px 48px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  page: { display: 'flex', minHeight: '100vh', fontFamily: FONTS.body, color: COLORS.primary, background: COLORS.white },
+  sidebar: { width: 256, height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 40, background: COLORS.white, borderRight: `1px solid ${COLORS.stone100}`, display: 'flex', flexDirection: 'column', paddingTop: 32, paddingBottom: 32 },
+  sidebarLogo: { fontFamily: FONTS.headline, fontSize: 20, fontWeight: 700, margin: 0 },
+  sidebarTier: { fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: COLORS.stone500, fontWeight: 700, marginTop: 4 },
+  navActive: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: COLORS.primary, fontWeight: 700, background: COLORS.stone50, borderRight: `4px solid ${COLORS.primary}`, textDecoration: 'none' },
+  navItem: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: COLORS.stone500, textDecoration: 'none' },
+  sidebarFooter: { marginTop: 'auto', padding: '24px 32px', borderTop: `1px solid ${COLORS.stone100}`, display: 'flex', alignItems: 'center', gap: 12 },
+  avatar: { width: 40, height: 40, borderRadius: '50%', background: COLORS.stone100, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, textTransform: 'uppercase' },
+  main: { flex: 1, marginLeft: 256, minHeight: '100vh', background: COLORS.white },
+  topBar: { position: 'sticky', top: 0, zIndex: 30, background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${COLORS.stone100}`, padding: '16px 48px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   content: { maxWidth: 1024, margin: '0 auto', padding: '96px 48px 80px' },
-  pageTitle: { fontFamily: "'Newsreader', serif", fontSize: 48, fontWeight: 500, letterSpacing: '-0.02em', marginBottom: 8 },
-  error: { padding: '12px 20px', background: '#fff7f6', border: '1px solid #fe8983', color: '#752121', borderRadius: 12, fontSize: 14, marginBottom: 24 },
+  pageTitle: { fontFamily: FONTS.headline, fontSize: 48, fontWeight: 500, letterSpacing: '-0.02em', marginBottom: 8 },
+  error: { padding: '12px 20px', background: COLORS.errorBg, border: '1px solid #fe8983', color: '#752121', borderRadius: 12, fontSize: 14, marginBottom: 24 },
   ticker: { display: 'inline-flex', alignItems: 'center', gap: 24, padding: '16px 32px', background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(24px)', border: '1px solid #fff', boxShadow: '0 24px 60px -12px rgba(0,0,0,0.12), inset 0 1px 1px rgba(255,255,255,0.8)', borderRadius: 999 },
   pulseDot: { width: 8, height: 8, borderRadius: '50%', background: '#22c55e', animation: 'pulse 2s infinite' },
-  tickerLabel: { fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 700, color: '#a0a0a0' },
-  tickerIcon: { width: 32, height: 32, borderRadius: 8, background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 },
+  tickerLabel: { fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 700, color: COLORS.stone500 },
+  tickerIcon: { width: 32, height: 32, borderRadius: 8, background: COLORS.stone100, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 },
   uploadSection: { background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(24px)', border: '1px solid #fff', boxShadow: '0 24px 60px -12px rgba(0,0,0,0.12), inset 0 1px 1px rgba(255,255,255,0.8)', borderRadius: 24, overflow: 'hidden', marginBottom: 0 },
   dropZone: { border: '2px dashed #e0e0e0', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '96px 48px', background: 'rgba(255,255,255,0.4)', cursor: 'pointer', transition: 'all 0.3s' },
-  dropZoneActive: { borderColor: '#1A1A1A', background: 'rgba(245,245,245,0.6)' },
+  dropZoneActive: { borderColor: COLORS.primary, background: 'rgba(245,245,245,0.6)' },
   uploadIcon: { width: 80, height: 80, borderRadius: '50%', background: '#fff', boxShadow: '0 10px 30px rgba(0,0,0,0.1), inset 0 0 0 1px rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 32 },
-  dropTitle: { fontFamily: "'Newsreader', serif", fontSize: 28, marginBottom: 16 },
-  browseBtn: { marginTop: 40, padding: '12px 32px', background: '#1A1A1A', color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', borderRadius: 8, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' },
-  ledgerTitle: { fontFamily: "'Newsreader', serif", fontSize: 28, fontWeight: 500 },
-  exportBtn: { padding: '10px 24px', background: '#1A1A1A', color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', borderRadius: 8, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', gap: 8 },
-  tableContainer: { background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(24px)', borderRadius: 24, border: '1px solid #f5f5f5', overflow: 'hidden' },
+  dropTitle: { fontFamily: FONTS.headline, fontSize: 28, marginBottom: 16 },
+  browseBtn: { marginTop: 40, padding: '12px 32px', background: COLORS.primary, color: COLORS.white, fontSize: 14, fontWeight: 700, border: 'none', borderRadius: 8, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' },
+  ledgerTitle: { fontFamily: FONTS.headline, fontSize: 28, fontWeight: 500 },
+  exportBtn: { padding: '10px 24px', background: COLORS.primary, color: COLORS.white, fontSize: 14, fontWeight: 700, border: 'none', borderRadius: 8, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', gap: 8 },
+  tableContainer: { background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(24px)', borderRadius: 24, border: `1px solid ${COLORS.stone100}`, overflow: 'hidden' },
   table: { width: '100%', borderCollapse: 'collapse' },
-  th: { padding: '20px 32px', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 700, color: '#a0a0a0', borderBottom: '1px solid #f5f5f5', textAlign: 'left' },
-  tdDate: { padding: '16px 32px', fontSize: 12, fontWeight: 500, color: '#737373', borderBottom: '1px solid #f5f5f5' },
-  tdDesc: { padding: '16px 32px', borderBottom: '1px solid #f5f5f5' },
-  txnIcon: { width: 32, height: 32, borderRadius: '50%', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 },
-  tdAmount: { padding: '16px 32px', textAlign: 'right', borderBottom: '1px solid #f5f5f5', fontSize: 14 },
-  tdStatus: { padding: '16px 32px', borderBottom: '1px solid #f5f5f5' },
-  verifiedBadge: { display: 'inline-block', padding: '4px 8px', background: '#f0fdf4', color: '#15803d', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', borderRadius: 999 },
-  tableFooter: { padding: '24px 32px', background: 'rgba(250,250,250,0.3)', borderTop: '1px solid #f5f5f5' },
+  th: { padding: '20px 32px', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 700, color: COLORS.stone500, borderBottom: `1px solid ${COLORS.stone100}`, textAlign: 'left' },
+  tdDate: { padding: '16px 32px', fontSize: 12, fontWeight: 500, color: '#737373', borderBottom: `1px solid ${COLORS.stone100}` },
+  tdDesc: { padding: '16px 32px', borderBottom: `1px solid ${COLORS.stone100}` },
+  txnIcon: { width: 32, height: 32, borderRadius: '50%', background: COLORS.stone100, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 },
+  tdAmount: { padding: '16px 32px', textAlign: 'right', borderBottom: `1px solid ${COLORS.stone100}`, fontSize: 14 },
+  tdStatus: { padding: '16px 32px', borderBottom: `1px solid ${COLORS.stone100}` },
+  verifiedBadge: { display: 'inline-block', padding: '4px 8px', background: COLORS.greenBg, color: '#15803d', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', borderRadius: 999 },
+  tableFooter: { padding: '24px 32px', background: 'rgba(250,250,250,0.3)', borderTop: `1px solid ${COLORS.stone100}` },
 };
 
 export default Dashboard;

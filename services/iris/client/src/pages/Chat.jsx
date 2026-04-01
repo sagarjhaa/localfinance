@@ -1,22 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { proxyAPI } from '../api/client';
-
-const FONTS = {
-  headline: '"Newsreader", "Instrument Serif", serif',
-  body: '"Manrope", "Hanken Grotesk", sans-serif',
-};
-
-const COLORS = {
-  stone900: '#1c1917',
-  stone700: '#44403c',
-  stone500: '#78716c',
-  stone300: '#d6d3d1',
-  stone200: '#e7e5e4',
-  stone100: '#f5f5f4',
-  error: '#dc2626',
-  green: '#16a34a',
-  white: '#ffffff',
-};
+import { FONTS, COLORS, APP } from '../theme';
 
 const Chat = ({ user, onLogout }) => {
   const [messages, setMessages] = useState([]);
@@ -243,8 +227,8 @@ const Chat = ({ user, onLogout }) => {
       {/* Sidebar - same as Dashboard */}
       <aside style={S.sidebar}>
         <div style={{ padding: '0 32px', marginBottom: 16 }}>
-          <h1 style={S.sidebarLogo}>LocalFinance</h1>
-          <p style={S.sidebarTier}>The Ethereal Vault</p>
+          <h1 style={S.sidebarLogo}>{APP.name}</h1>
+          <p style={S.sidebarTier}>{APP.tagline}</p>
         </div>
         <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5e5e5' }}>
           <button
@@ -252,7 +236,7 @@ const Chat = ({ user, onLogout }) => {
             style={{
               width: '100%',
               padding: '10px 16px',
-              background: '#1A1A1A',
+              background: COLORS.primary,
               color: '#fff',
               border: 'none',
               borderRadius: 8,
@@ -277,8 +261,8 @@ const Chat = ({ user, onLogout }) => {
                 style={{
                   padding: '8px 24px',
                   cursor: 'pointer',
-                  background: conv.id === activeConversationId ? '#f5f5f4' : 'transparent',
-                  borderLeft: conv.id === activeConversationId ? '3px solid #1A1A1A' : '3px solid transparent',
+                  background: conv.id === activeConversationId ? COLORS.stone100 : 'transparent',
+                  borderLeft: conv.id === activeConversationId ? `3px solid ${COLORS.primary}` : '3px solid transparent',
                   fontFamily: FONTS.body,
                   fontSize: 13,
                   color: COLORS.stone700,
@@ -330,8 +314,8 @@ const Chat = ({ user, onLogout }) => {
             <h2 style={{ fontFamily: FONTS.headline, fontSize: 20, margin: 0, fontWeight: 700 }}>Ollama Chat</h2>
             <div style={{ height: 16, width: 1, background: '#e0e0e0' }} />
             <nav style={{ display: 'flex', gap: 24 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, borderBottom: '2px solid #1A1A1A', paddingBottom: 4 }}>Analysis</span>
-              <span style={{ fontSize: 14, color: '#a0a0a0', cursor: 'pointer' }}>Archive</span>
+              <span style={{ fontSize: 14, fontWeight: 700, borderBottom: `2px solid ${COLORS.primary}`, paddingBottom: 4 }}>Analysis</span>
+              <span style={{ fontSize: 14, color: COLORS.stone500, cursor: 'pointer' }}>Archive</span>
             </nav>
           </div>
         </header>
@@ -382,17 +366,17 @@ const Chat = ({ user, onLogout }) => {
 
 const S = {
   // Layout (matches Dashboard)
-  page: { display: 'flex', minHeight: '100vh', fontFamily: "'Manrope', sans-serif", color: '#1A1A1A', background: '#fff' },
-  sidebar: { width: 256, height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 40, background: '#fff', borderRight: '1px solid #f5f5f5', display: 'flex', flexDirection: 'column', paddingTop: 32, paddingBottom: 32 },
-  sidebarLogo: { fontFamily: "'Newsreader', serif", fontSize: 20, fontWeight: 700, margin: 0 },
-  sidebarTier: { fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#a0a0a0', fontWeight: 700, marginTop: 4 },
-  navActive: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: '#1A1A1A', fontWeight: 700, background: '#fafafa', borderRight: '4px solid #1A1A1A', textDecoration: 'none' },
-  navItem: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: '#a0a0a0', textDecoration: 'none' },
-  sidebarFooter: { marginTop: 'auto', padding: '24px 32px', borderTop: '1px solid #f5f5f5', display: 'flex', alignItems: 'center', gap: 12 },
-  avatarCircle: { width: 40, height: 40, borderRadius: '50%', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, textTransform: 'uppercase', flexShrink: 0 },
-  logoutBtn: { background: 'none', border: 'none', padding: 0, margin: '2px 0 0 0', fontSize: 10, color: '#a0a0a0', cursor: 'pointer', textDecoration: 'underline', fontFamily: "'Manrope', sans-serif" },
+  page: { display: 'flex', minHeight: '100vh', fontFamily: FONTS.body, color: COLORS.primary, background: COLORS.white },
+  sidebar: { width: 256, height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 40, background: COLORS.white, borderRight: `1px solid ${COLORS.stone100}`, display: 'flex', flexDirection: 'column', paddingTop: 32, paddingBottom: 32 },
+  sidebarLogo: { fontFamily: FONTS.headline, fontSize: 20, fontWeight: 700, margin: 0 },
+  sidebarTier: { fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: COLORS.stone500, fontWeight: 700, marginTop: 4 },
+  navActive: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: COLORS.primary, fontWeight: 700, background: COLORS.stone50, borderRight: `4px solid ${COLORS.primary}`, textDecoration: 'none' },
+  navItem: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: COLORS.stone500, textDecoration: 'none' },
+  sidebarFooter: { marginTop: 'auto', padding: '24px 32px', borderTop: `1px solid ${COLORS.stone100}`, display: 'flex', alignItems: 'center', gap: 12 },
+  avatarCircle: { width: 40, height: 40, borderRadius: '50%', background: COLORS.stone100, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, textTransform: 'uppercase', flexShrink: 0 },
+  logoutBtn: { background: 'none', border: 'none', padding: 0, margin: '2px 0 0 0', fontSize: 10, color: COLORS.stone500, cursor: 'pointer', textDecoration: 'underline', fontFamily: FONTS.body },
   main: { flex: 1, marginLeft: 256, minHeight: '100vh', background: 'radial-gradient(circle at 50% 50%, #ffffff 0%, #f2f4f4 100%)' },
-  topBar: { position: 'sticky', top: 0, zIndex: 30, background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', borderBottom: '1px solid #f5f5f5', padding: '16px 48px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  topBar: { position: 'sticky', top: 0, zIndex: 30, background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${COLORS.stone100}`, padding: '16px 48px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
 
   // Chat area
   chatArea: { display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 48px', minHeight: 'calc(100vh - 64px)' },

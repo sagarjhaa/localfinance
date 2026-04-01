@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { authAPI, setAuthData } from '../api/client';
+import { FONTS, COLORS, APP } from '../theme';
 
 const styles = {
   page: {
     minHeight: '100vh',
     background: '#ffffff',
-    fontFamily: "'Manrope', sans-serif",
+    fontFamily: FONTS.body,
     color: '#2d3435',
     display: 'flex',
     alignItems: 'center',
@@ -20,7 +21,7 @@ const styles = {
     zIndex: 0,
     opacity: 0.05,
     pointerEvents: 'none',
-    backgroundImage: 'radial-gradient(#1A1A1A 0.5px, transparent 0.5px)',
+    backgroundImage: `radial-gradient(${COLORS.primary} 0.5px, transparent 0.5px)`,
     backgroundSize: '24px 24px',
   },
   bgBlob1: {
@@ -65,18 +66,18 @@ const styles = {
     padding: '64px',
   },
   logo: {
-    fontFamily: "'Instrument Serif', serif",
+    fontFamily: FONTS.headline,
     fontSize: 32,
     fontWeight: 600,
-    color: '#1A1A1A',
+    color: COLORS.primary,
     letterSpacing: '-0.04em',
     lineHeight: 1,
     marginBottom: 48,
   },
   title: {
-    fontFamily: "'Instrument Serif', serif",
+    fontFamily: FONTS.headline,
     fontSize: 48,
-    color: '#1A1A1A',
+    color: COLORS.primary,
     lineHeight: 1.1,
     marginBottom: 48,
     letterSpacing: '-0.02em',
@@ -101,8 +102,8 @@ const styles = {
     width: '100%',
     padding: '12px 0',
     fontSize: 15,
-    fontFamily: "'Courier New', Courier, monospace",
-    color: '#1A1A1A',
+    fontFamily: FONTS.mono,
+    color: COLORS.primary,
     background: 'transparent',
     border: 'none',
     borderBottom: '1px solid #8C8C8C',
@@ -120,9 +121,9 @@ const styles = {
   button: {
     height: 48,
     padding: '0 40px',
-    background: '#1A1A1A',
-    color: '#ffffff',
-    fontFamily: "'Manrope', sans-serif",
+    background: COLORS.primary,
+    color: COLORS.white,
+    fontFamily: FONTS.body,
     fontWeight: 500,
     fontSize: 14,
     border: 'none',
@@ -145,13 +146,13 @@ const styles = {
     color: '#8C8C8C',
   },
   signInAnchor: {
-    color: '#1A1A1A',
+    color: COLORS.primary,
     fontWeight: 600,
     textDecoration: 'underline',
     textUnderlineOffset: 4,
   },
   error: {
-    background: '#fff7f6',
+    background: COLORS.errorBg,
     border: '1px solid #fe8983',
     color: '#752121',
     padding: '12px 16px',
@@ -207,7 +208,7 @@ const Register = ({ onLogin }) => {
   };
 
   const handleFocus = (e) => {
-    e.target.style.borderColor = '#1A1A1A';
+    e.target.style.borderColor = COLORS.primary;
   };
 
   const handleBlur = (e) => {
@@ -239,7 +240,7 @@ const Register = ({ onLogin }) => {
 
       <main style={styles.panel}>
         <header>
-          <h1 style={styles.logo}>LocalFinance</h1>
+          <h1 style={styles.logo}>{APP.name}</h1>
         </header>
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>

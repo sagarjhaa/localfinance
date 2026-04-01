@@ -38,7 +38,7 @@ func NewService(aiConfig config.AIConfig) (*Service, error) {
 	return &Service{
 		config: aiConfig,
 		httpClient: &http.Client{
-			Timeout: 120 * time.Second,
+			Timeout: 300 * time.Second,
 		},
 		thesaurusURL: "",
 	}, nil

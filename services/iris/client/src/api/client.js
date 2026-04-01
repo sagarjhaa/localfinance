@@ -29,8 +29,8 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Handle 401 Unauthorized
-    if (error.response?.status === 401) {
+    // Handle 401 Unauthorized — only logout on explicit auth failures, not background fetches
+    if (error.response?.status === 401 && !error.config?.skipLogoutOn401) {
       localStorage.removeItem('authToken');
       localStorage.removeItem('user');
       window.location.href = '/login';
@@ -111,10 +111,10 @@ export const proxyAPI = {
   },
   
   thesaurus: {
-    get: (path, params) => apiClient.get(`/proxy/thesaurus${path}`, { params }),
-    post: (path, data) => apiClient.post(`/proxy/thesaurus${path}`, data),
-    put: (path, data) => apiClient.put(`/proxy/thesaurus${path}`, data),
-    delete: (path) => apiClient.delete(`/proxy/thesaurus${path}`),
+    get: (path, params, config) => apiClient.get(`/proxy/thesaurus${path}`, { params, ...config }),
+    post: (path, data, config) => apiClient.post(`/proxy/thesaurus${path}`, data, config),
+    put: (path, data, config) => apiClient.put(`/proxy/thesaurus${path}`, data, config),
+    delete: (path, config) => apiClient.delete(`/proxy/thesaurus${path}`, config),
   },
   
   logos: {

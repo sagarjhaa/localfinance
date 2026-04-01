@@ -41,10 +41,10 @@ const Chat = ({ user, onLogout }) => {
       .catch(() => setOllamaStatus('offline'));
   }, []);
 
-  // Fetch conversations on mount
+  // Fetch conversations on mount (background — don't logout on 401)
   useEffect(() => {
     proxyAPI.thesaurus
-      .get('/api/v1/conversations/')
+      .get('/api/v1/conversations/', undefined, { skipLogoutOn401: true })
       .then((res) => {
         const convs = res.data || [];
         setConversations(convs);
@@ -112,7 +112,7 @@ const Chat = ({ user, onLogout }) => {
         setActiveConversationId(res.data.conversation_id);
         // Refresh conversation list
         proxyAPI.thesaurus
-          .get('/api/v1/conversations/')
+          .get('/api/v1/conversations/', undefined, { skipLogoutOn401: true })
           .then((r) => setConversations(r.data || []))
           .catch(() => {});
       }

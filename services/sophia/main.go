@@ -28,7 +28,7 @@ func main() {
 	router.Use(gin.Recovery())
 
 	// Setup full routes
-	api.SetupRoutes(router, aiService, cfg.Thesaurus)
+	api.SetupRoutes(router, aiService, cfg.Thesaurus, cfg.AI.ModelName)
 
 	port := os.Getenv("PORT")
 	if port == "" {

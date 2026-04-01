@@ -23,6 +23,7 @@ const Chat = ({ user, onLogout }) => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState('checking');
+  const [modelName, setModelName] = useState('');
   const feedRef = useRef(null);
   const topInputRef = useRef(null);
   const bottomInputRef = useRef(null);
@@ -31,7 +32,10 @@ const Chat = ({ user, onLogout }) => {
   useEffect(() => {
     proxyAPI.sophia
       .get('/health')
-      .then(() => setOllamaStatus('active'))
+      .then((res) => {
+        setOllamaStatus('active');
+        setModelName(res.data.ai_model || '');
+      })
       .catch(() => setOllamaStatus('offline'));
   }, []);
 
@@ -103,7 +107,7 @@ const Chat = ({ user, onLogout }) => {
 
   const statusLabel =
     ollamaStatus === 'active'
-      ? 'Ollama Llama-3 Active'
+      ? `Ollama ${modelName || 'AI'} Active`
       : ollamaStatus === 'offline'
       ? 'Ollama Offline'
       : 'Checking Ollama...';

@@ -7,7 +7,7 @@ import (
 	"github.com/sagarjhaa/localfinance/services/sophia/config"
 )
 
-func SetupRoutes(router *gin.Engine, aiService *ai.Service, thesaurusConfig config.ThesaurusConfig) {
+func SetupRoutes(router *gin.Engine, aiService *ai.Service, thesaurusConfig config.ThesaurusConfig, modelName string) {
 	// Set Thesaurus URL for AI service
 	aiService.SetThesaurusURL(thesaurusConfig.BaseURL)
 
@@ -21,7 +21,7 @@ func SetupRoutes(router *gin.Engine, aiService *ai.Service, thesaurusConfig conf
 		c.JSON(200, gin.H{
 			"status":  "healthy",
 			"service": "sophia",
-			"ai_model": "llama3.2:1b",
+			"ai_model": modelName,
 		})
 	})
 
@@ -56,7 +56,7 @@ func SetupRoutes(router *gin.Engine, aiService *ai.Service, thesaurusConfig conf
 			status.GET("/", func(c *gin.Context) {
 				c.JSON(200, gin.H{
 					"ai_service": "operational",
-					"model":      "llama3.2:1b",
+					"model":      modelName,
 					"endpoints": []string{
 						"/api/v1/chat",
 						"/api/v1/insights",

@@ -1,278 +1,186 @@
-# LocalFinance - Privacy-First Personal Finance Assistant
+# LocalFinance
 
-## Architecture Principles
+Privacy-first personal finance system. Local Ollama AI, deployed on Jetson Nano Orin.
 
-### Iris is a DUMB Frontend
-Iris (React + Express) is a **pure presentation layer**. It serves static files and proxies API calls to backend services. It NEVER:
-- Parses files (CSV, PDF, Excel)
-- Transforms or processes data
-- Runs business logic
-- Stores state beyond auth tokens
+## Architecture
 
-All processing happens in Go backend services (Thesaurus, Logos, Sophia).
+| Service | Port | Responsibility |
+|---------|------|---------------|
+| **Iris** | 3001 | React UI + Express proxy. ZERO business logic. |
+| **Hermes** | 3000 | API Gateway (future routing/aggregation) |
+| **Thesaurus** | 8001 | Auth, CRUD, PostgreSQL. Source of truth for all data. |
+| **Sophia** | 8002 | AI/Ollama integration. Two-pass chat with real data. |
+| **Logos** | 8003 | Document parsing (CSV, PDF). Stateless processor. |
 
-### Document Processing Flow
-```
-User drops file in browser
-  → Iris proxies multipart upload to Thesaurus
-  → Thesaurus stores document record (status=processing), saves file, fires to Logos
-  → Logos parses CSV/PDF, extracts transactions, sends to Thesaurus /transactions/bulk
-  → Logos updates document status to "processed"
-  → Iris polls GET /documents/:id until status=processed
-  → Iris fetches GET /transactions/by-document?document_id=:id
-  → React renders transaction table
-```
+**Infra:** PostgreSQL 15, Redis 7, Ollama (llama3.2:1b), MinIO
 
-### Service Responsibilities
-- **Iris** (port 3001): React UI + Express proxy. Zero business logic.
-- **Hermes** (port 3000): API Gateway (future routing/aggregation)
-- **Thesaurus** (port 8001): Auth, CRUD, PostgreSQL. Source of truth for all data.
-- **Logos** (port 8003): Document parsing (CSV, PDF). Stateless processor.
-- **Sophia** (port 8002): AI/Ollama integration for insights.
+### Boundaries — NEVER violate these
 
-## Project Overview
+- **Iris is DUMB.** No parsing, no data transformation, no business logic, no direct DB access. It proxies requests and renders UI.
+- **All file processing in Logos.** CSV, PDF, Excel parsing happens only in Logos.
+- **All data persistence through Thesaurus.** Every read/write goes through Thesaurus REST API.
+- **All AI through Sophia.** Ollama calls only happen in Sophia.
+- **Internal service calls use `/internal/` routes** (no auth middleware). User-facing routes use auth middleware.
 
-LocalFinance is a complete privacy-first personal finance management system designed for local deployment on NVIDIA Jetson devices. The system provides AI-powered financial insights while ensuring all data processing remains local, with no cloud dependencies.
+### Data Flows
 
-## Core Architecture
+**Upload:** Browser → Iris proxy → Thesaurus (store doc) → Logos (parse) → Thesaurus (store transactions)
 
-### Components
-- **Telegram Bot**: Natural language interface for financial queries
-- **Web Dashboard**: Modern drag-and-drop interface for document uploads
-- **Document Processor**: Automated parsing of bank statements (CSV/PDF)
-- **AI Integration**: Local Ollama inference with llama3.2:1b model
-- **Database**: SQLite for local transaction storage
+**Chat:** Browser → Iris proxy → Sophia (Pass 1: parse intent → Thesaurus: fetch data → Pass 2: generate answer)
 
-### Technology Stack
-```
-Backend: Python 3.8+, Flask, SQLite
-AI: Ollama (llama3.2:1b) - Local inference
-Bot: python-telegram-bot framework
-Processing: PDFplumber, Pandas, Watchdog
-Services: SystemD integration for production
-```
+**Auth:** Browser → Iris proxy → Thesaurus (register/login/validate JWT)
 
-## Repository Structure
+## Development Cycle
+
+Every task follows this cycle. No shortcuts.
 
 ```
-localfinance/
-├── dashboard/                   # Web Interface
-│   ├── app.py                  # Main Flask application
-│   ├── enhanced_web_upload.py  # Modern drag-drop interface
-│   └── README.md               # Dashboard documentation
-├── production/                 # Deployment & Services
-│   ├── scripts/
-│   │   ├── installer.sh        # Automated installer
-│   │   └── manage.sh           # Service management
-│   └── services/               # SystemD service files
-├── src/                        # Original Framework
-│   ├── ai/                     # AI inference modules
-│   ├── bot/                    # Bot framework
-│   └── core/                   # Database and config
-├── enhanced_hisab_bot.py       # Working Telegram bot
-├── document_processor.py       # File monitoring system
-└── simple_hisab_bot.py         # Lightweight bot version
+1. PLAN
+   Use superpowers:brainstorming for feature design
+   Use superpowers:writing-plans for implementation plan
+   Get user approval before writing code
+
+2. CODE
+   Use superpowers:subagent-driven-development for parallel execution
+   Follow per-service CLAUDE.md patterns (see services/*/CLAUDE.md)
+   One logical unit at a time
+
+3. TEST LOCALLY
+   make test          ← unit tests must pass
+   make dev-up        ← start local Docker stack
+   make test-e2e      ← integration tests must pass
+   If tests fail → use superpowers:systematic-debugging
+   Fix → retest (loop until green)
+
+4. COMMIT
+   One commit per logical unit
+   Format: type(service): what and why
+   Types: feat, fix, refactor, test, docs, deploy
+   Never batch frontend + backend + deploy in one commit
+
+5. DEPLOY TO JETSON
+   make deploy-{service}    ← builds ARM64 + SCP + restart
+   make deploy-all          ← all services
+
+6. VERIFY
+   make verify              ← health check all services
+   If verify fails → read logs, fix, go back to step 3
+   Max 3 retry cycles, then escalate to user
+   Use superpowers:verification-before-completion before claiming done
+
+7. REPORT
+   Use superpowers:requesting-code-review for self-review
+   Tell user: what was built, which URLs to test
+   Show clean git log of all commits
 ```
 
-## Development Workflow
+## Commands — Use These, Never Raw SSH
 
-### Mac Development Environment
-- **Location**: `/Users/sagarjha/projects/localfinance/`
-- **Purpose**: Code development, Git operations, documentation
-- **Git**: All commits and pushes from Mac
-
-### Jetson Production Environment
-- **Location**: `sagar@10.0.0.16:~/localfinance/`
-- **Purpose**: Live deployment, hardware testing, production validation
-- **Services**: Running bot, web dashboard, AI inference
-
-## Key Features
-
-### 🤖 Telegram Bot (enhanced_hisab_bot.py)
-- Natural language financial queries using local AI
-- Commands: `/transactions`, `/summary`, `/status`
-- Real-time database integration
-- Privacy-first: All processing local via Ollama
-
-### 🌐 Web Dashboard (dashboard/)
-- Modern drag-and-drop file upload
-- Real-time processing statistics
-- Mobile responsive design
-- Transaction history and analytics
-
-### 📄 Document Processing
-- Support for CSV, PDF, Excel bank statements
-- Smart automatic categorization
-- Real-time file monitoring with Watchdog
-- Robust error handling and validation
-
-### 🚀 Production Deployment
-- One-command Jetson installation
-- SystemD service integration
-- Auto-start/restart capabilities
-- Service management scripts
-
-## Privacy & Security
-
-### Local-Only Architecture
-- **No Cloud Dependencies**: All AI inference via local Ollama
-- **No External APIs**: Complete offline operation
-- **No Data Transmission**: Financial data never leaves device
-- **Encrypted Storage**: SQLite with proper file permissions
-
-### Security Measures
-- Strong .gitignore prevents sensitive data commits
-- Sandboxed services with limited permissions
-- User isolation (services run as non-root)
-- File permission restrictions
-
-## Database Schema
-
-### Transactions
-```sql
-CREATE TABLE transactions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date TEXT NOT NULL,
-    description TEXT NOT NULL,
-    amount REAL NOT NULL,
-    category TEXT,
-    account TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+### Local Development (Docker)
+```
+make dev-up                  # Start full local stack (all services + infra)
+make dev-down                # Tear down local stack
+make dev-down-clean          # Tear down + delete volumes
+make dev-logs                # Tail all service logs
+make dev-logs-{service}      # Tail one service
+make dev-restart-{service}   # Rebuild + restart one container
 ```
 
-### Documents
-```sql
-CREATE TABLE documents (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    filename TEXT NOT NULL,
-    file_type TEXT NOT NULL,
-    status TEXT NOT NULL,
-    processed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    transaction_count INTEGER DEFAULT 0
-);
+### Build
+```
+make build                   # Build all Go services (native)
+make build-{service}         # Build one (hermes|thesaurus|sophia|logos)
+make build-arm64             # Cross-compile all for Jetson
+make build-arm64-{service}   # Cross-compile one
+make build-iris              # Build React + bundle Node server
 ```
 
-## Common Tasks
-
-### Local Development
-```bash
-# Start web dashboard
-cd dashboard && python3 app.py
-
-# Run Telegram bot
-python3 enhanced_hisab_bot.py
-
-# Process documents
-python3 document_processor.py
+### Test
+```
+make test                    # All unit tests (Go + Node)
+make test-{service}          # One service
+make test-e2e                # Integration tests (requires make dev-up)
+make test-e2e-{suite}        # One suite (auth|upload|chat|categories)
 ```
 
-### Production Deployment
-```bash
-# Install on fresh Jetson
-sudo production/scripts/installer.sh BOT_TOKEN
-
-# Manage services
-production/scripts/manage.sh start|stop|status|restart|logs
+### Deploy to Jetson
+```
+make deploy-{service}        # Build ARM64 + SCP + restart + verify health
+make deploy-all              # All services
+make deploy-infra            # Docker Compose infra only
 ```
 
-### Debugging
-```bash
-# Check service status
-systemctl status hisab-bot hisab-web
-
-# View logs
-journalctl -u hisab-bot -f
-
-# Test Ollama
-curl http://127.0.0.1:11434/api/tags
-
-# Database queries
-sqlite3 data/finances.db "SELECT * FROM transactions LIMIT 5;"
+### Verify & Debug (Jetson)
+```
+make verify                  # Health check all services
+make verify-{service}        # Health check one
+make jetson-logs-{service}   # Tail logs
+make jetson-status           # systemctl status all
+make jetson-kill-{service}   # Kill stale process
+make jetson-infra-status     # Check Postgres, Redis, Ollama, MinIO
+make jetson-ollama-pull      # Pull model if missing
 ```
 
-## Configuration Files
+## Commit Conventions
 
-### Bot Configuration (config.json)
-```json
-{
-    "bot_token": "YOUR_TELEGRAM_BOT_TOKEN",
-    "model_name": "llama3.2:1b",
-    "ollama_host": "http://127.0.0.1:11434",
-    "db_path": "data/finances.db"
-}
+Format:
+```
+type(service): what changed and why
+
+Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
-### Dependencies (requirements.txt)
+**One logical unit per commit.** If you can describe it with "and", split it.
+
+Examples of GOOD commits:
 ```
-python-telegram-bot==20.7
-flask==3.1.3
-pdfplumber==0.10.3
-pandas==2.1.4
-watchdog==4.0.0
-requests==2.31.0
-```
-
-## AI Integration
-
-### Local Model Setup
-- **Model**: llama3.2:1b (1.3GB, optimized for Jetson)
-- **Inference**: Ollama API at http://127.0.0.1:11434
-- **Privacy**: Completely local, no external model calls
-- **Context**: Financial domain knowledge and transaction analysis
-
-### Bot Intelligence
-- Natural language processing for financial queries
-- Smart transaction categorization
-- Context-aware responses using real data
-- Financial insights and spending analysis
-
-## Security Guidelines
-
-### Data Protection
-- **Never commit real financial data** to repository
-- Use .gitignore patterns for sensitive files
-- Test with sample data only
-- Verify clean commits before pushing
-
-### File Patterns to Ignore
-```gitignore
-data/
-inbox/**/*.pdf
-inbox/**/*.csv
-*.db
-personal_*
-private_*
-sensitive_*
+feat(thesaurus): add category rules CRUD with user-scoped queries
+feat(iris): add Settings page for managing category rules
+test(e2e): add category rules integration test
+deploy: update Makefile with dev-restart target
 ```
 
-## Deployment Scenarios
+Examples of BAD commits:
+```
+Add category rules, settings page, and update Makefile    ← too many things
+create files                                               ← meaningless
+fix stuff                                                  ← meaningless
+```
 
-### Development Testing
-- Local Python execution
-- Sample data testing
-- Feature development
+## Debugging Protocol
 
-### Production Deployment
-- Automated Jetson installation
-- SystemD service management
-- Production monitoring
+When `make verify` fails:
 
-### OS Integration
-- Custom OS image baking
-- Manufacturing ready
-- Plug-and-play deployment
+1. `make verify-{service}` — identify which service
+2. `make jetson-logs-{service}` — read last 50 lines
+3. Match pattern → known fix:
+   - `address already in use` → `make jetson-kill-{service}`, redeploy
+   - `connection refused` to DB → `make jetson-infra-status`, restart infra
+   - `401 Unauthorized` on internal call → move endpoint to `/internal/` route group
+   - `model not found` → `make jetson-ollama-pull`
+   - `no such file` → binary not deployed, re-run `make deploy-*`
+   - `timeout` → increase timeout in code, retry
+4. Fix → rebuild → redeploy → `make verify`
+5. Max 3 retries, then escalate to user with: what failed, logs, what was tried, suspected cause
 
-## Future Enhancements
-- Multi-bank format support
-- Advanced reporting and analytics
-- Investment tracking capabilities
-- Budget planning and alerts
-- Multi-currency support
-- Data export capabilities
+## Superpowers Skills — When To Use
 
----
+| Skill | When |
+|-------|------|
+| `superpowers:brainstorming` | Before any new feature — explore design with user |
+| `superpowers:writing-plans` | After design approval — create implementation plan |
+| `superpowers:subagent-driven-development` | Executing plan — dispatch parallel agents per task |
+| `superpowers:systematic-debugging` | When tests fail or behavior is unexpected |
+| `superpowers:requesting-code-review` | After completing work — self-review before reporting |
+| `superpowers:verification-before-completion` | Before claiming done — verify everything passes |
+| `superpowers:finishing-a-development-branch` | When work is complete — decide merge/PR/cleanup |
 
-**Status**: Production-ready system for privacy-first local finance management  
-**Repository**: https://github.com/sagarjhaa/localfinance  
-**Last Updated**: March 21, 2026
+## Jetson Target
+
+- **Host:** 10.0.0.16
+- **User:** sagar
+- **Services dir:** /home/sagar/localfinance/
+- **Binaries:** /home/sagar/localfinance/bin/
+- **Iris:** /home/sagar/localfinance/iris/
+- **Infra:** Docker Compose (Postgres, Redis, Ollama, MinIO)
+- **Process manager:** systemd

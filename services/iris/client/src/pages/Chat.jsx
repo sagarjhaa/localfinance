@@ -52,7 +52,7 @@ const Chat = ({ user, onLogout }) => {
 
     try {
       const res = await proxyAPI.sophia.post('/api/v1/chat/', {
-        user_id: user.id,
+        user_id: String(user.id),
         question: text.trim(),
       });
       const aiMsg = {

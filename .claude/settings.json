@@ -47,6 +47,7 @@
       "Bash(go build *)",
       "Bash(go get *)",
       "Bash(docker *)",
+      "Bash(docker compose *)",
       "Read(//tmp/**)",
       "Read(//private/tmp/**)",
       "Read(//usr/local/**)"

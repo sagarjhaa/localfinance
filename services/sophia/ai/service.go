@@ -48,11 +48,63 @@ func (s *Service) SetThesaurusURL(url string) {
 	s.thesaurusURL = url
 }
 
+// isConversational checks if a question is a greeting or general chat, not a financial query
+func isConversational(question string) bool {
+	lower := strings.ToLower(strings.TrimSpace(question))
+
+	// Short messages (1-3 words) that don't contain financial terms are likely conversational
+	words := strings.Fields(lower)
+	if len(words) <= 3 {
+		financialTerms := []string{"spend", "spent", "expense", "transaction", "budget", "category",
+			"food", "shopping", "transport", "income", "payment", "balance", "total",
+			"how much", "show me", "list", "what did"}
+		for _, term := range financialTerms {
+			if strings.Contains(lower, term) {
+				return false
+			}
+		}
+		return true
+	}
+
+	// Explicit greetings
+	greetings := []string{"hello", "hi", "hey", "good morning", "good afternoon", "good evening",
+		"what can you do", "who are you", "help", "what are you", "how are you", "thanks", "thank you"}
+	for _, g := range greetings {
+		if strings.Contains(lower, g) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s *Service) handleConversational(question string) (models.AIResponse, error) {
+	prompt := fmt.Sprintf(`You are a friendly financial assistant for LocalFinance, a privacy-first personal finance app.
+The user said: "%s"
+
+Respond naturally and briefly. If it's a greeting, greet back and mention what you can help with (analyzing spending, categorizing transactions, answering questions about their finances). Keep it to 2-3 sentences max. Be warm but concise.`, question)
+
+	response, err := s.queryOllamaRaw(prompt, 0.7)
+	if err != nil {
+		return models.AIResponse{}, err
+	}
+
+	return models.AIResponse{
+		Answer:     response,
+		Confidence: 1.0,
+	}, nil
+}
+
 // AnswerFinancialQuery implements the two-pass approach:
 // Pass 1: LLM parses user question → structured query intent (API params)
 // Execute: Call Thesaurus REST API with those params → real transaction data
 // Pass 2: Real data + original question → LLM generates natural language answer
 func (s *Service) AnswerFinancialQuery(query models.FinancialQuery) (models.AIResponse, error) {
+	// Check if this is a conversational message (greeting, general question)
+	if isConversational(query.Question) {
+		return s.handleConversational(query.Question)
+	}
+
 	// Pass 1: Parse user question into structured query intent
 	intent, err := s.parseQueryIntent(query.Question)
 	if err != nil {

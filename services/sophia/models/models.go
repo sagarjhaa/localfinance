@@ -7,17 +7,20 @@ import (
 )
 
 type FinancialQuery struct {
-	UserID   string `json:"user_id" binding:"required"`
-	Question string `json:"question" binding:"required"`
-	Context  string `json:"context,omitempty"`
+	UserID         string `json:"user_id" binding:"required"`
+	Question       string `json:"question" binding:"required"`
+	Context        string `json:"context,omitempty"`
+	ConversationID string `json:"conversation_id,omitempty"`
 }
 
 type AIResponse struct {
-	Answer      string             `json:"answer"`
-	Confidence  float64            `json:"confidence"`
-	Sources     []TransactionRef   `json:"sources,omitempty"`
-	Insights    []FinancialInsight `json:"insights,omitempty"`
-	GeneratedAt time.Time          `json:"generated_at"`
+	Answer         string             `json:"answer"`
+	Confidence     float64            `json:"confidence"`
+	Sources        []TransactionRef   `json:"sources,omitempty"`
+	Insights       []FinancialInsight `json:"insights,omitempty"`
+	GeneratedAt    time.Time          `json:"generated_at"`
+	ConversationID string             `json:"conversation_id,omitempty"`
+	Title          string             `json:"title,omitempty"`
 }
 
 type ChatMessage struct {

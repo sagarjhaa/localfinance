@@ -95,16 +95,63 @@ Respond naturally and briefly. If it's a greeting, greet back and mention what y
 	}, nil
 }
 
-// AnswerFinancialQuery implements the two-pass approach:
+// AnswerFinancialQuery orchestrates conversation persistence and query handling.
+// It creates/reuses a conversation, saves messages, and generates titles for new conversations.
+func (s *Service) AnswerFinancialQuery(query models.FinancialQuery) (models.AIResponse, error) {
+	// Determine conversation ID — reuse existing or create new
+	conversationID := query.ConversationID
+	isNewConversation := false
+	if conversationID == "" && s.thesaurusURL != "" {
+		var err error
+		conversationID, err = s.createConversation(query.UserID)
+		if err != nil {
+			log.Printf("Failed to create conversation: %v (continuing without persistence)", err)
+		} else {
+			isNewConversation = true
+		}
+	}
+
+	// Save user message
+	if conversationID != "" && s.thesaurusURL != "" {
+		if err := s.saveMessage(conversationID, "user", query.Question, nil); err != nil {
+			log.Printf("Failed to save user message: %v", err)
+		}
+	}
+
+	// Route to appropriate handler
+	var response models.AIResponse
+	var err error
+	if isConversational(query.Question) {
+		response, err = s.handleConversational(query.Question)
+	} else {
+		response, err = s.handleFinancialQuery(query)
+	}
+	if err != nil {
+		return models.AIResponse{}, err
+	}
+
+	// Save assistant message
+	if conversationID != "" && s.thesaurusURL != "" {
+		confidence := response.Confidence
+		if err := s.saveMessage(conversationID, "assistant", response.Answer, &confidence); err != nil {
+			log.Printf("Failed to save assistant message: %v", err)
+		}
+	}
+
+	// Generate title async for new conversations
+	if isNewConversation && conversationID != "" {
+		go s.updateConversationTitle(conversationID, query.Question)
+	}
+
+	response.ConversationID = conversationID
+	return response, nil
+}
+
+// handleFinancialQuery implements the two-pass approach:
 // Pass 1: LLM parses user question → structured query intent (API params)
 // Execute: Call Thesaurus REST API with those params → real transaction data
 // Pass 2: Real data + original question → LLM generates natural language answer
-func (s *Service) AnswerFinancialQuery(query models.FinancialQuery) (models.AIResponse, error) {
-	// Check if this is a conversational message (greeting, general question)
-	if isConversational(query.Question) {
-		return s.handleConversational(query.Question)
-	}
-
+func (s *Service) handleFinancialQuery(query models.FinancialQuery) (models.AIResponse, error) {
 	// Pass 1: Parse user question into structured query intent
 	intent, err := s.parseQueryIntent(query.Question)
 	if err != nil {
@@ -152,6 +199,132 @@ func (s *Service) AnswerFinancialQuery(query models.FinancialQuery) (models.AIRe
 		Confidence: s.calculateConfidence(transactions, summaryItems),
 		Sources:    transactions,
 	}, nil
+}
+
+// createConversation creates a new conversation in Thesaurus and returns the ID.
+func (s *Service) createConversation(userID string) (string, error) {
+	payload, _ := json.Marshal(map[string]string{
+		"user_id": userID,
+		"title":   "New conversation",
+	})
+
+	resp, err := s.httpClient.Post(
+		s.thesaurusURL+"/api/v1/internal/conversations",
+		"application/json",
+		bytes.NewBuffer(payload),
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to create conversation: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("create conversation returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", fmt.Errorf("failed to parse conversation response: %w", err)
+	}
+
+	return result.ID, nil
+}
+
+// saveMessage saves a chat message to a conversation in Thesaurus.
+func (s *Service) saveMessage(conversationID, role, content string, confidence *float64) error {
+	payload := map[string]interface{}{
+		"role":    role,
+		"content": content,
+	}
+	if confidence != nil {
+		payload["confidence"] = *confidence
+	}
+
+	payloadJSON, _ := json.Marshal(payload)
+
+	resp, err := s.httpClient.Post(
+		fmt.Sprintf("%s/api/v1/internal/conversations/%s/messages", s.thesaurusURL, conversationID),
+		"application/json",
+		bytes.NewBuffer(payloadJSON),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to save message: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("save message returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// updateConversationTitle generates a short title via Ollama and PATCHes the conversation.
+// Intended to run in a goroutine (async, non-blocking).
+func (s *Service) updateConversationTitle(conversationID, question string) {
+	prompt := fmt.Sprintf(`Generate a very short title (3-5 words) for a finance chat that starts with this question: "%s"
+
+Rules:
+- Exactly 3-5 words
+- No quotes, no punctuation
+- Descriptive of the topic
+- Example: "Monthly Food Spending" or "Recent Amazon Purchases"
+
+Title:`, question)
+
+	title, err := s.queryOllamaRaw(prompt, 0.3)
+	if err != nil {
+		log.Printf("Failed to generate conversation title: %v", err)
+		return
+	}
+
+	// Clean up the title — take first line, trim whitespace and quotes
+	title = strings.TrimSpace(title)
+	if idx := strings.IndexAny(title, "\n\r"); idx >= 0 {
+		title = title[:idx]
+	}
+	title = strings.Trim(title, "\"'`")
+	title = strings.TrimSpace(title)
+
+	// Truncate if too long
+	if len(title) > 100 {
+		title = title[:100]
+	}
+	if title == "" {
+		title = "Finance Chat"
+	}
+
+	// PATCH the conversation title in Thesaurus
+	payload, _ := json.Marshal(map[string]string{"title": title})
+	req, err := http.NewRequest(http.MethodPatch,
+		fmt.Sprintf("%s/api/v1/internal/conversations/%s", s.thesaurusURL, conversationID),
+		bytes.NewBuffer(payload),
+	)
+	if err != nil {
+		log.Printf("Failed to build PATCH request: %v", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		log.Printf("Failed to update conversation title: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("Update title returned %d: %s", resp.StatusCode, string(body))
+	}
 }
 
 // Pass 1: Ask LLM to parse the user's question into structured query parameters

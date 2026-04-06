@@ -334,8 +334,33 @@ const Dashboard = ({ user, onLogout }) => {
                 </div>
                 <div style={{ maxHeight: 500, overflowY: 'auto' }}>
                   {aiParsing && (
-                    <div style={{ padding: 40, textAlign: 'center', color: COLORS.stone500, fontFamily: FONTS.body, fontSize: 13 }}>
-                      Querying {aiModel || 'AI'}... This may take a minute.
+                    <div style={{ padding: 60, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
+                      <div style={{
+                        width: 64, height: 64, borderRadius: '50%',
+                        background: 'linear-gradient(135deg, ' + COLORS.stone200 + ', ' + COLORS.stone100 + ')',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        animation: 'aiPulse 2s ease-in-out infinite',
+                        boxShadow: '0 0 20px rgba(0,0,0,0.05)',
+                        marginBottom: 20,
+                      }}>
+                        <span style={{ fontSize: 28 }}>🧠</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+                        {[0, 1, 2, 3, 4].map(function(i) { return (
+                          <div key={i} style={{
+                            width: 6, height: 6, borderRadius: '50%',
+                            background: COLORS.stone500,
+                            animation: 'aiDot 1.5s ease-in-out ' + (i * 0.2) + 's infinite',
+                          }} />
+                        ); })}
+                      </div>
+                      <p style={{ fontFamily: FONTS.headline, fontSize: 16, fontWeight: 600, color: COLORS.stone700, margin: '0 0 6px 0' }}>
+                        AI is analyzing your statement
+                      </p>
+                      <p style={{ fontFamily: FONTS.body, fontSize: 12, color: COLORS.stone500, margin: 0 }}>
+                        {aiModel || 'Model'} is extracting transactions — this may take 1-2 minutes
+                      </p>
+                      <style dangerouslySetInnerHTML={{ __html: '@keyframes aiPulse { 0%, 100% { transform: scale(1); opacity: 0.8; } 50% { transform: scale(1.1); opacity: 1; } } @keyframes aiDot { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.2); } }' }} />
                     </div>
                   )}
                   {aiError && (

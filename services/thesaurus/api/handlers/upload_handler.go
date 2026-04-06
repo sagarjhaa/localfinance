@@ -31,9 +31,15 @@ func NewUploadHandler(db *gorm.DB) *UploadHandler {
 
 // UploadDocument handles file upload, stores document record, fires to Logos
 func (h *UploadHandler) UploadDocument(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
+	userIDStr := c.GetString("user_id")
+	if userIDStr == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	uid, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
 
@@ -50,9 +56,6 @@ func (h *UploadHandler) UploadDocument(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "File type not allowed"})
 		return
 	}
-
-	// Ensure user has a default account
-	uid := userID.(uuid.UUID)
 	accountID, err := h.ensureAccount(uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user account"})

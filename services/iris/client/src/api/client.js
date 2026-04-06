@@ -3,7 +3,7 @@ import axios from 'axios';
 // Create axios instance with base configuration
 const apiClient = axios.create({
   baseURL: process.env.REACT_APP_API_URL || '/api',
-  timeout: 120000, // 120s for Ollama inference on Jetson
+  timeout: 300000, // 300s for Ollama inference on Jetson (AI parse can take 2-3min)
   headers: {
     'Content-Type': 'application/json',
   },

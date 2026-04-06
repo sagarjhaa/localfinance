@@ -927,24 +927,27 @@ func (s *Service) ParseTransactions(text string, userModel string) ([]map[string
 		text = text[:8000]
 	}
 
-	prompt := fmt.Sprintf(`You are a financial statement parser. Extract ALL transactions from this bank/credit card statement text.
-
-Return ONLY a JSON array of transactions. Each transaction must have:
-- "date": in YYYY-MM-DD format
-- "description": clean merchant/payee name (no raw codes, no addresses)
-- "amount": numeric value (positive for charges/debits, negative for payments/credits)
-- "category": one of: Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Health, Cash, EMI, Education, Other
+	prompt := fmt.Sprintf(`Extract transactions as JSON.
+Fields: date (YYYY-MM-DD), description (Clean Name), amount (Positive=Charge, Negative=Payment), category (Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Health, Cash, EMI, Education, Other).
 
 Rules:
-- Extract EVERY transaction, don't skip any
-- Clean up merchant names (e.g., "SQ *BOLLYWOOD SALON LLC Mountain View CA" → "Bollywood Salon")
-- Remove city/state/phone from descriptions
-- Payments/credits should have negative amounts
-- If you can't determine the year, use 2026
+1. No raw codes/cities/states in description.
+2. If year unknown, use 2026.
+3. Output ONLY the JSON array inside <JSON> tags.
 
-Respond with ONLY the JSON array, no markdown, no explanation.
+Examples:
+Input: 03/12 AMZN Mktp US*Amzn.com/bill WA $22.50
+Output: {"date": "2026-03-12", "description": "Amazon", "amount": 22.50, "category": "Shopping"}
 
-STATEMENT TEXT:
+Input: 02/18 SAFEWAY #1196 SUNNYVALE CA 28.33
+Output: {"date": "2026-02-18", "description": "Safeway", "amount": 28.33, "category": "Food"}
+
+Input: 03/12 AUTOMATIC PAYMENT - THANK YOU -1323.73
+Output: {"date": "2026-03-12", "description": "Payment Received", "amount": -1323.73, "category": "Income"}
+
+Start your response exactly with "<JSON>[" and end with "]</JSON>".
+
+Statement:
 %s`, text)
 
 	response, err := s.queryOllamaWithModel(prompt, 0.1, userModel)
@@ -952,8 +955,17 @@ STATEMENT TEXT:
 		return nil, err
 	}
 
-	// Extract JSON array from response
-	jsonStr := extractJSON(response)
+	// Extract JSON from <JSON> anchor tags first, then fallback to general extraction
+	jsonStr := ""
+	if start := strings.Index(response, "<JSON>"); start >= 0 {
+		start += 6
+		if end := strings.Index(response[start:], "</JSON>"); end >= 0 {
+			jsonStr = strings.TrimSpace(response[start : start+end])
+		}
+	}
+	if jsonStr == "" {
+		jsonStr = extractJSON(response)
+	}
 
 	// Repair common LLM JSON issues
 	jsonStr = repairJSON(jsonStr)

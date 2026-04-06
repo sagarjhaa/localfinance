@@ -17,6 +17,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 	documentHandler := handlers.NewDocumentHandler(db)
 	categoryRuleHandler := handlers.NewCategoryRuleHandler(db)
 	conversationHandler := handlers.NewConversationHandler(db)
+	preferenceHandler := handlers.NewPreferenceHandler(db)
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {
@@ -61,6 +62,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 			internal.POST("/conversations", conversationHandler.CreateConversation)
 			internal.PATCH("/conversations/:id", conversationHandler.UpdateConversation)
 			internal.POST("/conversations/:id/messages", conversationHandler.AddMessage)
+			internal.GET("/preferences/:user_id", preferenceHandler.InternalGetPreference)
 		}
 
 		// Protected routes
@@ -122,6 +124,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 				conversations.GET("/:id/messages", conversationHandler.GetMessages)
 				conversations.DELETE("/:id", conversationHandler.DeleteConversation)
 			}
+
+			// Preferences
+			protected.GET("/preferences", preferenceHandler.GetPreferences)
+			protected.PUT("/preferences", preferenceHandler.UpdatePreferences)
 
 			// Budgets
 			budgets := protected.Group("/budgets")

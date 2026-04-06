@@ -53,6 +53,7 @@ func Migrate(db *gorm.DB) error {
 		&models.CategoryRule{},
 		&models.Conversation{},
 		&models.ChatMessage{},
+		&models.UserPreference{},
 	)
 	
 	if err != nil {

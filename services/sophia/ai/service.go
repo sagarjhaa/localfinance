@@ -959,11 +959,26 @@ STATEMENT TEXT:
 	jsonStr = repairJSON(jsonStr)
 
 	var transactions []map[string]interface{}
+
+	// Try parsing as array of objects
 	if err := json.Unmarshal([]byte(jsonStr), &transactions); err != nil {
-		// Try wrapping in array if it's a single object
+		// Try wrapping in array if it's comma-separated objects
 		if err2 := json.Unmarshal([]byte("["+jsonStr+"]"), &transactions); err2 != nil {
-			log.Printf("AI parse JSON error. Raw response (first 500 chars): %s", response[:min(500, len(response))])
-			return nil, fmt.Errorf("failed to parse AI response as JSON: %w", err)
+			// Try parsing as array of strings and convert to transaction objects
+			var strArray []string
+			if err3 := json.Unmarshal([]byte(jsonStr), &strArray); err3 == nil {
+				for _, s := range strArray {
+					transactions = append(transactions, map[string]interface{}{
+						"description": s,
+						"date":        "",
+						"amount":      0,
+						"category":    "Other",
+					})
+				}
+			} else {
+				log.Printf("AI parse JSON error. Raw response (first 500 chars): %s", response[:min(500, len(response))])
+				return nil, fmt.Errorf("failed to parse AI response as JSON: %w", err)
+			}
 		}
 	}
 

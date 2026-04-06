@@ -969,6 +969,17 @@ Statement:
 		jsonStr = extractJSON(response)
 	}
 
+	// Remove literal newlines inside JSON strings (invalid in JSON)
+	// Replace newlines that are between quotes with spaces
+	// Simple approach: normalize all newlines between [ ] to spaces, then let JSON parser handle structure
+	jsonStr = strings.ReplaceAll(jsonStr, "\r\n", " ")
+	jsonStr = strings.ReplaceAll(jsonStr, "\n", " ")
+	jsonStr = strings.ReplaceAll(jsonStr, "\r", " ")
+	// Collapse multiple spaces
+	for strings.Contains(jsonStr, "  ") {
+		jsonStr = strings.ReplaceAll(jsonStr, "  ", " ")
+	}
+
 	// Repair common LLM JSON issues
 	jsonStr = repairJSON(jsonStr)
 

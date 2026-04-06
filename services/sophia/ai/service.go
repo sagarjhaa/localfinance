@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -954,12 +955,42 @@ STATEMENT TEXT:
 	// Extract JSON array from response
 	jsonStr := extractJSON(response)
 
+	// Repair common LLM JSON issues
+	jsonStr = repairJSON(jsonStr)
+
 	var transactions []map[string]interface{}
 	if err := json.Unmarshal([]byte(jsonStr), &transactions); err != nil {
-		return nil, fmt.Errorf("failed to parse AI response as JSON: %w", err)
+		// Try wrapping in array if it's a single object
+		if err2 := json.Unmarshal([]byte("["+jsonStr+"]"), &transactions); err2 != nil {
+			log.Printf("AI parse JSON error. Raw response (first 500 chars): %s", response[:min(500, len(response))])
+			return nil, fmt.Errorf("failed to parse AI response as JSON: %w", err)
+		}
 	}
 
 	return transactions, nil
+}
+
+// repairJSON fixes common LLM JSON output issues
+func repairJSON(s string) string {
+	// Fix unquoted keys: {date: "val"} → {"date": "val"}
+	re := regexp.MustCompile(`([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:`)
+	s = re.ReplaceAllString(s, `$1"$2":`)
+
+	// Fix single quotes: {'key': 'val'} → {"key": "val"}
+	// Only do this if no double quotes are present in the value
+	s = strings.ReplaceAll(s, `'`, `"`)
+
+	// Fix trailing commas before ] or }
+	s = regexp.MustCompile(`,\s*([}\]])`).ReplaceAllString(s, "$1")
+
+	return s
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // Helper: extract JSON from LLM response that might have markdown wrapping

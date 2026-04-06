@@ -10,6 +10,12 @@ const Chat = ({ user, onLogout }) => {
   const [modelName, setModelName] = useState('');
   const [conversations, setConversations] = useState([]);
   const [activeConversationId, setActiveConversationId] = useState(null);
+  const [showProfile, setShowProfile] = useState(false);
+  const [models, setModels] = useState([]);
+  const [selectedModel, setSelectedModel] = useState('');
+  const [savedModel, setSavedModel] = useState('');
+  const [modelSaving, setModelSaving] = useState(false);
+  const [modelMessage, setModelMessage] = useState('');
   const feedRef = useRef(null);
   const topInputRef = useRef(null);
   const bottomInputRef = useRef(null);
@@ -37,6 +43,20 @@ const Chat = ({ user, onLogout }) => {
         }
       })
       .catch(() => {});
+  }, []);
+
+  // Fetch available models and user preferences
+  useEffect(() => {
+    proxyAPI.sophia.get('/api/v1/models')
+      .then((res) => setModels(res.data || []))
+      .catch(() => {});
+    proxyAPI.thesaurus.get('/api/v1/preferences', undefined, { skipLogoutOn401: true })
+      .then((res) => {
+        const m = res.data?.chat_model || 'llama3.2:1b';
+        setSelectedModel(m);
+        setSavedModel(m);
+      })
+      .catch(() => { setSelectedModel('llama3.2:1b'); setSavedModel('llama3.2:1b'); });
   }, []);
 
   // Auto-scroll feed on new messages
@@ -115,6 +135,22 @@ const Chat = ({ user, onLogout }) => {
       setOllamaStatus('offline');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveModel = async () => {
+    setModelSaving(true);
+    setModelMessage('');
+    try {
+      await proxyAPI.thesaurus.put('/api/v1/preferences', { chat_model: selectedModel });
+      setSavedModel(selectedModel);
+      setModelName(selectedModel);
+      setModelMessage('Saved');
+      setTimeout(() => setModelMessage(''), 2000);
+    } catch (err) {
+      setModelMessage('Failed to save');
+    } finally {
+      setModelSaving(false);
     }
   };
 
@@ -295,16 +331,101 @@ const Chat = ({ user, onLogout }) => {
             <span style={{ fontSize: 20 }}>&#128172;</span>
             <span style={{ fontSize: 14, fontWeight: 700 }}>Ollama Chat</span>
           </a>
-          <a href="/settings" style={S.navItem}>
-            <span style={{ fontSize: 20 }}>&#9881;</span>
-            <span style={{ fontSize: 14 }}>Settings</span>
-          </a>
         </nav>
+        {showProfile && (
+          <div style={{
+            padding: '16px 24px',
+            borderTop: '1px solid ' + COLORS.stone200,
+            borderBottom: '1px solid ' + COLORS.stone200,
+            background: COLORS.stone50 || '#fafafa',
+          }}>
+            <p style={{ fontFamily: FONTS.body, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: COLORS.stone500, marginBottom: 8, marginTop: 0 }}>
+              Profile
+            </p>
+            <p style={{ fontFamily: FONTS.body, fontSize: 13, margin: '0 0 4px 0' }}>
+              {user?.first_name} {user?.last_name}
+            </p>
+            <p style={{ fontFamily: FONTS.body, fontSize: 11, color: COLORS.stone500, margin: '0 0 16px 0' }}>
+              {user?.email}
+            </p>
+
+            <p style={{ fontFamily: FONTS.body, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: COLORS.stone500, marginBottom: 8, marginTop: 0 }}>
+              Chat Model
+            </p>
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: '1px solid ' + COLORS.stone200,
+                fontFamily: FONTS.body,
+                fontSize: 12,
+                color: COLORS.primary || '#1A1A1A',
+                background: '#fff',
+                outline: 'none',
+                cursor: 'pointer',
+                marginBottom: 8,
+              }}
+            >
+              {models.map((m) => (
+                <option key={m.name} value={m.name}>{m.name} ({m.size})</option>
+              ))}
+              {models.length === 0 && <option value={selectedModel}>{selectedModel}</option>}
+            </select>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button
+                onClick={saveModel}
+                disabled={modelSaving || selectedModel === savedModel}
+                style={{
+                  padding: '6px 16px',
+                  background: selectedModel !== savedModel ? (COLORS.primary || '#1A1A1A') : (COLORS.stone300 || '#d6d3d1'),
+                  color: selectedModel !== savedModel ? '#fff' : (COLORS.stone500 || '#78716c'),
+                  border: 'none',
+                  borderRadius: 6,
+                  fontFamily: FONTS.body,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: selectedModel !== savedModel ? 'pointer' : 'default',
+                }}
+              >
+                {modelSaving ? 'Saving...' : 'Save'}
+              </button>
+              {modelMessage && (
+                <span style={{ fontSize: 11, color: modelMessage === 'Saved' ? COLORS.green : COLORS.error }}>
+                  {modelMessage}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={onLogout}
+              style={{
+                marginTop: 16,
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                fontSize: 11,
+                color: COLORS.error || '#dc2626',
+                cursor: 'pointer',
+                fontFamily: FONTS.body,
+                textDecoration: 'underline',
+              }}
+            >
+              Sign Out
+            </button>
+          </div>
+        )}
         <div style={S.sidebarFooter}>
-          <div style={S.avatarCircle}>{user?.first_name?.[0] || user?.username?.[0] || 'U'}</div>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, margin: 0 }}>{user?.first_name || user?.username} {user?.last_name || ''}</p>
-            <button onClick={onLogout} style={S.logoutBtn}>Sign Out</button>
+          <div
+            onClick={() => setShowProfile(!showProfile)}
+            style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', flex: 1 }}
+          >
+            <div style={S.avatarCircle}>{user?.first_name?.[0] || 'U'}</div>
+            <div>
+              <p style={{ fontSize: 12, fontWeight: 700, margin: 0 }}>{user?.first_name || ''} {user?.last_name || ''}</p>
+              <p style={{ fontSize: 10, color: COLORS.stone500, margin: 0 }}>{showProfile ? 'Close profile' : 'View profile'}</p>
+            </div>
           </div>
         </div>
       </aside>

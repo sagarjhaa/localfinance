@@ -18,6 +18,7 @@ const Dashboard = ({ user, onLogout }) => {
   const [currentTicker, setCurrentTicker] = useState(null);
   const [revealing, setRevealing] = useState(false);
   const [error, setError] = useState('');
+  const [showProfile, setShowProfile] = useState(false);
   const pollRef = useRef(null);
   const revealRef = useRef(null);
 
@@ -140,16 +141,47 @@ const Dashboard = ({ user, onLogout }) => {
             <span style={{ fontSize: 20 }}>&#128172;</span>
             <span style={{ fontSize: 14 }}>Ollama Chat</span>
           </a>
-          <a href="/settings" style={S.navItem}>
-            <span style={{ fontSize: 20 }}>&#9881;</span>
-            <span style={{ fontSize: 14 }}>Settings</span>
-          </a>
         </nav>
+        {showProfile && (
+          <div style={{
+            padding: '16px 24px',
+            borderTop: '1px solid #e7e5e4',
+            borderBottom: '1px solid #e7e5e4',
+            background: '#fafafa',
+          }}>
+            <p style={{ fontFamily: FONTS.body, fontSize: 13, margin: '0 0 4px 0' }}>
+              {user?.first_name} {user?.last_name}
+            </p>
+            <p style={{ fontFamily: FONTS.body, fontSize: 11, color: COLORS.stone500, margin: '0 0 12px 0' }}>
+              {user?.email}
+            </p>
+            <button
+              onClick={onLogout}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                fontSize: 11,
+                color: '#dc2626',
+                cursor: 'pointer',
+                fontFamily: FONTS.body,
+                textDecoration: 'underline',
+              }}
+            >
+              Sign Out
+            </button>
+          </div>
+        )}
         <div style={S.sidebarFooter}>
-          <div style={S.avatar}>{user?.first_name?.[0] || user?.username?.[0] || 'U'}</div>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, margin: 0 }}>{user?.first_name || user?.username} {user?.last_name || ''}</p>
-            <button onClick={onLogout} style={{ background: 'none', border: 'none', padding: 0, margin: '2px 0 0 0', fontSize: 10, color: COLORS.stone500, cursor: 'pointer', textDecoration: 'underline', fontFamily: FONTS.body }}>Sign Out</button>
+          <div
+            onClick={() => setShowProfile(!showProfile)}
+            style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', flex: 1 }}
+          >
+            <div style={S.avatar}>{user?.first_name?.[0] || 'U'}</div>
+            <div>
+              <p style={{ fontSize: 12, fontWeight: 700, margin: 0 }}>{user?.first_name || ''} {user?.last_name || ''}</p>
+              <p style={{ fontSize: 10, color: COLORS.stone500, margin: 0 }}>{showProfile ? 'Close' : 'Profile'}</p>
+            </div>
           </div>
         </div>
       </aside>

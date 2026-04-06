@@ -5,7 +5,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Chat from './pages/Chat';
-import Settings from './pages/Settings';
+
 
 function App() {
   const [user, setUser] = useState(null);
@@ -82,7 +82,7 @@ function App() {
         <Route path="/dashboard" element={<Dashboard user={user} onLogout={handleLogout} />} />
 
         <Route path="/chat" element={<Chat user={user} onLogout={handleLogout} />} />
-        <Route path="/settings" element={<Settings user={user} onLogout={handleLogout} />} />
+
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Router>

@@ -922,10 +922,9 @@ func (s *Service) extractCategory(response string) string {
 
 // ParseTransactions uses the LLM to extract transactions from raw statement text
 func (s *Service) ParseTransactions(text string, userModel string) ([]map[string]interface{}, error) {
-	// Truncate text — 1B models OOM on large contexts, keep it short
-	if len(text) > 3000 {
-		text = text[:3000]
-	}
+	// Extract the transaction section — skip headers/summaries at the top
+	// Look for the first line starting with a date pattern (MM/DD) which indicates transactions
+	text = extractTransactionSection(text, 3000)
 
 	prompt := fmt.Sprintf(`Extract transactions as JSON.
 Fields: date (YYYY-MM-DD), description (Clean Name), amount (Positive=Charge, Negative=Payment), category (Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Health, Cash, EMI, Education, Other).
@@ -995,6 +994,42 @@ Statement:
 	}
 
 	return transactions, nil
+}
+
+// extractTransactionSection finds the transaction lines in statement text, skipping headers
+func extractTransactionSection(text string, maxLen int) string {
+	lines := strings.Split(text, "\n")
+	datePattern := regexp.MustCompile(`^\s*\d{2}/\d{2}`)
+
+	// Find the first line that looks like a transaction (starts with MM/DD)
+	startIdx := -1
+	for i, line := range lines {
+		if datePattern.MatchString(line) {
+			startIdx = i
+			break
+		}
+	}
+
+	if startIdx == -1 {
+		// No date patterns found — just truncate from start
+		if len(text) > maxLen {
+			return text[:maxLen]
+		}
+		return text
+	}
+
+	// Build text from the transaction section
+	var result strings.Builder
+	for i := startIdx; i < len(lines); i++ {
+		line := lines[i]
+		if result.Len()+len(line)+1 > maxLen {
+			break
+		}
+		result.WriteString(line)
+		result.WriteString("\n")
+	}
+
+	return result.String()
 }
 
 // repairJSON fixes common LLM JSON output issues

@@ -1014,12 +1014,14 @@ Statement:
 // extractTransactionSection finds the transaction lines in statement text, skipping headers
 func extractTransactionSection(text string, maxLen int) string {
 	lines := strings.Split(text, "\n")
-	datePattern := regexp.MustCompile(`^\s*\d{2}/\d{2}`)
+	// Match transaction lines: date + spaces + description + amount
+	// This avoids matching standalone dates in headers like "04/06/26"
+	txnPattern := regexp.MustCompile(`^\s*\d{2}/\d{2}\s{2,}\S`)
 
-	// Find the first line that looks like a transaction (starts with MM/DD)
+	// Find the first line that looks like a transaction (date + description on same line)
 	startIdx := -1
 	for i, line := range lines {
-		if datePattern.MatchString(line) {
+		if txnPattern.MatchString(line) {
 			startIdx = i
 			break
 		}

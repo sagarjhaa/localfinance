@@ -1037,12 +1037,21 @@ func extractTransactionSection(text string, maxLen int) string {
 
 // repairJSON fixes common LLM JSON output issues
 func repairJSON(s string) string {
+	// Remove thinking tags and their content
+	s = regexp.MustCompile(`(?s)<think>.*?</think>`).ReplaceAllString(s, "")
+	s = regexp.MustCompile(`(?s)<thinking>.*?</thinking>`).ReplaceAllString(s, "")
+
+	// Remove escaped backslashes that aren't part of valid JSON escapes
+	s = strings.ReplaceAll(s, `\\n`, " ")
+	s = strings.ReplaceAll(s, `\\t`, " ")
+	s = strings.ReplaceAll(s, `\\"`, `"`)
+	s = strings.ReplaceAll(s, `\\\\`, `\`)
+
 	// Fix unquoted keys: {date: "val"} → {"date": "val"}
 	re := regexp.MustCompile(`([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:`)
 	s = re.ReplaceAllString(s, `$1"$2":`)
 
 	// Fix single quotes: {'key': 'val'} → {"key": "val"}
-	// Only do this if no double quotes are present in the value
 	s = strings.ReplaceAll(s, `'`, `"`)
 
 	// Fix trailing commas before ] or }

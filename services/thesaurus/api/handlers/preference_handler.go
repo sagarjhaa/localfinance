@@ -28,8 +28,8 @@ func (h *PreferenceHandler) GetPreferences(c *gin.Context) {
 	var pref models.UserPreference
 	result := h.db.Where("user_id = ?", userID).First(&pref)
 	if result.Error != nil {
-		// Return default if no preference exists
-		c.JSON(http.StatusOK, gin.H{"chat_model": "llama3.2:1b"})
+		// Return empty — Sophia will use its own configured default
+		c.JSON(http.StatusOK, gin.H{"chat_model": ""})
 		return
 	}
 
@@ -82,7 +82,7 @@ func (h *PreferenceHandler) InternalGetPreference(c *gin.Context) {
 	var pref models.UserPreference
 	result := h.db.Where("user_id = ?", userID).First(&pref)
 	if result.Error != nil {
-		c.JSON(http.StatusOK, gin.H{"chat_model": "llama3.2:1b"})
+		c.JSON(http.StatusOK, gin.H{"chat_model": ""})
 		return
 	}
 

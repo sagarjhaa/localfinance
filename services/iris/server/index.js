@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
@@ -42,9 +43,18 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Correlation ID middleware
+app.use((req, res, next) => {
+  const correlationId = req.headers['x-correlation-id'] ||
+    'lf_' + (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : Date.now().toString(36) + Math.random().toString(36).substring(2));
+  req.correlationId = correlationId;
+  res.set('X-Correlation-ID', correlationId);
+  next();
+});
+
 // Request logging middleware
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  console.log(`${new Date().toISOString()} [${req.correlationId}] ${req.method} ${req.path}`);
   next();
 });
 
@@ -74,9 +84,10 @@ app.get('*', (req, res) => {
 
 // Error handling middleware
 app.use((error, req, res, next) => {
-  console.error('Error:', error);
+  console.error(`[${req.correlationId}] Error:`, error);
   res.status(error.status || 500).json({
     message: error.message || 'Internal server error',
+    correlation_id: req.correlationId,
     ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
   });
 });

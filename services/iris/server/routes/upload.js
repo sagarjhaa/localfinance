@@ -31,6 +31,7 @@ router.post('/single', authenticateToken, upload.single('file'), async (req, res
       headers: {
         ...form.getHeaders(),
         'Authorization': req.headers.authorization,
+        'X-Correlation-ID': req.correlationId || '',
       },
       timeout: 30000,
       maxContentLength: 50 * 1024 * 1024,

@@ -104,10 +104,13 @@ const Chat = ({ user, onLogout }) => {
           .catch(() => {});
       }
     } catch (err) {
+      const errCorrelationId = err.response?.data?.correlation_id ||
+        err.response?.headers?.['x-correlation-id'] || '';
       const errMsg = {
         role: 'assistant',
         content:
-          "I couldn't process that right now. Please check that Ollama is running on the Jetson.",
+          "I couldn't process that right now. Please check that Ollama is running on the Jetson." +
+          (errCorrelationId ? `\n\nCorrelation ID: ${errCorrelationId}` : ''),
         error: true,
         timestamp: new Date(),
       };

@@ -104,6 +104,11 @@ const createProxyHandler = (serviceName) => {
         headers.Authorization = req.headers.authorization;
       }
 
+      // Forward correlation ID
+      if (req.correlationId) {
+        headers['X-Correlation-ID'] = req.correlationId;
+      }
+
       // Forward user information
       if (req.user) {
         headers['X-User-Id'] = req.user.id;
@@ -155,13 +160,14 @@ const createProxyHandler = (serviceName) => {
       res.status(response.status).json(response.data);
 
     } catch (error) {
-      console.error(`Proxy error for ${serviceName}:`, error.message);
+      console.error(`[${req.correlationId}] Proxy error for ${serviceName}:`, error.message);
 
       if (error.code === 'ECONNREFUSED') {
         return res.status(503).json({
           message: `Service ${serviceName} is not available`,
           code: 'SERVICE_UNAVAILABLE',
-          service: serviceName
+          service: serviceName,
+          correlation_id: req.correlationId
         });
       }
 
@@ -169,7 +175,8 @@ const createProxyHandler = (serviceName) => {
         return res.status(504).json({
           message: `Request to ${serviceName} timed out`,
           code: 'GATEWAY_TIMEOUT',
-          service: serviceName
+          service: serviceName,
+          correlation_id: req.correlationId
         });
       }
 
@@ -177,7 +184,8 @@ const createProxyHandler = (serviceName) => {
         message: 'Proxy request failed',
         code: 'PROXY_ERROR',
         service: serviceName,
-        error: error.message
+        error: error.message,
+        correlation_id: req.correlationId
       });
     }
   };

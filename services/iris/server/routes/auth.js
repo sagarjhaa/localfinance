@@ -26,7 +26,10 @@ router.post('/register', async (req, res) => {
       password,
       first_name,
       last_name
-    }, { timeout: 10000 });
+    }, {
+      timeout: 10000,
+      headers: { 'X-Correlation-ID': req.correlationId || '' }
+    });
 
     res.status(201).json(response.data);
   } catch (error) {
@@ -59,7 +62,10 @@ router.post('/login', async (req, res) => {
     const response = await axios.post(`${THESAURUS_URL}/api/v1/auth/login`, {
       email,
       password
-    }, { timeout: 10000 });
+    }, {
+      timeout: 10000,
+      headers: { 'X-Correlation-ID': req.correlationId || '' }
+    });
 
     res.json(response.data);
   } catch (error) {
@@ -82,7 +88,10 @@ router.post('/logout', authenticateToken, async (req, res) => {
   try {
     const response = await axios.post(`${THESAURUS_URL}/api/v1/auth/logout`, {}, {
       timeout: 10000,
-      headers: { 'Authorization': req.headers.authorization }
+      headers: {
+        'Authorization': req.headers.authorization,
+        'X-Correlation-ID': req.correlationId || '',
+      }
     });
     res.json(response.data);
   } catch (error) {
@@ -108,7 +117,10 @@ router.get('/me', async (req, res) => {
 
     const response = await axios.post(`${THESAURUS_URL}/api/v1/auth/validate`, {
       token
-    }, { timeout: 10000 });
+    }, {
+      timeout: 10000,
+      headers: { 'X-Correlation-ID': req.correlationId || '' }
+    });
 
     if (response.data.valid) {
       res.json({ user: response.data.user });
@@ -131,7 +143,10 @@ router.post('/refresh', authenticateToken, async (req, res) => {
   try {
     const response = await axios.post(`${THESAURUS_URL}/api/v1/auth/refresh`, {}, {
       timeout: 10000,
-      headers: { 'Authorization': req.headers.authorization }
+      headers: {
+        'Authorization': req.headers.authorization,
+        'X-Correlation-ID': req.correlationId || '',
+      }
     });
     res.json(response.data);
   } catch (error) {

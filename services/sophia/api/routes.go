@@ -1,6 +1,10 @@
 package api
 
 import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"github.com/sagarjhaa/localfinance/services/sophia/ai"
 	"github.com/sagarjhaa/localfinance/services/sophia/api/handlers"
@@ -49,6 +53,41 @@ func SetupRoutes(router *gin.Engine, aiService *ai.Service, thesaurusConfig conf
 			categorize.POST("/", categorizeHandler.CategorizeTransaction)
 			categorize.POST("/batch", categorizeHandler.CategorizeTransactionBatch)
 		}
+
+		// Models — list installed Ollama models
+		v1.GET("/models", func(c *gin.Context) {
+			resp, err := http.Get(aiService.GetOllamaHost() + "/api/tags")
+			if err != nil {
+				c.JSON(500, gin.H{"error": "Failed to connect to Ollama"})
+				return
+			}
+			defer resp.Body.Close()
+
+			var result struct {
+				Models []struct {
+					Name       string `json:"name"`
+					Size       int64  `json:"size"`
+					ModifiedAt string `json:"modified_at"`
+				} `json:"models"`
+			}
+			json.NewDecoder(resp.Body).Decode(&result)
+
+			// Format sizes to human-readable
+			type ModelInfo struct {
+				Name string `json:"name"`
+				Size string `json:"size"`
+			}
+			var models []ModelInfo
+			for _, m := range result.Models {
+				sizeGB := float64(m.Size) / 1e9
+				sizeStr := fmt.Sprintf("%.1f GB", sizeGB)
+				if sizeGB < 1 {
+					sizeStr = fmt.Sprintf("%.0f MB", float64(m.Size)/1e6)
+				}
+				models = append(models, ModelInfo{Name: m.Name, Size: sizeStr})
+			}
+			c.JSON(200, models)
+		})
 
 		// AI status and configuration
 		status := v1.Group("/status")

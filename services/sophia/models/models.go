@@ -21,6 +21,7 @@ type AIResponse struct {
 	GeneratedAt    time.Time          `json:"generated_at"`
 	ConversationID string             `json:"conversation_id,omitempty"`
 	Title          string             `json:"title,omitempty"`
+	Model          string             `json:"model,omitempty"`
 }
 
 type ChatMessage struct {

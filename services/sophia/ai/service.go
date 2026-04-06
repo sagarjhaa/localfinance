@@ -48,6 +48,34 @@ func (s *Service) SetThesaurusURL(url string) {
 	s.thesaurusURL = url
 }
 
+// GetOllamaHost returns the configured Ollama host URL.
+func (s *Service) GetOllamaHost() string {
+	return s.config.OllamaHost
+}
+
+// getUserModelPreference fetches the user's preferred chat model from Thesaurus.
+// Falls back to the default config model if the preference is not set or on error.
+func (s *Service) getUserModelPreference(userID string) string {
+	if s.thesaurusURL == "" {
+		return s.config.ModelName
+	}
+
+	resp, err := s.httpClient.Get(fmt.Sprintf("%s/api/v1/internal/preferences/%s", s.thesaurusURL, userID))
+	if err != nil {
+		return s.config.ModelName
+	}
+	defer resp.Body.Close()
+
+	var pref struct {
+		ChatModel string `json:"chat_model"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&pref); err != nil || pref.ChatModel == "" {
+		return s.config.ModelName
+	}
+
+	return pref.ChatModel
+}
+
 // isConversational checks if a question is a greeting or general chat, not a financial query
 func isConversational(question string) bool {
 	lower := strings.ToLower(strings.TrimSpace(question))
@@ -78,13 +106,13 @@ func isConversational(question string) bool {
 	return false
 }
 
-func (s *Service) handleConversational(question string) (models.AIResponse, error) {
+func (s *Service) handleConversational(question string, userModel string) (models.AIResponse, error) {
 	prompt := fmt.Sprintf(`You are a friendly financial assistant for LocalFinance, a privacy-first personal finance app.
 The user said: "%s"
 
 Respond naturally and briefly. If it's a greeting, greet back and mention what you can help with (analyzing spending, categorizing transactions, answering questions about their finances). Keep it to 2-3 sentences max. Be warm but concise.`, question)
 
-	response, err := s.queryOllamaRaw(prompt, 0.7)
+	response, err := s.queryOllamaWithModel(prompt, 0.7, userModel)
 	if err != nil {
 		return models.AIResponse{}, err
 	}
@@ -118,17 +146,22 @@ func (s *Service) AnswerFinancialQuery(query models.FinancialQuery) (models.AIRe
 		}
 	}
 
+	// Get user's preferred model
+	userModel := s.getUserModelPreference(query.UserID)
+
 	// Route to appropriate handler
 	var response models.AIResponse
 	var err error
 	if isConversational(query.Question) {
-		response, err = s.handleConversational(query.Question)
+		response, err = s.handleConversational(query.Question, userModel)
 	} else {
-		response, err = s.handleFinancialQuery(query)
+		response, err = s.handleFinancialQuery(query, userModel)
 	}
 	if err != nil {
 		return models.AIResponse{}, err
 	}
+
+	response.Model = userModel
 
 	// Save assistant message
 	if conversationID != "" && s.thesaurusURL != "" {
@@ -151,9 +184,9 @@ func (s *Service) AnswerFinancialQuery(query models.FinancialQuery) (models.AIRe
 // Pass 1: LLM parses user question → structured query intent (API params)
 // Execute: Call Thesaurus REST API with those params → real transaction data
 // Pass 2: Real data + original question → LLM generates natural language answer
-func (s *Service) handleFinancialQuery(query models.FinancialQuery) (models.AIResponse, error) {
+func (s *Service) handleFinancialQuery(query models.FinancialQuery, userModel string) (models.AIResponse, error) {
 	// Pass 1: Parse user question into structured query intent
-	intent, err := s.parseQueryIntent(query.Question)
+	intent, err := s.parseQueryIntent(query.Question, userModel)
 	if err != nil {
 		log.Printf("Pass 1 failed, falling back to generic: %v", err)
 		// Fallback: just get recent transactions
@@ -189,7 +222,7 @@ func (s *Service) handleFinancialQuery(query models.FinancialQuery) (models.AIRe
 	dataContext := s.buildDataContext(transactions, summaryItems)
 
 	// Pass 2: Generate natural language answer from real data
-	answer, err := s.generateAnswer(query.Question, dataContext)
+	answer, err := s.generateAnswer(query.Question, dataContext, userModel)
 	if err != nil {
 		return models.AIResponse{}, fmt.Errorf("failed to generate answer: %w", err)
 	}
@@ -328,7 +361,7 @@ Title:`, question)
 }
 
 // Pass 1: Ask LLM to parse the user's question into structured query parameters
-func (s *Service) parseQueryIntent(question string) (*models.QueryIntent, error) {
+func (s *Service) parseQueryIntent(question string, userModel string) (*models.QueryIntent, error) {
 	today := time.Now().Format("2006-01-02")
 
 	prompt := fmt.Sprintf(`You are a query parser. Convert this financial question into a JSON query.
@@ -349,7 +382,7 @@ Respond with ONLY valid JSON, no other text:
 
 Question: %s`, today, question)
 
-	response, err := s.queryOllamaRaw(prompt, 0.1)
+	response, err := s.queryOllamaWithModel(prompt, 0.1, userModel)
 	if err != nil {
 		return nil, err
 	}
@@ -655,7 +688,7 @@ func cleanMerchantName(raw string) string {
 }
 
 // Pass 2: Generate natural language answer from real data
-func (s *Service) generateAnswer(question, dataContext string) (string, error) {
+func (s *Service) generateAnswer(question, dataContext string, userModel string) (string, error) {
 	prompt := fmt.Sprintf(`You are a concise financial assistant. Answer using ONLY the real data below.
 
 RULES:
@@ -675,7 +708,7 @@ USER QUESTION: %s
 
 Answer:`, dataContext, question)
 
-	return s.queryOllamaRaw(prompt, 0.2)
+	return s.queryOllamaWithModel(prompt, 0.2, userModel)
 }
 
 // queryOllamaRaw queries Ollama without prepending the system prompt
@@ -722,6 +755,47 @@ func (s *Service) queryOllamaRaw(prompt string, temperature float32) (string, er
 	}
 
 	return ollamaResp.Response, nil
+}
+
+// queryOllamaWithModel queries Ollama with an explicit model override
+func (s *Service) queryOllamaWithModel(prompt string, temperature float32, model string) (string, error) {
+	if temperature == 0 {
+		temperature = s.config.Temperature
+	}
+
+	reqBody := OllamaRequest{
+		Model:       model,
+		Prompt:      prompt,
+		Stream:      false,
+		Temperature: temperature,
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	resp, err := s.httpClient.Post(
+		s.config.OllamaHost+"/api/generate",
+		"application/json",
+		bytes.NewReader(jsonBody),
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to call Ollama API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("Ollama API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var ollamaResp OllamaResponse
+	if err := json.Unmarshal(body, &ollamaResp); err != nil {
+		return "", fmt.Errorf("failed to parse Ollama response: %w", err)
+	}
+
+	return strings.TrimSpace(ollamaResp.Response), nil
 }
 
 // queryOllama queries with the system prompt prepended (for categorization etc.)

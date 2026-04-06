@@ -953,36 +953,10 @@ Start your response exactly with "<JSON>[" and end with "]</JSON>".
 Statement:
 %s`, text)
 
-	// Use smaller context window to avoid CUDA OOM on Jetson
-	reqBody := OllamaRequest{
-		Model:       userModel,
-		Prompt:      prompt,
-		Stream:      false,
-		Temperature: 0.1,
-		Options:     map[string]interface{}{"num_ctx": 4096},
-	}
-	jsonBody, _ := json.Marshal(reqBody)
-
-	resp, err := s.httpClient.Post(
-		s.config.OllamaHost+"/api/generate",
-		"application/json",
-		bytes.NewReader(jsonBody),
-	)
+	response, err := s.queryOllamaWithModel(prompt, 0.1, userModel)
 	if err != nil {
-		return nil, fmt.Errorf("failed to call Ollama API: %w", err)
+		return nil, err
 	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("Ollama API returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var ollamaResp OllamaResponse
-	if err := json.Unmarshal(body, &ollamaResp); err != nil {
-		return nil, fmt.Errorf("failed to parse Ollama response: %w", err)
-	}
-	response := strings.TrimSpace(ollamaResp.Response)
 
 	// Extract JSON from <JSON> anchor tags first, then fallback to general extraction
 	jsonStr := ""

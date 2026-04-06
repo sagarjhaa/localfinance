@@ -23,11 +23,12 @@ type Service struct {
 }
 
 type OllamaRequest struct {
-	Model       string  `json:"model"`
-	Prompt      string  `json:"prompt"`
-	Stream      bool    `json:"stream"`
-	Temperature float32 `json:"temperature,omitempty"`
-	MaxTokens   int     `json:"max_tokens,omitempty"`
+	Model       string            `json:"model"`
+	Prompt      string            `json:"prompt"`
+	Stream      bool              `json:"stream"`
+	Temperature float32           `json:"temperature,omitempty"`
+	MaxTokens   int               `json:"max_tokens,omitempty"`
+	Options     map[string]interface{} `json:"options,omitempty"`
 }
 
 type OllamaResponse struct {
@@ -924,7 +925,7 @@ func (s *Service) extractCategory(response string) string {
 func (s *Service) ParseTransactions(text string, userModel string) ([]map[string]interface{}, error) {
 	// Extract the transaction section — skip headers/summaries at the top
 	// Look for the first line starting with a date pattern (MM/DD) which indicates transactions
-	text = extractTransactionSection(text, 3000)
+	text = extractTransactionSection(text, 2000)
 
 	prompt := fmt.Sprintf(`Extract transactions as JSON.
 Fields: date (YYYY-MM-DD), description (Clean Name), amount (Positive=Charge, Negative=Payment), category (Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Health, Cash, EMI, Education, Other).
@@ -952,10 +953,36 @@ Start your response exactly with "<JSON>[" and end with "]</JSON>".
 Statement:
 %s`, text)
 
-	response, err := s.queryOllamaWithModel(prompt, 0.1, userModel)
-	if err != nil {
-		return nil, err
+	// Use smaller context window to avoid CUDA OOM on Jetson
+	reqBody := OllamaRequest{
+		Model:       userModel,
+		Prompt:      prompt,
+		Stream:      false,
+		Temperature: 0.1,
+		Options:     map[string]interface{}{"num_ctx": 2048},
 	}
+	jsonBody, _ := json.Marshal(reqBody)
+
+	resp, err := s.httpClient.Post(
+		s.config.OllamaHost+"/api/generate",
+		"application/json",
+		bytes.NewReader(jsonBody),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call Ollama API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("Ollama API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var ollamaResp OllamaResponse
+	if err := json.Unmarshal(body, &ollamaResp); err != nil {
+		return nil, fmt.Errorf("failed to parse Ollama response: %w", err)
+	}
+	response := strings.TrimSpace(ollamaResp.Response)
 
 	// Extract JSON from <JSON> anchor tags first, then fallback to general extraction
 	jsonStr := ""

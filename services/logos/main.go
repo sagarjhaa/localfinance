@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -160,26 +161,35 @@ func processDocument(req models.ProcessRequest, pm *processors.Manager, cfg *con
 }
 
 func extractPDFTextForDetection(filePath string) (string, error) {
+	// Try Go library first
 	pdfFile, reader, err := pdf.Open(filePath)
-	if err != nil {
-		return "", err
+	if err == nil {
+		defer pdfFile.Close()
+		var text strings.Builder
+		for i := 1; i <= reader.NumPage(); i++ {
+			page := reader.Page(i)
+			if page.V.IsNull() {
+				continue
+			}
+			content, err := page.GetPlainText(nil)
+			if err != nil {
+				continue
+			}
+			text.WriteString(content)
+			text.WriteString("\n")
+		}
+		if text.Len() > 100 {
+			return text.String(), nil
+		}
 	}
-	defer pdfFile.Close()
 
-	var text strings.Builder
-	for i := 1; i <= reader.NumPage(); i++ {
-		page := reader.Page(i)
-		if page.V.IsNull() {
-			continue
-		}
-		content, err := page.GetPlainText(nil)
-		if err != nil {
-			continue
-		}
-		text.WriteString(content)
-		text.WriteString("\n")
+	// Fallback to pdftotext for PDFs the Go library can't handle (Chase, Capital One)
+	cmd := exec.Command("pdftotext", "-layout", filePath, "-")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("pdftotext failed: %w", err)
 	}
-	return text.String(), nil
+	return string(output), nil
 }
 
 func sendTransactionsWithMetadata(baseURL string, accountID fmt.Stringer, documentID string, transactions []models.Transaction, meta processors.StatementMetadata) error {

@@ -14,6 +14,7 @@ type Document struct {
 	FileSize         int64     `json:"file_size"`
 	Status           string    `gorm:"default:uploaded" json:"status"`
 	ErrorMessage     string    `json:"error_message,omitempty"`
+	ExtractedText    string    `gorm:"type:text" json:"extracted_text,omitempty"`
 	CorrelationID    string    `json:"correlation_id"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`

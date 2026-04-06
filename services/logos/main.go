@@ -90,7 +90,7 @@ func processDocument(req models.ProcessRequest, pm *processors.Manager, cfg *con
 	file, err := os.Open(req.FilePath)
 	if err != nil {
 		log.Printf("[%s] Error opening file: %v", req.DocumentID, err)
-		updateDocumentStatus(cfg.Thesaurus.BaseURL, req.DocumentID, "error", fmt.Sprintf("Cannot open file: %v", err))
+		updateDocumentStatus(cfg.Thesaurus.BaseURL, req.DocumentID, "error", fmt.Sprintf("Cannot open file: %v", err), "")
 		return
 	}
 	defer file.Close()
@@ -102,7 +102,7 @@ func processDocument(req models.ProcessRequest, pm *processors.Manager, cfg *con
 	result, err := pm.ProcessDocument(file, req.FilePath)
 	if err != nil {
 		log.Printf("[%s] Error processing: %v", req.DocumentID, err)
-		updateDocumentStatus(cfg.Thesaurus.BaseURL, req.DocumentID, "error", fmt.Sprintf("Processing failed: %v", err))
+		updateDocumentStatus(cfg.Thesaurus.BaseURL, req.DocumentID, "error", fmt.Sprintf("Processing failed: %v", err), "")
 		return
 	}
 
@@ -130,9 +130,10 @@ func processDocument(req models.ProcessRequest, pm *processors.Manager, cfg *con
 
 	// Detect statement metadata from file content
 	var meta processors.StatementMetadata
+	var rawText string
 	fileBytes, readErr := os.ReadFile(req.FilePath)
 	if readErr == nil {
-		rawText := string(fileBytes) // works for CSV; for PDF we need extracted text
+		rawText = string(fileBytes) // works for CSV; for PDF we need extracted text
 		if strings.HasSuffix(strings.ToLower(req.FilePath), ".pdf") {
 			// Re-extract PDF text for detection
 			if pdfText, err := extractPDFTextForDetection(req.FilePath); err == nil {
@@ -148,13 +149,13 @@ func processDocument(req models.ProcessRequest, pm *processors.Manager, cfg *con
 		err = sendTransactionsWithMetadata(cfg.Thesaurus.BaseURL, req.AccountID, req.DocumentID, result.Transactions, meta)
 		if err != nil {
 			log.Printf("[%s] Error sending to Thesaurus: %v", req.DocumentID, err)
-			updateDocumentStatus(cfg.Thesaurus.BaseURL, req.DocumentID, "error", fmt.Sprintf("Failed to save transactions: %v", err))
+			updateDocumentStatus(cfg.Thesaurus.BaseURL, req.DocumentID, "error", fmt.Sprintf("Failed to save transactions: %v", err), "")
 			return
 		}
 	}
 
-	// Update document status to processed
-	updateDocumentStatus(cfg.Thesaurus.BaseURL, req.DocumentID, "processed", "")
+	// Update document status to processed (include extracted text for AI comparison)
+	updateDocumentStatus(cfg.Thesaurus.BaseURL, req.DocumentID, "processed", "", rawText)
 	log.Printf("[%s] Processing complete — %d transactions saved", req.DocumentID, result.TransactionsFound)
 }
 
@@ -261,10 +262,11 @@ func sendTransactionsToThesaurus(baseURL string, accountID fmt.Stringer, documen
 	return nil
 }
 
-func updateDocumentStatus(baseURL, documentID, status, errMsg string) {
+func updateDocumentStatus(baseURL, documentID, status, errMsg, extractedText string) {
 	payload, _ := json.Marshal(map[string]string{
-		"status":        status,
-		"error_message": errMsg,
+		"status":         status,
+		"error_message":  errMsg,
+		"extracted_text": extractedText,
 	})
 
 	req, _ := http.NewRequest("PATCH", baseURL+"/api/v1/documents/"+documentID+"/status", bytes.NewReader(payload))

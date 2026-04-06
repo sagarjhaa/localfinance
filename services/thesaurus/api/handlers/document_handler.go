@@ -38,8 +38,9 @@ func (h *DocumentHandler) UpdateDocumentStatus(c *gin.Context) {
 	id := c.Param("id")
 
 	var req struct {
-		Status       string `json:"status"`
-		ErrorMessage string `json:"error_message"`
+		Status        string `json:"status"`
+		ErrorMessage  string `json:"error_message"`
+		ExtractedText string `json:"extracted_text"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -51,6 +52,9 @@ func (h *DocumentHandler) UpdateDocumentStatus(c *gin.Context) {
 	}
 	if req.ErrorMessage != "" {
 		updates["error_message"] = req.ErrorMessage
+	}
+	if req.ExtractedText != "" {
+		updates["extracted_text"] = req.ExtractedText
 	}
 
 	result := h.db.Model(&models.Document{}).Where("id = ?", id).Updates(updates)

@@ -92,6 +92,9 @@ const Chat = ({ user, onLogout }) => {
       };
       setMessages((prev) => [...prev, aiMsg]);
       setOllamaStatus('active');
+      if (res.data.model) {
+        setModelName(res.data.model);
+      }
       if (res.data.conversation_id) {
         setActiveConversationId(res.data.conversation_id);
         // Refresh conversation list

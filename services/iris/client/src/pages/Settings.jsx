@@ -35,6 +35,11 @@ const Settings = ({ user, onLogout }) => {
   const [editingId, setEditingId] = useState(null);
   const [editPattern, setEditPattern] = useState('');
   const [editCategory, setEditCategory] = useState('');
+  const [models, setModels] = useState([]);
+  const [selectedModel, setSelectedModel] = useState('');
+  const [savedModel, setSavedModel] = useState('');
+  const [modelSaving, setModelSaving] = useState(false);
+  const [modelMessage, setModelMessage] = useState('');
 
   const fetchRules = useCallback(async () => {
     try {
@@ -52,6 +57,40 @@ const Settings = ({ user, onLogout }) => {
   useEffect(() => {
     fetchRules();
   }, [fetchRules]);
+
+  useEffect(() => {
+    // Fetch available models
+    proxyAPI.sophia.get('/api/v1/models')
+      .then((res) => setModels(res.data || []))
+      .catch(() => {});
+
+    // Fetch current preference
+    proxyAPI.thesaurus.get('/api/v1/preferences', undefined, { skipLogoutOn401: true })
+      .then((res) => {
+        const model = res.data?.chat_model || 'llama3.2:1b';
+        setSelectedModel(model);
+        setSavedModel(model);
+      })
+      .catch(() => {
+        setSelectedModel('llama3.2:1b');
+        setSavedModel('llama3.2:1b');
+      });
+  }, []);
+
+  const saveModel = async () => {
+    setModelSaving(true);
+    setModelMessage('');
+    try {
+      await proxyAPI.thesaurus.put('/api/v1/preferences', { chat_model: selectedModel });
+      setSavedModel(selectedModel);
+      setModelMessage('Model saved successfully');
+      setTimeout(() => setModelMessage(''), 3000);
+    } catch (err) {
+      setModelMessage('Failed to save model');
+    } finally {
+      setModelSaving(false);
+    }
+  };
 
   const handleAddRule = async (e) => {
     e.preventDefault();
@@ -184,6 +223,70 @@ const Settings = ({ user, onLogout }) => {
         </header>
 
         <div style={S.content}>
+          {/* Chat Model Section */}
+          <div style={{ marginBottom: 40 }}>
+            <h2 style={{ fontFamily: FONTS.headline, fontSize: 20, fontWeight: 700, marginBottom: 16 }}>
+              Chat Model
+            </h2>
+            <p style={{ fontFamily: FONTS.body, fontSize: 13, color: COLORS.stone500, marginBottom: 16 }}>
+              Select which AI model to use for chat. Smaller models are faster, larger models give better answers.
+            </p>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '12px 16px',
+                  borderRadius: 10,
+                  border: '1px solid ' + COLORS.stone200,
+                  fontFamily: FONTS.body,
+                  fontSize: 14,
+                  color: COLORS.stone900 || '#1c1917',
+                  background: COLORS.white || '#fff',
+                  outline: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                {models.map((m) => (
+                  <option key={m.name} value={m.name}>
+                    {m.name} ({m.size})
+                  </option>
+                ))}
+                {models.length === 0 && (
+                  <option value={selectedModel}>{selectedModel} (loading...)</option>
+                )}
+              </select>
+              <button
+                onClick={saveModel}
+                disabled={modelSaving || selectedModel === savedModel}
+                style={{
+                  padding: '12px 24px',
+                  background: selectedModel !== savedModel ? COLORS.primary || '#1A1A1A' : COLORS.stone300 || '#d6d3d1',
+                  color: selectedModel !== savedModel ? COLORS.white || '#fff' : COLORS.stone500 || '#78716c',
+                  border: 'none',
+                  borderRadius: 10,
+                  fontFamily: FONTS.body,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: selectedModel !== savedModel ? 'pointer' : 'default',
+                }}
+              >
+                {modelSaving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+            {modelMessage && (
+              <div style={{
+                marginTop: 8,
+                fontFamily: FONTS.body,
+                fontSize: 12,
+                color: modelMessage.includes('success') ? (COLORS.green || '#16a34a') : (COLORS.error || '#dc2626'),
+              }}>
+                {modelMessage}
+              </div>
+            )}
+          </div>
+
           {/* Add rule form */}
           <form onSubmit={handleAddRule} style={S.addForm}>
             <div style={S.formRow}>

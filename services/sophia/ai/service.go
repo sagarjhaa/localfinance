@@ -929,10 +929,13 @@ func (s *Service) ParseTransactions(text string, userModel string) ([]map[string
 	prompt := fmt.Sprintf(`Extract transactions as JSON.
 Fields: date (YYYY-MM-DD), description (Clean Name), amount (Positive=Charge, Negative=Payment), category (Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Health, Cash, EMI, Education, Other).
 
-Rules:
-1. No raw codes/cities/states in description.
-2. If year unknown, use 2026.
-3. Output ONLY the JSON array inside <JSON> tags.
+STRICT RULES:
+1. Only extract transactions from the activity table. Do not extract account headers, reward balances, or summary totals.
+2. The date must be the one listed on the transaction line. Do not use the statement's overall date.
+3. If a transaction doesn't fit a category, use "Other". NEVER create new categories.
+4. No raw codes/cities/states in description.
+5. If year unknown, use 2026.
+6. Output ONLY the JSON array inside <JSON> tags.
 
 Examples:
 Input: 03/12 AMZN Mktp US*Amzn.com/bill WA $22.50

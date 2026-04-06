@@ -959,7 +959,7 @@ Statement:
 		Prompt:      prompt,
 		Stream:      false,
 		Temperature: 0.1,
-		Options:     map[string]interface{}{"num_ctx": 2048},
+		Options:     map[string]interface{}{"num_ctx": 4096},
 	}
 	jsonBody, _ := json.Marshal(reqBody)
 

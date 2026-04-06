@@ -922,9 +922,9 @@ func (s *Service) extractCategory(response string) string {
 
 // ParseTransactions uses the LLM to extract transactions from raw statement text
 func (s *Service) ParseTransactions(text string, userModel string) ([]map[string]interface{}, error) {
-	// Truncate text if too long for context window
-	if len(text) > 8000 {
-		text = text[:8000]
+	// Truncate text — 1B models OOM on large contexts, keep it short
+	if len(text) > 3000 {
+		text = text[:3000]
 	}
 
 	prompt := fmt.Sprintf(`Extract transactions as JSON.

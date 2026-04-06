@@ -54,7 +54,7 @@ func AuthMiddleware(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		// Set user context for downstream handlers
-		c.Set("user_id", claims.UserID)
+		c.Set("user_id", claims.UserID.String())
 		c.Set("user_email", claims.Email)
 		c.Set("user", user)
 
@@ -106,7 +106,7 @@ func OptionalAuthMiddleware(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		// Set user context for downstream handlers
-		c.Set("user_id", claims.UserID)
+		c.Set("user_id", claims.UserID.String())
 		c.Set("user_email", claims.Email)
 		c.Set("user", user)
 

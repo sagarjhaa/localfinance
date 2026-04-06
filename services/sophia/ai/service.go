@@ -53,9 +53,9 @@ func (s *Service) GetOllamaHost() string {
 	return s.config.OllamaHost
 }
 
-// getUserModelPreference fetches the user's preferred chat model from Thesaurus.
+// GetUserModelPreference fetches the user's preferred chat model from Thesaurus.
 // Falls back to the default config model if the preference is not set or on error.
-func (s *Service) getUserModelPreference(userID string) string {
+func (s *Service) GetUserModelPreference(userID string) string {
 	if s.thesaurusURL == "" {
 		return s.config.ModelName
 	}
@@ -147,7 +147,7 @@ func (s *Service) AnswerFinancialQuery(query models.FinancialQuery) (models.AIRe
 	}
 
 	// Get user's preferred model
-	userModel := s.getUserModelPreference(query.UserID)
+	userModel := s.GetUserModelPreference(query.UserID)
 
 	// Route to appropriate handler
 	var response models.AIResponse
@@ -919,6 +919,49 @@ func (s *Service) extractCategory(response string) string {
 	return "Other"
 }
 
+// ParseTransactions uses the LLM to extract transactions from raw statement text
+func (s *Service) ParseTransactions(text string, userModel string) ([]map[string]interface{}, error) {
+	// Truncate text if too long for context window
+	if len(text) > 8000 {
+		text = text[:8000]
+	}
+
+	prompt := fmt.Sprintf(`You are a financial statement parser. Extract ALL transactions from this bank/credit card statement text.
+
+Return ONLY a JSON array of transactions. Each transaction must have:
+- "date": in YYYY-MM-DD format
+- "description": clean merchant/payee name (no raw codes, no addresses)
+- "amount": numeric value (positive for charges/debits, negative for payments/credits)
+- "category": one of: Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Health, Cash, EMI, Education, Other
+
+Rules:
+- Extract EVERY transaction, don't skip any
+- Clean up merchant names (e.g., "SQ *BOLLYWOOD SALON LLC Mountain View CA" → "Bollywood Salon")
+- Remove city/state/phone from descriptions
+- Payments/credits should have negative amounts
+- If you can't determine the year, use 2026
+
+Respond with ONLY the JSON array, no markdown, no explanation.
+
+STATEMENT TEXT:
+%s`, text)
+
+	response, err := s.queryOllamaWithModel(prompt, 0.1, userModel)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract JSON array from response
+	jsonStr := extractJSON(response)
+
+	var transactions []map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &transactions); err != nil {
+		return nil, fmt.Errorf("failed to parse AI response as JSON: %w", err)
+	}
+
+	return transactions, nil
+}
+
 // Helper: extract JSON from LLM response that might have markdown wrapping
 func extractJSON(response string) string {
 	response = strings.TrimSpace(response)
@@ -944,6 +987,13 @@ func extractJSON(response string) string {
 	// Try to find raw JSON object
 	if start := strings.Index(response, "{"); start >= 0 {
 		if end := strings.LastIndex(response, "}"); end > start {
+			return response[start : end+1]
+		}
+	}
+
+	// Try to find raw JSON array
+	if start := strings.Index(response, "["); start >= 0 {
+		if end := strings.LastIndex(response, "]"); end > start {
 			return response[start : end+1]
 		}
 	}

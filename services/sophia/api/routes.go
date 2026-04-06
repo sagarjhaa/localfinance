@@ -54,6 +54,35 @@ func SetupRoutes(router *gin.Engine, aiService *ai.Service, thesaurusConfig conf
 			categorize.POST("/batch", categorizeHandler.CategorizeTransactionBatch)
 		}
 
+		// AI-powered transaction parsing
+		v1.POST("/parse", func(c *gin.Context) {
+			var req struct {
+				Text   string `json:"text" binding:"required"`
+				UserID string `json:"user_id"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(400, gin.H{"error": err.Error()})
+				return
+			}
+
+			userModel := modelName
+			if req.UserID != "" {
+				userModel = aiService.GetUserModelPreference(req.UserID)
+			}
+
+			transactions, err := aiService.ParseTransactions(req.Text, userModel)
+			if err != nil {
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
+			}
+
+			c.JSON(200, gin.H{
+				"transactions": transactions,
+				"count":        len(transactions),
+				"model":        userModel,
+			})
+		})
+
 		// Models — list installed Ollama models
 		v1.GET("/models", func(c *gin.Context) {
 			resp, err := http.Get(aiService.GetOllamaHost() + "/api/tags")

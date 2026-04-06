@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { uploadAPI, documentAPI } from '../api/client';
+import { uploadAPI, documentAPI, proxyAPI } from '../api/client';
 import { FONTS, COLORS, APP } from '../theme';
 
 const categoryIcons = {
@@ -18,6 +18,10 @@ const Dashboard = ({ user, onLogout }) => {
   const [currentTicker, setCurrentTicker] = useState(null);
   const [revealing, setRevealing] = useState(false);
   const [error, setError] = useState('');
+  const [aiTransactions, setAiTransactions] = useState([]);
+  const [aiParsing, setAiParsing] = useState(false);
+  const [aiModel, setAiModel] = useState('');
+  const [aiError, setAiError] = useState('');
   const pollRef = useRef(null);
   const revealRef = useRef(null);
 
@@ -36,6 +40,33 @@ const Dashboard = ({ user, onLogout }) => {
             setRevealing(true);
             revealTransactionsOneByOne(txns);
           }
+          // Trigger AI parsing
+          setAiParsing(true);
+          setAiError('');
+          proxyAPI.thesaurus.get('/api/v1/documents/' + documentId, undefined, { skipLogoutOn401: true })
+            .then((docRes) => {
+              const extractedText = docRes.data?.extracted_text;
+              if (!extractedText) {
+                setAiError('No extracted text available');
+                setAiParsing(false);
+                return;
+              }
+              return proxyAPI.sophia.post('/api/v1/parse', {
+                text: extractedText,
+                user_id: String(user?.id || ''),
+              });
+            })
+            .then((aiRes) => {
+              if (aiRes) {
+                setAiTransactions(aiRes.data?.transactions || []);
+                setAiModel(aiRes.data?.model || '');
+              }
+              setAiParsing(false);
+            })
+            .catch((err) => {
+              setAiError('AI parsing failed: ' + (err.message || 'Unknown error'));
+              setAiParsing(false);
+            });
         } else if (res.data.status === 'error') {
           setProcessing(false);
           setError(res.data.error_message || 'Processing failed');
@@ -102,6 +133,7 @@ const Dashboard = ({ user, onLogout }) => {
   const reset = () => {
     setAllTransactions([]); setVisibleTransactions([]); setCurrentTicker(null);
     setDocumentId(null); setError(''); setProcessing(false); setRevealing(false);
+    setAiTransactions([]); setAiParsing(false); setAiModel(''); setAiError('');
     if (pollRef.current) clearInterval(pollRef.current);
     if (revealRef.current) clearTimeout(revealRef.current);
   };
@@ -234,7 +266,7 @@ const Dashboard = ({ user, onLogout }) => {
             </div>
           </section>
 
-          {/* Processed Ledger */}
+          {/* Processed Ledger Header */}
           {hasResults && (
             <section style={{ marginTop: 80 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 40 }}>
@@ -244,45 +276,107 @@ const Dashboard = ({ user, onLogout }) => {
                 </div>
                 <button onClick={reset} style={S.exportBtn}>+ New Upload</button>
               </div>
+            </section>
+          )}
 
-              <div style={S.tableContainer}>
-                <table style={S.table}>
-                  <thead>
-                    <tr style={{ background: 'rgba(245,245,245,0.5)' }}>
-                      <th style={S.th}>Date</th>
-                      <th style={S.th}>Entity / Description</th>
-                      <th style={{ ...S.th, textAlign: 'right' }}>Amount</th>
-                      <th style={S.th}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleTransactions.map((txn, i) => (
-                      <tr key={txn.id || i} style={{ transition: 'all 0.3s', animation: 'fadeIn 0.4s ease-out' }}>
-                        <td style={S.tdDate}>{fmtDate(txn.date)}</td>
-                        <td style={S.tdDesc}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <div style={S.txnIcon}>{categoryIcons[txn.category] || '⚙️'}</div>
-                            <div>
-                              <p style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>{txn.description}</p>
-                              <p style={{ fontSize: 10, color: COLORS.stone500, margin: 0 }}>{txn.category}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td style={S.tdAmount}>
-                          <span style={{ fontFamily: FONTS.headline, fontWeight: 500, color: txn.amount >= 0 ? COLORS.green : COLORS.primary }}>{fmtAmt(txn.amount)}</span>
-                        </td>
-                        <td style={S.tdStatus}>
-                          <span style={S.verifiedBadge}>Verified</span>
-                        </td>
+          {/* Dual Parse Comparison */}
+          {(allTransactions.length > 0 || aiParsing || aiTransactions.length > 0) && (
+            <div style={{ display: 'flex', gap: 16, marginTop: hasResults ? 0 : 24 }}>
+              {/* LEFT: Static Parse */}
+              <div style={{ flex: 1, background: COLORS.white, borderRadius: 12, border: '1px solid ' + COLORS.stone200, overflow: 'hidden' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid ' + COLORS.stone200, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h3 style={{ fontFamily: FONTS.headline, fontSize: 16, fontWeight: 700, margin: 0 }}>Static Parse</h3>
+                    <p style={{ fontFamily: FONTS.body, fontSize: 11, color: COLORS.stone500, margin: '4px 0 0 0' }}>Logos · {allTransactions.length} transactions · Saved</p>
+                  </div>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: COLORS.green, background: COLORS.stone100, padding: '4px 8px', borderRadius: 4 }}>PERSISTED</span>
+                </div>
+                <div style={{ maxHeight: 500, overflowY: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONTS.body, fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: COLORS.stone50 }}>
+                        <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600, color: COLORS.stone500, fontSize: 10, textTransform: 'uppercase' }}>Date</th>
+                        <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600, color: COLORS.stone500, fontSize: 10, textTransform: 'uppercase' }}>Description</th>
+                        <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600, color: COLORS.stone500, fontSize: 10, textTransform: 'uppercase' }}>Category</th>
+                        <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 600, color: COLORS.stone500, fontSize: 10, textTransform: 'uppercase' }}>Amount</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div style={S.tableFooter}>
-                  <span style={{ fontSize: 12, color: COLORS.stone500 }}>Showing {visibleTransactions.length} of {allTransactions.length} transactions processed</span>
+                    </thead>
+                    <tbody>
+                      {allTransactions.map((t, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid ' + COLORS.stone100 }}>
+                          <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', color: COLORS.stone500 }}>{t.date ? new Date(t.date).toLocaleDateString() : ''}</td>
+                          <td style={{ padding: '8px 12px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</td>
+                          <td style={{ padding: '8px 12px' }}>
+                            <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: COLORS.stone100, color: COLORS.stone700 }}>
+                              {categoryIcons[t.category] || '⚙️'} {t.category || 'Other'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: t.amount < 0 ? COLORS.green : COLORS.stone900 }}>
+                            {fmtAmt(t.amount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-            </section>
+
+              {/* RIGHT: AI Parse */}
+              <div style={{ flex: 1, background: COLORS.white, borderRadius: 12, border: '1px solid ' + COLORS.stone200, overflow: 'hidden' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid ' + COLORS.stone200, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h3 style={{ fontFamily: FONTS.headline, fontSize: 16, fontWeight: 700, margin: 0 }}>AI Parse</h3>
+                    <p style={{ fontFamily: FONTS.body, fontSize: 11, color: COLORS.stone500, margin: '4px 0 0 0' }}>
+                      {aiParsing ? 'Parsing...' : aiModel ? `${aiModel} · ${aiTransactions.length} transactions · Preview` : 'Waiting...'}
+                    </p>
+                  </div>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: COLORS.stone500, background: COLORS.stone100, padding: '4px 8px', borderRadius: 4 }}>PREVIEW</span>
+                </div>
+                <div style={{ maxHeight: 500, overflowY: 'auto' }}>
+                  {aiParsing && (
+                    <div style={{ padding: 40, textAlign: 'center', color: COLORS.stone500, fontFamily: FONTS.body, fontSize: 13 }}>
+                      Querying {aiModel || 'AI'}... This may take a minute.
+                    </div>
+                  )}
+                  {aiError && (
+                    <div style={{ padding: 20, color: COLORS.error, fontFamily: FONTS.body, fontSize: 12 }}>{aiError}</div>
+                  )}
+                  {!aiParsing && aiTransactions.length > 0 && (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONTS.body, fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ background: COLORS.stone50 }}>
+                          <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600, color: COLORS.stone500, fontSize: 10, textTransform: 'uppercase' }}>Date</th>
+                          <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600, color: COLORS.stone500, fontSize: 10, textTransform: 'uppercase' }}>Description</th>
+                          <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600, color: COLORS.stone500, fontSize: 10, textTransform: 'uppercase' }}>Category</th>
+                          <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 600, color: COLORS.stone500, fontSize: 10, textTransform: 'uppercase' }}>Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {aiTransactions.map((t, i) => (
+                          <tr key={i} style={{ borderBottom: '1px solid ' + COLORS.stone100 }}>
+                            <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', color: COLORS.stone500 }}>{t.date || ''}</td>
+                            <td style={{ padding: '8px 12px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description || ''}</td>
+                            <td style={{ padding: '8px 12px' }}>
+                              <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: COLORS.stone100, color: COLORS.stone700 }}>
+                                {categoryIcons[t.category] || '⚙️'} {t.category || 'Other'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: (t.amount < 0) ? COLORS.green : COLORS.stone900 }}>
+                              {typeof t.amount === 'number' ? (t.amount < 0 ? '-' : '') + '$' + Math.abs(t.amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : t.amount}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                  {!aiParsing && !aiError && aiTransactions.length === 0 && allTransactions.length > 0 && (
+                    <div style={{ padding: 40, textAlign: 'center', color: COLORS.stone500, fontFamily: FONTS.body, fontSize: 13 }}>
+                      AI parse starting...
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </main>

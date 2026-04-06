@@ -5,6 +5,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Chat from './pages/Chat';
+import Profile from './pages/Profile';
 
 
 function App() {
@@ -82,6 +83,7 @@ function App() {
         <Route path="/dashboard" element={<Dashboard user={user} onLogout={handleLogout} />} />
 
         <Route path="/chat" element={<Chat user={user} onLogout={handleLogout} />} />
+        <Route path="/profile" element={<Profile user={user} onLogout={handleLogout} />} />
 
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

@@ -18,7 +18,6 @@ const Dashboard = ({ user, onLogout }) => {
   const [currentTicker, setCurrentTicker] = useState(null);
   const [revealing, setRevealing] = useState(false);
   const [error, setError] = useState('');
-  const [showProfile, setShowProfile] = useState(false);
   const pollRef = useRef(null);
   const revealRef = useRef(null);
 
@@ -129,58 +128,37 @@ const Dashboard = ({ user, onLogout }) => {
           <p style={S.sidebarTier}>{APP.tagline}</p>
         </div>
         <nav>
-          <a href="#upload" style={S.navActive}>
+          <div
+            onClick={() => window.location.href = '/dashboard'}
+            style={S.navActive}
+          >
             <span style={{ fontSize: 20 }}>&#128196;</span>
             <span style={{ fontSize: 14, fontWeight: 700 }}>Statement Upload</span>
-          </a>
-          <a href="#vault" style={S.navItem}>
+          </div>
+          <div
+            onClick={() => window.location.href = '/dashboard'}
+            style={S.navItem}
+          >
             <span style={{ fontSize: 20 }}>&#128274;</span>
             <span style={{ fontSize: 14 }}>The Vault</span>
-          </a>
-          <a href="/chat" style={S.navItem}>
+          </div>
+          <div
+            onClick={() => window.location.href = '/chat'}
+            style={S.navItem}
+          >
             <span style={{ fontSize: 20 }}>&#128172;</span>
             <span style={{ fontSize: 14 }}>Ollama Chat</span>
-          </a>
-        </nav>
-        {showProfile && (
-          <div style={{
-            padding: '16px 24px',
-            borderTop: '1px solid #e7e5e4',
-            borderBottom: '1px solid #e7e5e4',
-            background: '#fafafa',
-          }}>
-            <p style={{ fontFamily: FONTS.body, fontSize: 13, margin: '0 0 4px 0' }}>
-              {user?.first_name} {user?.last_name}
-            </p>
-            <p style={{ fontFamily: FONTS.body, fontSize: 11, color: COLORS.stone500, margin: '0 0 12px 0' }}>
-              {user?.email}
-            </p>
-            <button
-              onClick={onLogout}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: 0,
-                fontSize: 11,
-                color: '#dc2626',
-                cursor: 'pointer',
-                fontFamily: FONTS.body,
-                textDecoration: 'underline',
-              }}
-            >
-              Sign Out
-            </button>
           </div>
-        )}
+        </nav>
         <div style={S.sidebarFooter}>
           <div
-            onClick={() => setShowProfile(!showProfile)}
+            onClick={() => window.location.href = '/profile'}
             style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', flex: 1 }}
           >
             <div style={S.avatar}>{user?.first_name?.[0] || 'U'}</div>
             <div>
               <p style={{ fontSize: 12, fontWeight: 700, margin: 0 }}>{user?.first_name || ''} {user?.last_name || ''}</p>
-              <p style={{ fontSize: 10, color: COLORS.stone500, margin: 0 }}>{showProfile ? 'Close' : 'Profile'}</p>
+              <p style={{ fontSize: 10, color: COLORS.stone500, margin: 0 }}>View profile</p>
             </div>
           </div>
         </div>

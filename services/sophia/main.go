@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -18,6 +19,22 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	// Auto-pick the best installed model if MODEL_NAME is "auto" or empty.
+	// Heuristic: largest parameter count, family-preference tie-break
+	// (qwen2.5 > llama3.1 > llama3.2 > others). Useful when the user has a
+	// few models pulled and doesn't want to pin one.
+	if cfg.AI.ModelName == "" || strings.EqualFold(cfg.AI.ModelName, "auto") {
+		selectCtx, selectCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		selectClient := &http.Client{Timeout: 10 * time.Second}
+		picked, err := ai.SelectBestModel(selectCtx, selectClient, cfg.AI.OllamaHost)
+		selectCancel()
+		if err != nil {
+			log.Fatalf("Auto model selection failed: %v", err)
+		}
+		log.Printf("Auto-selected model: %s", picked)
+		cfg.AI.ModelName = picked
 	}
 
 	// Initialize AI service

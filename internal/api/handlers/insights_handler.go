@@ -36,9 +36,15 @@ type InsightsHandler struct {
 // NewLLMNarrator if you want LLM polish (set INSIGHTS_LLM_POLISH=1 in env to
 // auto-enable).
 func NewInsightsHandler(aiService *ai.Service) *InsightsHandler {
+	// Self-loop default — Thesaurus IS this same process in the consolidated
+	// binary. Honor PORT to keep the loop on whatever port we're listening on.
 	thesaurusURL := os.Getenv("THESAURUS_URL")
 	if thesaurusURL == "" {
-		thesaurusURL = "http://localhost:8001"
+		port := os.Getenv("PORT")
+		if port == "" {
+			port = "3001"
+		}
+		thesaurusURL = "http://localhost:" + port
 	}
 	dismiss := insights.NewThesaurusDismissalFetcher(thesaurusURL)
 	dismiss.Client = &http.Client{Timeout: 5 * time.Second}

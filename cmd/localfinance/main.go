@@ -87,9 +87,17 @@ func main() {
 		slog.Error("ai service init failed", "err", err)
 		os.Exit(1)
 	}
+	// In the consolidated binary, AI handlers that fetch transactions through
+	// THESAURUS_URL are self-talking — Thesaurus IS this same process. Default
+	// the URL to localhost:<PORT> so the in-process HTTP loop hits ourselves.
+	// (A future cleanup should switch these to direct GORM calls; tracked.)
 	thesaurusURL := os.Getenv("THESAURUS_URL")
 	if thesaurusURL == "" {
-		thesaurusURL = aiCfg.Thesaurus.BaseURL
+		listenPort := os.Getenv("PORT")
+		if listenPort == "" {
+			listenPort = "3001"
+		}
+		thesaurusURL = "http://localhost:" + listenPort
 	}
 	aiSvc.SetThesaurusURL(thesaurusURL)
 

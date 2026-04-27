@@ -38,7 +38,7 @@ func Load() (*Config, error) {
 			SystemPrompt: getFinancialAdvisorPrompt(),
 		},
 		Thesaurus: ThesaurusConfig{
-			BaseURL: getEnv("THESAURUS_URL", "http://localhost:8001"),
+			BaseURL: getEnv("THESAURUS_URL", "http://localhost:3001"),
 			Timeout: 30,
 		},
 		Server: ServerConfig{

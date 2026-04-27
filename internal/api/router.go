@@ -68,7 +68,16 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 	categorizeHandler := handlers.NewCategorizeHandler(aiSvc)
 
 	// Wire month-review service. Mirrors services/sophia/api/routes.go.
-	mrDismiss := insights.NewThesaurusDismissalFetcher(os.Getenv("THESAURUS_URL"))
+	// Self-loop default — Thesaurus IS this same process.
+	mrThesaurusURL := os.Getenv("THESAURUS_URL")
+	if mrThesaurusURL == "" {
+		mrPort := os.Getenv("PORT")
+		if mrPort == "" {
+			mrPort = "3001"
+		}
+		mrThesaurusURL = "http://localhost:" + mrPort
+	}
+	mrDismiss := insights.NewThesaurusDismissalFetcher(mrThesaurusURL)
 	mrDismiss.Client = &http.Client{Timeout: 5 * time.Second}
 	var mrNarrator insights.Narrator = insights.NewTemplateNarrator()
 	if os.Getenv("INSIGHTS_LLM_POLISH") == "1" {
@@ -241,7 +250,8 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 		{
 			insightsGrp.POST("/", insightsHandler.GenerateInsights)
 			insightsGrp.GET("/:userId", insightsHandler.GetUserInsights)
-			insightsGrp.POST("/:userId/dismiss", dismissedInsightsHandler.Create)
+			// Param name is user_id to match dismissed_insights_handler's c.Param("user_id").
+			insightsGrp.POST("/:user_id/dismiss", dismissedInsightsHandler.Create)
 			insightsGrp.POST("/analyze", insightsHandler.AnalyzeSpendingPatterns)
 		}
 

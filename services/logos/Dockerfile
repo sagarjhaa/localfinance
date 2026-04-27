@@ -7,7 +7,9 @@ RUN go mod download
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /service .
 
 FROM alpine:3.19
-RUN apk --no-cache add ca-certificates curl
+# poppler-utils provides pdftotext — Logos's primary PDF text extractor
+# (the Go ledongthuc/pdf fallback handles a smaller subset of PDFs cleanly).
+RUN apk --no-cache add ca-certificates curl poppler-utils
 COPY --from=builder /service /service
 HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
   CMD curl -sf http://localhost:${PORT:-8003}/health || exit 1

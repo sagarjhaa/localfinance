@@ -29,11 +29,23 @@ make eval-hallucination       # Phase 0 eval against live Ollama (manual graded)
 
 ## Key Files
 
-- main.go — Gin router, AI service init
+- main.go — Gin router, AI service init, Ollama startup probe (fail-fast)
 - ai/service.go — Ollama client, two-pass chat logic, merchant cleaning
+- ai/probe.go — `Probe(ctx, client, host, model)` — verifies Ollama up + model installed at boot
 - api/routes.go — route registration
 - api/handlers/chat_handler.go — chat endpoint
 - api/handlers/categorize_handler.go — transaction categorization
-- api/handlers/insights_handler.go — financial insights
+- api/handlers/insights_handler.go — financial insights (engine + narrator wired here)
+- insights/ — deterministic rules engine (rules.go, engine.go, keys.go)
+- insights/dismissals.go — `ThesaurusDismissalFetcher` HTTP impl of `DismissalFetcher`
+- insights/narrator.go — `Narrator` interface; Phase A template + Phase B LLM polish with allow-set guard
 - models/models.go — request/response types
 - config/config.go — Ollama host, model name, Thesaurus URL
+
+## Patterns
+
+- Insights handler: 90d window filter is the handler's responsibility (not the engine).
+- Narrator: never let unvalidated LLM output reach the user — `validateLLMOutput`
+  enforces a numbers/dates/merchants allow-set; on failure we fall back to Phase A.
+- LLM polish is opt-in via `INSIGHTS_LLM_POLISH=1`; default is template-only.
+- Startup probe can be skipped in tests via `SKIP_OLLAMA_PROBE=1`.

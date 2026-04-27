@@ -190,3 +190,18 @@ installer-run: installer
 
 installer-test:
 	@cd installer/launcher && go test -ldflags="-linkmode=external" ./... -count=1
+
+# ─── Single-binary build (consolidation phase) ─────────
+.PHONY: dev build-mono test-mono
+
+# Run the consolidated binary against host Postgres + host Ollama (assumes
+# both are running). Hot path during the consolidation work.
+dev:
+	@PORT=3001 go run ./cmd/localfinance
+
+build-mono:
+	@go build -o $(DIST)/localfinance ./cmd/localfinance
+	@echo "  → $(DIST)/localfinance"
+
+test-mono:
+	@go test ./internal/... ./cmd/...

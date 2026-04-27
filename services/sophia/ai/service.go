@@ -2,6 +2,7 @@ package ai
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -564,6 +565,21 @@ func (s *Service) getUserTransactionsFiltered(userID string, intent *models.Quer
 	return s.fetchTransactions(u)
 }
 
+// FetchTransactionsSince fetches all of a user's transactions on or after the
+// given start date from Thesaurus. Used by the insights pipeline to build a
+// 90-day rolling window.
+func (s *Service) FetchTransactionsSince(userID string, start time.Time) ([]models.TransactionRef, error) {
+	if s.thesaurusURL == "" {
+		return nil, fmt.Errorf("thesaurus URL not configured")
+	}
+	params := url.Values{}
+	params.Set("user_id", userID)
+	params.Set("start_date", start.UTC().Format("2006-01-02"))
+	params.Set("limit", "5000")
+	u := fmt.Sprintf("%s/api/v1/internal/transactions?%s", s.thesaurusURL, params.Encode())
+	return s.fetchTransactions(u)
+}
+
 func (s *Service) getUserTransactions(userID string, limit int) ([]models.TransactionRef, error) {
 	if s.thesaurusURL == "" {
 		return []models.TransactionRef{}, nil
@@ -798,6 +814,21 @@ func (s *Service) queryOllamaWithModel(prompt string, temperature float32, model
 	}
 
 	return strings.TrimSpace(ollamaResp.Response), nil
+}
+
+// Generate is a minimal exported wrapper around the raw Ollama call used by
+// callers that already have a fully-formed prompt and don't need the
+// system-prompt prefix or model-preference lookup. The temperature is fixed at
+// a low value because callers (e.g. the insights narrator) want
+// near-deterministic output.
+func (s *Service) Generate(ctx context.Context, prompt string) (string, error) {
+	// Honor cancellation by checking before issuing the request. The underlying
+	// http.Client doesn't take a ctx in queryOllamaRaw, so this is best-effort —
+	// callers that need hard cancellation should set Client.Timeout instead.
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	return s.queryOllamaRaw(prompt, 0.2)
 }
 
 // queryOllama queries with the system prompt prepended (for categorization etc.)

@@ -21,6 +21,7 @@ import (
 	"github.com/sagarjhaa/localfinance/internal/insights"
 	"github.com/sagarjhaa/localfinance/internal/monthreview"
 	"github.com/sagarjhaa/localfinance/internal/parse"
+	"github.com/sagarjhaa/localfinance/internal/webui"
 	sophiaconfig "github.com/sagarjhaa/localfinance/services/sophia/config"
 	"gorm.io/gorm"
 )
@@ -337,6 +338,9 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 			})
 		})
 	}
+
+	// Static + SPA fallback — must be LAST so /api/* takes precedence.
+	router.NoRoute(gin.WrapH(webui.Handler()))
 
 	return router
 }

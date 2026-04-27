@@ -1,13 +1,38 @@
 #!/usr/bin/env bash
 # LocalFinance one-line installer.
-# Usage:  curl -fsSL https://raw.githubusercontent.com/sagarjhaa/localfinance/main/scripts/install.sh | sh
+# Usage:
+#   curl -fsSL https://raw.githubusercontent.com/sagarjhaa/localfinance/main/scripts/install.sh | sh
+#   curl -fsSL https://.../install.sh | sh -s -- --clean   # wipe build caches first
+#   curl -fsSL https://.../install.sh | sh -s -- --reset   # also wipe user data
 set -euo pipefail
 
 REPO_URL="https://github.com/sagarjhaa/localfinance.git"
 SRC_DIR="${HOME}/.localfinance/src"
+DATA_DIR="${HOME}/Library/Application Support/LocalFinance"
+CLEAN=0
+RESET=0
+for arg in "$@"; do
+  case "$arg" in
+    --clean) CLEAN=1 ;;
+    --reset) CLEAN=1; RESET=1 ;;
+    -h|--help)
+      cat <<HELP
+LocalFinance installer
 
-if [ -t 1 ]; then BLUE=$'\033[1;34m'; RESET=$'\033[0m'; else BLUE=""; RESET=""; fi
-say() { echo >&2 "${BLUE}==>${RESET} $*"; }
+  (no flags)   Update source, rebuild, install. Preserves React node_modules
+               cache and user data under ~/Library/Application Support/LocalFinance.
+  --clean      Also wipe build artifacts (dist/, node_modules, internal/webui/dist).
+               Slower but guaranteed cache-free build.
+  --reset      Same as --clean PLUS wipes user data (Postgres, uploads, logs).
+               Like installing on a fresh Mac. Use this if you want a true
+               clean slate — your transactions and login will be gone.
+HELP
+      exit 0 ;;
+  esac
+done
+
+if [ -t 1 ]; then BLUE=$'\033[1;34m'; RESET_C=$'\033[0m'; else BLUE=""; RESET_C=""; fi
+say() { echo >&2 "${BLUE}==>${RESET_C} $*"; }
 
 if [ "$(uname -s)" != "Darwin" ]; then
   echo >&2 "LocalFinance currently supports macOS only. Detected: $(uname -s)"; exit 1
@@ -65,6 +90,24 @@ else
   fi
   REPO_ROOT="$SRC_DIR"
 fi
+
+if [ "$CLEAN" = "1" ]; then
+  say "Cleaning build artifacts (--clean)"
+  rm -rf "${REPO_ROOT}/dist" \
+         "${REPO_ROOT}/internal/webui/dist" \
+         "${REPO_ROOT}/services/iris/client/build" \
+         "${REPO_ROOT}/services/iris/client/node_modules"
+fi
+
+if [ "$RESET" = "1" ] && [ -d "$DATA_DIR" ]; then
+  say "Wiping user data (--reset): ${DATA_DIR}"
+  rm -rf "$DATA_DIR"
+fi
+
+# Stop any previously-running LocalFinance process so we don't fight over
+# port 3001 or hold the .app binary open while we copy.
+pkill -f "/Applications/LocalFinance.app/Contents/MacOS/LocalFinance" 2>/dev/null || true
+pkill -f "/Users/.*/.localfinance/src/dist/localfinance" 2>/dev/null || true
 
 say "Building LocalFinance.app (this can take a couple of minutes)"
 ( cd "$REPO_ROOT" && make installer )

@@ -27,6 +27,12 @@ curl -fsSL https://raw.githubusercontent.com/sagarjhaa/localfinance/main/scripts
 Installs Ollama (if missing), builds & installs LocalFinance.app, pulls
 a model, and launches it. ~5 minutes on a fresh Mac.
 
+### Drag-and-drop install
+
+Download `LocalFinance-0.2.0.dmg` from
+[Releases](https://github.com/sagarjhaa/localfinance/releases) (when
+published). Open it and drag `LocalFinance` into Applications.
+
 ### Manual install
 
 #### 1. Install [Ollama](https://ollama.com)

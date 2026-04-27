@@ -28,6 +28,7 @@ help:
 	@echo "  make installer         Build dist/LocalFinance.app"
 	@echo "  make installer-clean   Remove dist/LocalFinance.app"
 	@echo "  make installer-run     Build + launch the .app"
+	@echo "  make dmg               Build dist/LocalFinance-<version>.dmg"
 	@echo ""
 	@echo "Clean:"
 	@echo "  make clean             Remove dist/"
@@ -77,7 +78,7 @@ verify:
 	fi
 
 # ─── macOS Installer ──────────────────────────────────
-.PHONY: installer installer-clean installer-run
+.PHONY: installer installer-clean installer-run dmg
 installer:
 	@bash installer/build.sh
 
@@ -86,3 +87,6 @@ installer-clean:
 
 installer-run: installer
 	@$(DIST)/LocalFinance.app/Contents/MacOS/LocalFinance
+
+dmg:
+	@bash installer/dmg.sh

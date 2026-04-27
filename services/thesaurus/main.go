@@ -28,6 +28,11 @@ func main() {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
+	// Seed default user on first boot (idempotent)
+	if err := database.SeedDefaultUser(db); err != nil {
+		log.Fatalf("Failed to seed default user: %v", err)
+	}
+
 	// Set up Gin router
 	router := gin.New()
 	router.Use(middleware.CorrelationMiddleware("thesaurus"))

@@ -82,6 +82,11 @@ const s = {
     textDecoration: 'none', borderBottom: '1px solid transparent', paddingBottom: 2,
     transition: 'all 0.2s',
   },
+  hint: {
+    marginTop: 12, marginBottom: 0,
+    fontFamily: FONTS.mono, fontSize: 10, letterSpacing: '0.08em',
+    color: '#a0a0a0', textAlign: 'left',
+  },
   error: {
     background: COLORS.errorBg, border: '1px solid #fe8983', color: '#752121',
     padding: '12px 16px', borderRadius: 8, fontSize: 13, textAlign: 'center', width: '100%', maxWidth: 420,
@@ -95,8 +100,14 @@ const s = {
   },
 };
 
+// Default credentials seeded by Thesaurus on first boot (single-user app).
+// Pre-filled here so the user can sign in immediately on a fresh install,
+// then change them in the Profile page.
+const DEFAULT_EMAIL = 'local@localfinance.app';
+const DEFAULT_PASSWORD = 'localfinance';
+
 const Login = ({ onLogin }) => {
-  const [formData, setFormData] = useState({ email: '', password: '' });
+  const [formData, setFormData] = useState({ email: DEFAULT_EMAIL, password: DEFAULT_PASSWORD });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -158,6 +169,9 @@ const Login = ({ onLogin }) => {
               onFocus={e => e.target.style.borderColor = COLORS.primary}
               onBlur={e => e.target.style.borderColor = '#D1D1D1'}
             />
+            <p style={s.hint}>
+              Default credentials are pre-filled. Change them in Profile after sign-in.
+            </p>
           </div>
           <div style={s.btnWrap}>
             <button type="submit" disabled={isLoading}

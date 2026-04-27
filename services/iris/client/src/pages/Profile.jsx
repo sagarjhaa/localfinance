@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FONTS, COLORS, APP } from '../theme';
-import { proxyAPI } from '../api/client';
+import { proxyAPI, authAPI } from '../api/client';
 
 const Profile = ({ user, onLogout }) => {
   const [firstName, setFirstName] = useState(user?.first_name || '');
@@ -11,6 +11,14 @@ const Profile = ({ user, onLogout }) => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('');
+
+  // Password change form state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwMessage, setPwMessage] = useState('');
+  const [pwMessageType, setPwMessageType] = useState('');
 
   useEffect(() => {
     // Fetch available models
@@ -46,6 +54,45 @@ const Profile = ({ user, onLogout }) => {
       setMessageType('error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setPwMessage('');
+
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      setPwMessage('All password fields are required');
+      setPwMessageType('error');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPwMessage('New passwords do not match');
+      setPwMessageType('error');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPwMessage('New password must be at least 8 characters');
+      setPwMessageType('error');
+      return;
+    }
+
+    setPwSaving(true);
+    try {
+      await authAPI.changePassword({
+        current_password: currentPassword,
+        new_password: newPassword,
+      });
+      setPwMessage('Password updated');
+      setPwMessageType('success');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setTimeout(() => setPwMessage(''), 3000);
+    } catch (err) {
+      setPwMessage(err.message || 'Failed to update password');
+      setPwMessageType('error');
+    } finally {
+      setPwSaving(false);
     }
   };
 
@@ -190,6 +237,70 @@ const Profile = ({ user, onLogout }) => {
                   {message}
                 </span>
               )}
+            </div>
+
+            {/* Change Password */}
+            <div style={{ ...S.section, borderTop: `1px solid ${COLORS.stone100}`, marginTop: 32, paddingTop: 32 }}>
+              <h3 style={S.sectionTitle}>Change Password</h3>
+
+              <div style={S.fieldGroup}>
+                <label style={S.label}>Current Password</label>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  style={S.input}
+                  placeholder="Current password"
+                  autoComplete="current-password"
+                />
+              </div>
+
+              <div style={S.fieldGroup}>
+                <label style={S.label}>New Password</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  style={S.input}
+                  placeholder="At least 8 characters"
+                  autoComplete="new-password"
+                />
+              </div>
+
+              <div style={S.fieldGroup}>
+                <label style={S.label}>Confirm New Password</label>
+                <input
+                  type="password"
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  style={S.input}
+                  placeholder="Re-enter new password"
+                  autoComplete="new-password"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, paddingTop: 8 }}>
+                <button
+                  onClick={handleChangePassword}
+                  disabled={pwSaving}
+                  style={{
+                    ...S.saveButton,
+                    ...(pwSaving ? { opacity: 0.6, cursor: 'default' } : {}),
+                  }}
+                >
+                  {pwSaving ? 'Updating...' : 'Update Password'}
+                </button>
+                {pwMessage && (
+                  <span style={{
+                    fontSize: 13,
+                    fontFamily: FONTS.body,
+                    color: pwMessageType === 'success' ? COLORS.green : COLORS.error,
+                    fontWeight: 600,
+                  }}>
+                    {pwMessage}
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Sign Out */}

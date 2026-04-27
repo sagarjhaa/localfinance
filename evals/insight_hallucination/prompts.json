@@ -1,0 +1,148 @@
+{
+  "prompts": [
+    {
+      "id": "p01",
+      "type": "total-by-category",
+      "prompt": "What did I spend in total on Groceries across all the transactions provided?",
+      "expected_facts": {
+        "numbers": ["1223.48"],
+        "merchants": ["Costco", "Whole Foods"],
+        "categories": ["Groceries"]
+      }
+    },
+    {
+      "id": "p02",
+      "type": "count-by-merchant",
+      "prompt": "How many times did I shop at Costco Wholesale?",
+      "expected_facts": {
+        "numbers": ["4"],
+        "merchants": ["Costco Wholesale"]
+      }
+    },
+    {
+      "id": "p03",
+      "type": "date-range-sum",
+      "prompt": "How much did I spend on Groceries in February 2026?",
+      "expected_facts": {
+        "numbers": ["420.92"],
+        "merchants": ["Costco", "Whole Foods"],
+        "dates": ["2026-02-03", "2026-02-15", "2026-02-22"]
+      }
+    },
+    {
+      "id": "p04",
+      "type": "trend-direction",
+      "prompt": "Did my Groceries spending increase or decrease from February to March 2026?",
+      "expected_facts": {
+        "numbers": ["420.92", "334.53"],
+        "trend": "decrease"
+      }
+    },
+    {
+      "id": "p05",
+      "type": "top-n-merchants",
+      "prompt": "List my top 3 merchants by total amount spent (debits only).",
+      "expected_facts": {
+        "merchants": ["Costco Wholesale", "AMZN Mktp US", "Whole Foods Market"],
+        "numbers": ["821.78", "338.48", "401.70"]
+      }
+    },
+    {
+      "id": "p06",
+      "type": "period-comparison",
+      "prompt": "Compare my Transport spending in February 2026 vs March 2026.",
+      "expected_facts": {
+        "numbers": ["122.95", "88.75"],
+        "categories": ["Transport"]
+      }
+    },
+    {
+      "id": "p07",
+      "type": "category-comparison",
+      "prompt": "Did I spend more on Subscriptions or on Food Delivery overall?",
+      "expected_facts": {
+        "numbers": ["53.96", "142.84"],
+        "answer": "Food Delivery"
+      }
+    },
+    {
+      "id": "p08",
+      "type": "largest-single-charge",
+      "prompt": "What was my single largest debit transaction and when did it occur?",
+      "expected_facts": {
+        "numbers": ["245.88"],
+        "merchants": ["Costco Wholesale"],
+        "dates": ["2026-03-08"]
+      }
+    },
+    {
+      "id": "p09",
+      "type": "income-total",
+      "prompt": "What was my total income across these transactions?",
+      "expected_facts": {
+        "numbers": ["12750.00", "4250.00"],
+        "merchants": ["Acme Corp"],
+        "categories": ["Income"]
+      }
+    },
+    {
+      "id": "p10",
+      "type": "subscription-list",
+      "prompt": "List every subscription I am paying and the per-charge amount.",
+      "expected_facts": {
+        "merchants": ["Spotify", "Netflix"],
+        "numbers": ["10.99", "15.99"]
+      }
+    },
+    {
+      "id": "p11",
+      "type": "month-in-review",
+      "prompt": "Summarize my February 2026 spending. Cover totals by category and anything that stands out.",
+      "expected_facts": {
+        "numbers": ["420.92", "122.95"],
+        "categories": ["Groceries", "Transport", "Subscriptions", "Food Delivery"],
+        "merchants": ["Costco", "Whole Foods", "Shell"]
+      }
+    },
+    {
+      "id": "p12",
+      "type": "month-in-review",
+      "prompt": "Summarize my March 2026 spending and tell me what stood out.",
+      "expected_facts": {
+        "numbers": ["334.53", "88.75"],
+        "categories": ["Groceries", "Transport"],
+        "merchants": ["Costco", "AMZN", "Whole Foods"]
+      }
+    },
+    {
+      "id": "p13",
+      "type": "month-in-review",
+      "prompt": "Give me an April 2026 month-in-review based only on the transactions provided.",
+      "expected_facts": {
+        "dates": ["2026-04-02", "2026-04-08", "2026-04-15", "2026-04-20"],
+        "merchants": ["Costco", "Shell", "DoorDash", "Whole Foods"],
+        "numbers": ["176.40", "52.10", "38.55", "104.20"]
+      }
+    },
+    {
+      "id": "p14",
+      "type": "month-in-review",
+      "prompt": "Looking at the full 90-day window, what stood out about my spending?",
+      "expected_facts": {
+        "merchants": ["Costco", "AMZN", "Whole Foods", "Shell"],
+        "categories": ["Groceries", "Shopping", "Transport"],
+        "numbers": ["1223.48"]
+      }
+    },
+    {
+      "id": "p15",
+      "type": "month-in-review",
+      "prompt": "Give me a concise narrative summary of the period from 2026-01-26 to 2026-04-26 — totals, categories, and any notable patterns.",
+      "expected_facts": {
+        "dates": ["2026-01-26", "2026-04-26"],
+        "categories": ["Groceries", "Income", "Transport", "Subscriptions"],
+        "numbers": ["12750.00"]
+      }
+    }
+  ]
+}

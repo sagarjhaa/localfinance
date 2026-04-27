@@ -199,9 +199,16 @@ installer-test:
 dev:
 	@PORT=3001 go run ./cmd/localfinance
 
-build-mono:
+.PHONY: webui-build
+webui-build:
+	@cd services/iris/client && CI=false $(NPM) run build 2>&1 | tail -3
+	@rm -rf internal/webui/dist
+	@cp -r services/iris/client/build internal/webui/dist
+	@echo "  → internal/webui/dist/ (embed input)"
+
+build-mono: webui-build
 	@go build -o $(DIST)/localfinance ./cmd/localfinance
-	@echo "  → $(DIST)/localfinance"
+	@echo "  → $(DIST)/localfinance ($$(du -h $(DIST)/localfinance | cut -f1))"
 
 test-mono:
 	@go test ./internal/... ./cmd/...

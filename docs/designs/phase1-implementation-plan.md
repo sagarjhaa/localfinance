@@ -107,7 +107,7 @@
 
 **DoD:** `make dev-up` → upload → insights → dismiss → reload → dismissal sticks.
 
-## Task 6 — macOS Installer
+## Task 6 — macOS Installer ✅
 
 **Worktree:** `installer` | **Blocked by Tasks 2-5 functional** | **Owner:** subagent dispatch (split) | **~25-35h**
 
@@ -157,3 +157,51 @@ main ───┤                         ├─→ all merged → Task 1.5 mono
 - Subscription Auditor (Phase 2)
 - Fraud / Savings (Phase 3, validation-gated)
 - Monolith refactor (Phase 1.5, separate plan)
+
+## Task 6 — Build notes
+
+Decisions made while shipping the macOS installer:
+
+- **Postgres: not embedded** in Phase 1. The launcher resolves `initdb`,
+  `pg_ctl`, `postgres`, `psql` from the runtime user's `PATH`. The Homebrew
+  binaries hard-code dylib install_names (icu4c, openssl@1.1, krb5) that
+  break when copied into a bundle — and macOS strips `DYLD_*` env vars when
+  posix_spawn'ing into hardened-runtime binaries, so we can't paper over it
+  with env vars from an unsigned launcher. The proper fix
+  (`install_name_tool -change` plus shipping matching dylibs) is tracked as
+  a Phase 1.5 packaging task. End users run `brew install postgresql@15`
+  once before first launch. Documented in `installer/POSTGRES.md`.
+  Opt-in flag `LOCALFINANCE_BUNDLE_POSTGRES=1` exists for experimenting.
+- **Bundle size:** ~165 MB without bundled Postgres, ~275 MB with
+  (LocalFinance.app/Contents/Resources contains the 4 Go binaries, Iris
+  static, iris-server.js, a Node 18 binary).
+- **Universal2:** off by default to keep build fast. Set `UNIVERSAL2=1` to
+  build amd64 + arm64 and lipo-fuse. Falls back to native arch with a
+  warning if `lipo` is missing.
+- **Postgres port:** 15432 (avoids fighting brew's own postgres on 5432).
+- **Service start order:** thesaurus → sophia → logos → hermes → iris,
+  each gated on the previous service's `/health` endpoint. Iris readiness
+  triggers the browser open (`http://localhost:3001`).
+- **Ollama policy:** hard-exit if `/api/tags` fails or the requested model
+  is missing. The error message points at `brew install ollama` and
+  `ollama pull <model>`. No fall-through, no implicit auto-pull.
+- **Crash handling:** any child exit triggers full teardown (10s SIGTERM
+  grace, then SIGKILL). No restart loop in Phase 1 — surfaces the failing
+  service's tail of log to stderr.
+- **Redis:** confirmed unused (per `redis-audit-2026-04-26.md`); not
+  started by the launcher.
+- **MinIO:** Logos imports a MinIO client but `main.go` never instantiates
+  it. Skipped — uploads use the local filesystem (`TEMP_DIR` env points at
+  `~/Library/Application Support/LocalFinance/uploads`).
+- **Go linker quirk:** `-ldflags=-linkmode=external` is required on this
+  Mac to work around a Go 1.22 / new macOS SDK issue (binaries built with
+  internal linkmode crash with "missing LC_UUID load command" on `go test`
+  and on Gatekeeper). Baked into `build.sh` and `make installer-test`.
+
+**Verified locally:** `make installer-clean && make installer` produces
+`dist/LocalFinance.app/`; running the launcher with `--skip-browser` brings
+all 5 services healthy in ~7 seconds; `curl localhost:3001/api/health`
+returns 200; SIGTERM cleans up every child including the Postgres process.
+`make installer-test` passes 8 unit tests for the launcher's testable
+seams (`findResources`, `freePort`, `waitForHealthy`, `parseArgs`,
+`hasModel`, `ollamaTags`).

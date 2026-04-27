@@ -126,6 +126,7 @@ test-sophia:
 test-iris:
 	@echo "Testing Iris..."
 	@cd services/iris && PATH=$(NODE_BIN):$$PATH node server/__tests__/auth-routes.test.js
+	@cd services/iris && PATH=$(NODE_BIN):$$PATH node server/__tests__/insights-routes.test.js
 
 # ─── Eval (manual, gated by EVAL_OLLAMA=1) ────────────
 .PHONY: eval-hallucination

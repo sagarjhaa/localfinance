@@ -54,6 +54,7 @@ func Migrate(db *gorm.DB) error {
 		&models.Conversation{},
 		&models.ChatMessage{},
 		&models.UserPreference{},
+		&models.DismissedInsight{},
 	)
 	
 	if err != nil {

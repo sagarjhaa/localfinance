@@ -1,4 +1,4 @@
-package internalapi
+package handlers
 
 import (
 	"bytes"

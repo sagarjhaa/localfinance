@@ -2,9 +2,8 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/sagarjhaa/localfinance/services/thesaurus/api/handlers"
-	internalhandlers "github.com/sagarjhaa/localfinance/services/thesaurus/api/handlers/internalapi"
-	"github.com/sagarjhaa/localfinance/services/thesaurus/middleware"
+	"github.com/sagarjhaa/localfinance/internal/api/handlers"
+	"github.com/sagarjhaa/localfinance/internal/api/middleware"
 	"gorm.io/gorm"
 )
 
@@ -19,7 +18,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 	categoryRuleHandler := handlers.NewCategoryRuleHandler(db)
 	conversationHandler := handlers.NewConversationHandler(db)
 	preferenceHandler := handlers.NewPreferenceHandler(db)
-	dismissedInsightsHandler := internalhandlers.NewDismissedInsightsHandler(db)
+	dismissedInsightsHandler := handlers.NewDismissedInsightsHandler(db)
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {

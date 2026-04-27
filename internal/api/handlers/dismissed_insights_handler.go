@@ -1,12 +1,7 @@
-// Package internalapi hosts handlers for the /internal/* route group.
-// These endpoints are called by sibling services (Sophia, Logos) and
-// are NOT protected by AuthMiddleware. They must be mounted under
-// /internal/ in api/routes.go.
-//
-// The directory is named "internalapi" rather than "internal" because
-// Go reserves "internal" as a package-visibility keyword, which would
-// block imports from sibling api/ packages.
-package internalapi
+// Dismissed-insights handlers for the /internal/* route group. Called by
+// Sophia (and any other service) and NOT protected by AuthMiddleware —
+// these must be mounted under /internal/ in the router.
+package handlers
 
 import (
 	"errors"

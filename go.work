@@ -1,0 +1,10 @@
+go 1.26.1
+
+use (
+	.
+	./shared
+	./services/hermes
+	./services/thesaurus
+	./services/sophia
+	./services/logos
+)

@@ -80,6 +80,7 @@ services:
       dockerfile: Dockerfile.mono
     env_file: deployment/docker/dev.env
     ports:
+      - "3001:3001"
       - "8001:3001"
     environment:
       PORT: "3001"
@@ -89,21 +90,8 @@ services:
       postgres:
         condition: service_healthy
 
-  # sophia and logos retired in Phase 1.5 — chat/insights/parse routes are
-  # served by the consolidated thesaurus container.
-
-  iris:
-    build:
-      context: .
-      dockerfile: services/iris/Dockerfile
-    env_file: deployment/docker/dev.env
-    ports:
-      - "3001:3001"
-    environment:
-      PORT: "3001"
-    depends_on:
-      thesaurus:
-        condition: service_healthy
+  # sophia, logos, iris retired in Phase 1.5 — chat/insights/parse/webui are
+  # all served by the consolidated thesaurus container.
 
 volumes:
   postgres_data:

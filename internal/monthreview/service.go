@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sagarjhaa/localfinance/services/sophia/insights"
+	"github.com/sagarjhaa/localfinance/internal/insights"
 	"github.com/sagarjhaa/localfinance/services/sophia/models"
 )
 

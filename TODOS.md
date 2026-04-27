@@ -140,3 +140,13 @@ Effort estimates show both scales: human team → CC+gstack.
 - **Context:** Phase 3 after security design.
 - **Effort:** L (human 3-4wk) → CC+gstack ~15-20h
 - **Priority:** P3
+
+### [P2] Category rules UI + business-logic layer
+- **What:** User-facing UI to create/edit category rules (regex/amount/merchant matchers). Extract category-decision logic from Logos into a shared package the chat, insights, and parse paths all use.
+- **Why:** Today the schema and the Logos `applyUserRules` path exist but rules can only be added via direct API call. User wants to customize categories and have AI parsing respect those preferences.
+- **Pros:** Closes the loop on "personalized finance." Makes the LLM's category guesses authoritative-but-overridable. One place to change category logic.
+- **Cons:** Designing the rule expression language is a project of its own (see existing Rules-as-YAML TODO). Risk of accidentally tying chat narration to rule changes.
+- **Context:** User flagged this as the eventual direction during Phase 1 AI-parse work on 2026-04-27. Prerequisites: AI parse path landed (Logos→Sophia /api/v1/parse).
+- **Effort:** L (human 3-4wk) → CC+gstack ~10-15h
+- **Priority:** P2
+- **Blocked by:** AI parse path landed

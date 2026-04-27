@@ -3,6 +3,7 @@ package api
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/sagarjhaa/localfinance/services/thesaurus/api/handlers"
+	internalhandlers "github.com/sagarjhaa/localfinance/services/thesaurus/api/handlers/internalapi"
 	"github.com/sagarjhaa/localfinance/services/thesaurus/middleware"
 	"gorm.io/gorm"
 )
@@ -18,6 +19,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 	categoryRuleHandler := handlers.NewCategoryRuleHandler(db)
 	conversationHandler := handlers.NewConversationHandler(db)
 	preferenceHandler := handlers.NewPreferenceHandler(db)
+	dismissedInsightsHandler := internalhandlers.NewDismissedInsightsHandler(db)
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {
@@ -63,6 +65,11 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 			internal.PATCH("/conversations/:id", conversationHandler.UpdateConversation)
 			internal.POST("/conversations/:id/messages", conversationHandler.AddMessage)
 			internal.GET("/preferences/:user_id", preferenceHandler.InternalGetPreference)
+
+			// Dismissed insights — Sophia persists/un-persists user dismissals here.
+			internal.POST("/users/:user_id/dismissed-insights", dismissedInsightsHandler.Create)
+			internal.GET("/users/:user_id/dismissed-insights", dismissedInsightsHandler.List)
+			internal.DELETE("/users/:user_id/dismissed-insights/:insight_key", dismissedInsightsHandler.Delete)
 		}
 
 		// Protected routes

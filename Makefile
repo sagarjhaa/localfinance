@@ -151,14 +151,6 @@ test-e2e-chat:
 test-e2e-categories:
 	@bash tests/e2e/test-categories.sh
 
-# ─── Eval (Phase 0 hallucination gate) ────────────────
-# Behind //go:build eval — never runs in `make test`
-.PHONY: eval-hallucination
-
-eval-hallucination:
-	@echo "Running hallucination eval against live Ollama..."
-	@cd services/sophia && go test -tags=eval -run HallucinationEval -v ./ai/...
-
 # ─── Verify (localhost health checks) ─────────────────
 .PHONY: verify
 

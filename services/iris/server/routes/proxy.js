@@ -11,15 +11,15 @@ const SERVICES = {
     name: 'Hermes Gateway'
   },
   thesaurus: {
-    url: process.env.THESAURUS_URL || 'http://localhost:8001',
+    url: process.env.THESAURUS_URL || 'http://localhost:3001',
     name: 'Thesaurus Database'
   },
   logos: {
-    url: process.env.LOGOS_URL || 'http://localhost:8003',
+    url: process.env.LOGOS_URL || 'http://localhost:3001',
     name: 'Logos Document Processing'
   },
   sophia: {
-    url: process.env.SOPHIA_URL || 'http://localhost:8002',
+    url: process.env.SOPHIA_URL || 'http://localhost:3001',
     name: 'Sophia AI'
   }
 };

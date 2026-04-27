@@ -89,39 +89,8 @@ services:
       postgres:
         condition: service_healthy
 
-  sophia:
-    build:
-      context: .
-      dockerfile: services/sophia/Dockerfile
-    env_file: deployment/docker/dev.env
-    ports:
-      - "8002:8002"
-    environment:
-      PORT: "8002"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      thesaurus:
-        condition: service_healthy
-
-  logos:
-    build:
-      context: .
-      dockerfile: services/logos/Dockerfile
-    env_file: deployment/docker/dev.env
-    ports:
-      - "8003:8003"
-    environment:
-      PORT: "8003"
-    volumes:
-      - uploads_data:/tmp/localfinance
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      thesaurus:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
+  # sophia and logos retired in Phase 1.5 — chat/insights/parse routes are
+  # served by the consolidated thesaurus container.
 
   iris:
     build:

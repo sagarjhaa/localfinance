@@ -7,7 +7,7 @@ const path = require('path');
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
-const THESAURUS_URL = process.env.THESAURUS_URL || 'http://localhost:8001';
+const THESAURUS_URL = process.env.THESAURUS_URL || 'http://localhost:3001';
 
 // Temp storage — file is immediately forwarded to Thesaurus then deleted
 const upload = multer({ dest: path.join(__dirname, '../uploads') });

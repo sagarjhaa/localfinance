@@ -10,8 +10,8 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
-const SOPHIA_URL = process.env.SOPHIA_URL || 'http://localhost:8002';
-const THESAURUS_URL = process.env.THESAURUS_URL || 'http://localhost:8001';
+const SOPHIA_URL = process.env.SOPHIA_URL || 'http://localhost:3001';
+const THESAURUS_URL = process.env.THESAURUS_URL || 'http://localhost:3001';
 
 // Sophia/Ollama needs a long timeout on Jetson; Thesaurus is fast.
 const SOPHIA_TIMEOUT_MS = 300000;

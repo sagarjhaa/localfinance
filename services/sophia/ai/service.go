@@ -813,8 +813,15 @@ func (s *Service) queryOllamaRaw(prompt string, temperature float32) (string, er
 	return ollamaResp.Response, nil
 }
 
-// queryOllamaWithModel queries Ollama with an explicit model override
+// queryOllamaWithModel queries Ollama with an explicit model override.
 func (s *Service) queryOllamaWithModel(prompt string, temperature float32, model string) (string, error) {
+	return s.queryOllamaWithOptions(prompt, temperature, model, nil)
+}
+
+// queryOllamaWithOptions is like queryOllamaWithModel but lets callers set
+// Ollama Options (num_ctx, top_p, etc.). Used by the parse path which needs
+// a much larger context window than chat.
+func (s *Service) queryOllamaWithOptions(prompt string, temperature float32, model string, options map[string]interface{}) (string, error) {
 	if temperature == 0 {
 		temperature = s.config.Temperature
 	}
@@ -824,6 +831,7 @@ func (s *Service) queryOllamaWithModel(prompt string, temperature float32, model
 		Prompt:      prompt,
 		Stream:      false,
 		Temperature: temperature,
+		Options:     options,
 	}
 
 	jsonBody, err := json.Marshal(reqBody)
@@ -992,9 +1000,11 @@ func (s *Service) extractCategory(response string) string {
 
 // ParseTransactions uses the LLM to extract transactions from raw statement text
 func (s *Service) ParseTransactions(text string, userModel string) ([]map[string]interface{}, error) {
-	// Extract the transaction section — skip headers/summaries at the top
-	// Look for the first line starting with a date pattern (MM/DD) which indicates transactions
-	text = extractTransactionSection(text, 2000)
+	// Extract the transaction section — skip headers/summaries at the top.
+	// Look for the first line starting with a date pattern (MM/DD), then keep
+	// up to ~60k chars (covers a 10-page statement comfortably; larger PDFs
+	// get truncated rather than dropping transactions silently).
+	text = extractTransactionSection(text, 60000)
 
 	prompt := fmt.Sprintf(`Extract transactions as JSON.
 Fields: date (YYYY-MM-DD), description (Clean Name), amount (Positive=Charge, Negative=Payment), category (Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Health, Cash, EMI, Education, Other).
@@ -1022,7 +1032,12 @@ Start your response exactly with "<JSON>[" and end with "]</JSON>".
 Statement:
 %s`, text)
 
-	response, err := s.queryOllamaWithModel(prompt, 0.1, userModel)
+	// Use a large context window for parse — a 10-page PDF can run 30-50k
+	// chars, which is roughly 8-12k tokens. 32768 covers that with headroom.
+	// Models that can't handle this size will use whatever their max is.
+	response, err := s.queryOllamaWithOptions(prompt, 0.1, userModel, map[string]interface{}{
+		"num_ctx": 32768,
+	})
 	if err != nil {
 		return nil, err
 	}

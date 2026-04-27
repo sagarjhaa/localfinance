@@ -11,7 +11,7 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
-	"github.com/sagarjhaa/localfinance/services/thesaurus/models"
+	"github.com/sagarjhaa/localfinance/internal/data/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

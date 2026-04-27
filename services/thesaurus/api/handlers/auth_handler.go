@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sagarjhaa/localfinance/services/thesaurus/auth"
-	"github.com/sagarjhaa/localfinance/services/thesaurus/models"
+	"github.com/sagarjhaa/localfinance/internal/auth"
+	"github.com/sagarjhaa/localfinance/internal/data/models"
 	"gorm.io/gorm"
 )
 

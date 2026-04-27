@@ -14,8 +14,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/sagarjhaa/localfinance/services/thesaurus/models"
-	"github.com/sagarjhaa/localfinance/services/thesaurus/repository"
+	"github.com/sagarjhaa/localfinance/internal/data/models"
+	"github.com/sagarjhaa/localfinance/internal/data/repository"
 	"gorm.io/gorm"
 )
 

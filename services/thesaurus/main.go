@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sagarjhaa/localfinance/services/thesaurus/api"
 	"github.com/sagarjhaa/localfinance/services/thesaurus/config"
-	"github.com/sagarjhaa/localfinance/services/thesaurus/database"
+	"github.com/sagarjhaa/localfinance/internal/data/database"
 	"github.com/sagarjhaa/localfinance/shared/middleware"
 )
 

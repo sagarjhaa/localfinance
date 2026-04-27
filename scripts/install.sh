@@ -86,14 +86,31 @@ else
   cp -R "$APP_SRC" "${DEST}/LocalFinance.app"
 fi
 
-# Pick a model based on RAM, pull in background
+# Pick a model based on RAM. If anything in the sweet-spot range is already
+# pulled, skip the download — the in-app auto-select will use it.
 MEM_GB=$(( $(sysctl -n hw.memsize 2>/dev/null || echo 0) / 1073741824 ))
 if   [ "$MEM_GB" -ge 32 ]; then MODEL="qwen2.5:7b"
 elif [ "$MEM_GB" -ge 16 ]; then MODEL="gemma3:4b"
 else                            MODEL="llama3.2:3b"
 fi
-say "Pulling ${MODEL} in background (${MEM_GB} GB RAM detected)"
-nohup ollama pull "$MODEL" >/dev/null 2>&1 &
+
+# Quick check: any sweet-spot model already installed?
+INSTALLED=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
+HAVE_SWEET_SPOT=0
+for m in $INSTALLED; do
+  case "$m" in
+    *:3b|*:4b|*:7b|*:8b|*:9b|*:10b|*:11b|*:12b|*:13b|*:14b|gemma3:*|gemma3) HAVE_SWEET_SPOT=1 ;;
+  esac
+done
+
+if [ "$HAVE_SWEET_SPOT" = "1" ]; then
+  say "Compatible model already installed — skipping pull"
+elif echo "$INSTALLED" | grep -Fxq "$MODEL"; then
+  say "Recommended model ${MODEL} already installed — skipping pull"
+else
+  say "Pulling ${MODEL} in background (${MEM_GB} GB RAM detected)"
+  nohup ollama pull "$MODEL" >/dev/null 2>&1 &
+fi
 
 say "Opening ${DEST}/LocalFinance.app"
 open "${DEST}/LocalFinance.app"

@@ -18,7 +18,18 @@ You need:
 - 16 GB RAM recommended (8 GB works with smaller models)
 - ~5 GB free disk space (binary + first model)
 
-### 1. Install [Ollama](https://ollama.com)
+### Easiest install
+
+```
+curl -fsSL https://raw.githubusercontent.com/sagarjhaa/localfinance/main/scripts/install.sh | sh
+```
+
+Installs Ollama (if missing), builds & installs LocalFinance.app, pulls
+a model, and launches it. ~5 minutes on a fresh Mac.
+
+### Manual install
+
+#### 1. Install [Ollama](https://ollama.com)
 
 LocalFinance does AI inference through Ollama. The .app's first-run
 wizard walks you through this, but you can also do it ahead of time:
@@ -30,7 +41,7 @@ brew install ollama
 Or download the signed installer from [ollama.com/download](https://ollama.com/download).
 Start it once so it registers as a launch agent (subsequent boots are automatic).
 
-### 2. Get LocalFinance.app
+#### 2. Get LocalFinance.app
 
 **Option A — download the prebuilt .app** (when releases are published):
 
@@ -48,7 +59,7 @@ make installer
 open dist/LocalFinance.app
 ```
 
-### 3. Launch
+#### 3. Launch
 
 Right-click `LocalFinance.app` → **Open** (first time only). Your browser
 opens at `http://localhost:3001` and the first-run wizard takes over.
@@ -59,7 +70,7 @@ The wizard:
 - Pulls the model with a live progress bar (~2-5 GB, takes 3-10 minutes).
 - Drops you at the login screen.
 
-### 4. Sign in
+#### 4. Sign in
 
 Login is **pre-filled with default credentials** — just click **AUTHENTICATE**:
 
@@ -68,7 +79,7 @@ Login is **pre-filled with default credentials** — just click **AUTHENTICATE**
 
 Change them in **Profile → Update Password** once you're in.
 
-### 5. Upload your first statement
+#### 5. Upload your first statement
 
 Dashboard → drag a PDF or CSV onto the drop zone. The app:
 

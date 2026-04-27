@@ -32,7 +32,10 @@ func Load() (*Config, error) {
 	config := &Config{
 		AI: AIConfig{
 			OllamaHost:   getEnv("OLLAMA_HOST", "http://127.0.0.1:11434"),
-			ModelName:    getEnv("MODEL_NAME", "llama3.2:1b"),
+			// "auto" triggers SelectBestModel at startup so the binary picks
+			// whatever sweet-spot model is already on the host (e.g. gemma3:4b).
+			// Override with a specific tag in the env to pin.
+			ModelName:    getEnv("MODEL_NAME", "auto"),
 			Temperature:  0.3,
 			MaxTokens:    1000,
 			SystemPrompt: getFinancialAdvisorPrompt(),

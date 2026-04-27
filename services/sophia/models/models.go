@@ -62,6 +62,11 @@ type FinancialInsight struct {
 	Priority    string    `json:"priority"`
 	ActionItem  string    `json:"action_item"`
 	CreatedAt   time.Time `json:"created_at"`
+	// Key and RuleID are populated by the deterministic engine path
+	// (insights.Insight.ToFinancialInsight). Older code paths leave them empty.
+	// The UI uses these to call the dismiss endpoint.
+	Key    string `json:"key,omitempty"`
+	RuleID string `json:"rule_id,omitempty"`
 }
 
 type CategoryResult struct {

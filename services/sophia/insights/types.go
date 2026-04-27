@@ -55,8 +55,9 @@ type Insight struct {
 }
 
 // ToFinancialInsight converts an internal Insight to the public sophia/models type
-// returned by HTTP handlers. The richer fields (Key, EvidenceIDs, Numbers, Strings)
-// are dropped — they're consumed by the narrator before serialization.
+// returned by HTTP handlers. EvidenceIDs, Numbers, and Strings are dropped (consumed
+// by the narrator before serialization), but Key and RuleID are propagated so the
+// UI can call the dismiss endpoint on a stable identifier.
 func (i Insight) ToFinancialInsight() models.FinancialInsight {
 	return models.FinancialInsight{
 		Type:        i.RuleID,
@@ -65,6 +66,8 @@ func (i Insight) ToFinancialInsight() models.FinancialInsight {
 		Priority:    i.Priority,
 		ActionItem:  "",
 		CreatedAt:   i.CreatedAt,
+		Key:         i.Key,
+		RuleID:      i.RuleID,
 	}
 }
 

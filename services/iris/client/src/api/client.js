@@ -56,6 +56,8 @@ export const authAPI = {
   getMe: () => apiClient.get('/auth/me'),
   refresh: () => apiClient.post('/auth/refresh'),
   validate: (token) => apiClient.post('/auth/validate', { token }),
+  changePassword: ({ current_password, new_password }) =>
+    apiClient.post('/auth/change-password', { current_password, new_password }),
 };
 
 // Document API (polling for processing status)

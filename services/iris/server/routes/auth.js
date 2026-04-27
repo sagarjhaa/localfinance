@@ -136,6 +136,45 @@ router.get('/me', async (req, res) => {
 });
 
 /**
+ * POST /api/auth/change-password
+ * Proxy password change to Thesaurus (requires JWT)
+ */
+router.post('/change-password', authenticateToken, async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+
+    if (!current_password || !new_password) {
+      return res.status(400).json({
+        message: 'Current password and new password are required',
+        code: 'MISSING_FIELDS'
+      });
+    }
+
+    const response = await axios.post(`${THESAURUS_URL}/api/v1/auth/change-password`, {
+      current_password,
+      new_password,
+    }, {
+      timeout: 10000,
+      headers: {
+        'Authorization': req.headers.authorization,
+        'X-Correlation-ID': req.correlationId || '',
+      }
+    });
+
+    res.json(response.data);
+  } catch (error) {
+    if (error.response) {
+      return res.status(error.response.status).json(error.response.data);
+    }
+    console.error('Change password error:', error.message);
+    res.status(503).json({
+      message: 'Auth service unavailable',
+      code: 'SERVICE_UNAVAILABLE'
+    });
+  }
+});
+
+/**
  * POST /api/auth/refresh
  * Proxy token refresh to Thesaurus
  */

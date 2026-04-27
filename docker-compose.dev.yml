@@ -70,21 +70,23 @@ services:
       postgres:
         condition: service_healthy
 
+  # thesaurus container now runs the consolidated localfinance binary
+  # (cmd/localfinance) — same hostname so other services keep working,
+  # but the process inside is the unified server. Kept on port 8001
+  # externally for compatibility; container listens on 3001.
   thesaurus:
     build:
       context: .
-      dockerfile: services/thesaurus/Dockerfile
+      dockerfile: Dockerfile.mono
     env_file: deployment/docker/dev.env
     ports:
-      - "8001:8001"
+      - "8001:3001"
     environment:
-      PORT: "8001"
+      PORT: "3001"
     volumes:
       - uploads_data:/tmp/localfinance
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
 
   sophia:

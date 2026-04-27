@@ -6,17 +6,12 @@ documents, category rules, statement periods.
 
 ## Build
 
-make build-thesaurus          # native (for local Docker)
-make build-arm64-thesaurus    # cross-compile for Jetson
+make build-thesaurus          # native
 
 ## Test
 
 make test-thesaurus           # unit tests (auth, models)
 make test-e2e                 # integration tests against local Docker
-
-## Deploy
-
-make deploy-thesaurus         # build ARM64 + SCP + restart + verify health
 
 ## Adding an Endpoint
 

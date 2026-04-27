@@ -1,21 +1,17 @@
 # Sophia — AI Service (port 8002)
 
-AI-powered insights using local Ollama (llama3.2:1b).
+AI-powered insights using local Ollama (configurable model, default `llama3.1:8b`).
 Two-pass chat: parse intent -> fetch real data from Thesaurus -> generate answer.
 
 ## Build
 
 make build-sophia             # native
-make build-arm64-sophia       # cross-compile for Jetson
 
 ## Test
 
 make test-sophia              # unit tests
 make test-e2e                 # integration tests (requires Ollama in Docker)
-
-## Deploy
-
-make deploy-sophia            # build ARM64 + SCP + restart + verify
+make eval-hallucination       # Phase 0 eval against live Ollama (manual graded)
 
 ## Two-Pass Chat Flow
 
@@ -29,7 +25,7 @@ make deploy-sophia            # build ARM64 + SCP + restart + verify
 2. Register route in api/routes.go
 3. Use ai/service.go for Ollama calls
 4. Always fetch real data from Thesaurus — never hallucinate numbers
-5. Timeout for Ollama calls: 120s minimum (Jetson GPU is slow)
+5. Timeout for Ollama calls: 120s minimum (covers cold-start of larger models)
 
 ## Key Files
 

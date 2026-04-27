@@ -2,7 +2,6 @@
 # Verify service health with retries.
 # Usage: ./scripts/verify.sh [host]
 # Default host: localhost (for local Docker)
-# For Jetson: ./scripts/verify.sh 10.0.0.16
 
 set -euo pipefail
 

@@ -6,16 +6,11 @@ CSV/PDF, extracts transactions, sends back to Thesaurus.
 ## Build
 
 make build-logos              # native
-make build-arm64-logos        # cross-compile for Jetson
 
 ## Test
 
 make test-logos               # unit tests (CSV parser, PDF parser, detector)
 make test-e2e                 # integration tests
-
-## Deploy
-
-make deploy-logos             # build ARM64 + SCP + restart + verify
 
 ## Processing Flow
 

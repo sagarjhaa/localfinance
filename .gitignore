@@ -5,6 +5,7 @@ dist/
 # Node
 node_modules/
 services/iris/client/build/
+internal/webui/dist/
 
 # IDE
 .idea/

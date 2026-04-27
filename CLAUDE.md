@@ -1,6 +1,6 @@
 # LocalFinance
 
-Privacy-first personal finance system. Local Ollama AI, deployed on Jetson Nano Orin.
+Privacy-first personal finance system. Local Ollama AI, runs on macOS.
 
 ## Architecture
 
@@ -12,7 +12,7 @@ Privacy-first personal finance system. Local Ollama AI, deployed on Jetson Nano 
 | **Sophia** | 8002 | AI/Ollama integration. Two-pass chat with real data. |
 | **Logos** | 8003 | Document parsing (CSV, PDF). Stateless processor. |
 
-**Infra:** PostgreSQL 15, Redis 7, Ollama (llama3.2:1b), MinIO
+**Infra:** PostgreSQL 15, Redis 7, Ollama (configurable model, default `llama3.1:8b`), MinIO
 
 ### Boundaries — NEVER violate these
 
@@ -24,7 +24,7 @@ Privacy-first personal finance system. Local Ollama AI, deployed on Jetson Nano 
 
 ### Data Flows
 
-**Upload:** Browser → Iris proxy → Thesaurus (store doc) → Logos (parse) → Thesaurus (store transactions)
+**Upload:** Browser → Iris proxy → Thesaurus (store doc) → Logos (parse) → Thesaurus (store transactions) → Sophia (generate Month in Review)
 
 **Chat:** Browser → Iris proxy → Sophia (Pass 1: parse intent → Thesaurus: fetch data → Pass 2: generate answer)
 
@@ -55,30 +55,26 @@ Every task follows this cycle. No shortcuts.
 4. COMMIT
    One commit per logical unit
    Format: type(service): what and why
-   Types: feat, fix, refactor, test, docs, deploy
-   Never batch frontend + backend + deploy in one commit
+   Types: feat, fix, refactor, test, docs
+   Never batch frontend + backend in one commit
 
-5. DEPLOY TO JETSON
-   make deploy-{service}    ← builds ARM64 + SCP + restart
-   make deploy-all          ← all services
-
-6. VERIFY
-   make verify              ← health check all services
-   If verify fails → read logs, fix, go back to step 3
-   Max 3 retry cycles, then escalate to user
+5. VERIFY
+   make verify              ← health check all services on localhost
+   If verify fails → docker logs, fix, go back to step 3
    Use superpowers:verification-before-completion before claiming done
 
-7. REPORT
+6. REPORT
    Use superpowers:requesting-code-review for self-review
    Tell user: what was built, which URLs to test
    Show clean git log of all commits
 ```
 
-## Commands — Use These, Never Raw SSH
+## Commands
 
 ### Local Development (Docker)
 ```
 make dev-up                  # Start full local stack (all services + infra)
+make dev-up CHAT_MODEL=qwen2.5:7b   # Override default model
 make dev-down                # Tear down local stack
 make dev-down-clean          # Tear down + delete volumes
 make dev-logs                # Tail all service logs
@@ -88,10 +84,8 @@ make dev-restart-{service}   # Rebuild + restart one container
 
 ### Build
 ```
-make build                   # Build all Go services (native)
+make build                   # Build all Go services
 make build-{service}         # Build one (hermes|thesaurus|sophia|logos)
-make build-arm64             # Cross-compile all for Jetson
-make build-arm64-{service}   # Cross-compile one
 make build-iris              # Build React + bundle Node server
 ```
 
@@ -103,22 +97,15 @@ make test-e2e                # Integration tests (requires make dev-up)
 make test-e2e-{suite}        # One suite (auth|upload|chat|categories)
 ```
 
-### Deploy to Jetson
+### Eval (Phase 0 hallucination gate)
 ```
-make deploy-{service}        # Build ARM64 + SCP + restart + verify health
-make deploy-all              # All services
-make deploy-infra            # Docker Compose infra only
+make eval-hallucination      # Run live-Ollama eval — manual graded
 ```
 
-### Verify & Debug (Jetson)
+### Verify
 ```
-make verify                  # Health check all services
+make verify                  # Health check all services on localhost
 make verify-{service}        # Health check one
-make jetson-logs-{service}   # Tail logs
-make jetson-status           # systemctl status all
-make jetson-kill-{service}   # Kill stale process
-make jetson-infra-status     # Check Postgres, Redis, Ollama, MinIO
-make jetson-ollama-pull      # Pull model if missing
 ```
 
 ## Commit Conventions
@@ -137,7 +124,6 @@ Examples of GOOD commits:
 feat(thesaurus): add category rules CRUD with user-scoped queries
 feat(iris): add Settings page for managing category rules
 test(e2e): add category rules integration test
-deploy: update Makefile with dev-restart target
 ```
 
 Examples of BAD commits:
@@ -152,15 +138,14 @@ fix stuff                                                  ← meaningless
 When `make verify` fails:
 
 1. `make verify-{service}` — identify which service
-2. `make jetson-logs-{service}` — read last 50 lines
+2. `make dev-logs-{service}` — read recent log output
 3. Match pattern → known fix:
-   - `address already in use` → `make jetson-kill-{service}`, redeploy
-   - `connection refused` to DB → `make jetson-infra-status`, restart infra
+   - `address already in use` → `make dev-restart-{service}`
+   - `connection refused` to DB → check `docker compose ps`, restart infra
    - `401 Unauthorized` on internal call → move endpoint to `/internal/` route group
-   - `model not found` → `make jetson-ollama-pull`
-   - `no such file` → binary not deployed, re-run `make deploy-*`
+   - `model not found` → `ollama pull <model-name>`
    - `timeout` → increase timeout in code, retry
-4. Fix → rebuild → redeploy → `make verify`
+4. Fix → rebuild → restart → `make verify`
 5. Max 3 retries, then escalate to user with: what failed, logs, what was tried, suspected cause
 
 ## Superpowers Skills — When To Use
@@ -175,12 +160,13 @@ When `make verify` fails:
 | `superpowers:verification-before-completion` | Before claiming done — verify everything passes |
 | `superpowers:finishing-a-development-branch` | When work is complete — decide merge/PR/cleanup |
 
-## Jetson Target
+## Runtime Target
 
-- **Host:** 10.0.0.16
-- **User:** sagar
-- **Services dir:** /home/sagar/localfinance/
-- **Binaries:** /home/sagar/localfinance/bin/
-- **Iris:** /home/sagar/localfinance/iris/
-- **Infra:** Docker Compose (Postgres, Redis, Ollama, MinIO)
-- **Process manager:** systemd
+- **Platform:** macOS (Apple Silicon recommended)
+- **Mode:** Local Docker stack (`make dev-up`) for development; `LocalFinance.app` for end-user install (Phase 1 deliverable)
+- **Ollama:** Assumed pre-installed via `brew install ollama`; default model `llama3.1:8b`
+- **Data:** Postgres in Docker today; embedded in `.app` once installer ships
+
+## Active plan
+
+See `docs/designs/product-direction.md` and `docs/designs/phase1-implementation-plan.md` for current scope and execution plan.

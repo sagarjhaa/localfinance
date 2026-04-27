@@ -1,172 +1,134 @@
 # LocalFinance
 
-Privacy-first personal finance system. Local Ollama AI, runs on macOS.
+Privacy-first personal finance for macOS. Local Ollama AI, embedded Postgres,
+single Go binary that serves the React UI.
 
 ## Architecture
 
-| Service | Port | Responsibility |
-|---------|------|---------------|
-| **Iris** | 3001 | React UI + Express proxy. ZERO business logic. |
-| **Hermes** | 3000 | API Gateway (future routing/aggregation) |
-| **Thesaurus** | 8001 | Auth, CRUD, PostgreSQL. Source of truth for all data. |
-| **Sophia** | 8002 | AI/Ollama integration. Two-pass chat with real data. |
-| **Logos** | 8003 | Document parsing (CSV, PDF). Stateless processor. |
+One binary at `cmd/localfinance` does everything: serves the React UI from a
+`go:embed`ed bundle, owns auth/data/parse/AI/insights, and embeds Postgres on
+the .app build path (or talks to host Postgres in `make dev`).
 
-**Infra:** PostgreSQL 15, Redis 7, Ollama (configurable model, default `llama3.1:8b`), MinIO
+Internal packages:
 
-### Boundaries — NEVER violate these
+| Package | Responsibility |
+|---------|---------------|
+| `internal/api` | Gin router and HTTP handlers (auth, data, parse, AI, insights, monthreview, setup) |
+| `internal/auth` | JWT, Argon2id password hashing, default-user seed |
+| `internal/data` | GORM models, repositories, embedded Postgres lifecycle, config |
+| `internal/parse` | PDF/CSV ingest pipeline (Sophia AI parse) |
+| `internal/ai` | Ollama client + two-pass chat + insight narrator |
+| `internal/insights` | Deterministic rules engine + Phase A/B narrator |
+| `internal/monthreview` | Period summary cache |
+| `internal/ollama` | Host Ollama probe + model pull SSE |
+| `internal/webui` | `go:embed` of React build output |
+| `internal/postgres` | Embedded Postgres manager (.app path) |
 
-- **Iris is DUMB.** No parsing, no data transformation, no business logic, no direct DB access. It proxies requests and renders UI.
-- **All file processing in Logos.** CSV, PDF, Excel parsing happens only in Logos.
-- **All data persistence through Thesaurus.** Every read/write goes through Thesaurus REST API.
-- **All AI through Sophia.** Ollama calls only happen in Sophia.
-- **Internal service calls use `/internal/` routes** (no auth middleware). User-facing routes use auth middleware.
-
-### Data Flows
-
-**Upload:** Browser → Iris proxy → Thesaurus (store doc) → Logos (parse) → Thesaurus (store transactions) → Sophia (generate Month in Review)
-
-**Chat:** Browser → Iris proxy → Sophia (Pass 1: parse intent → Thesaurus: fetch data → Pass 2: generate answer)
-
-**Auth:** Browser → Iris proxy → Thesaurus (register/login/validate JWT)
+The React source lives at `services/iris/client/`. `make webui-build` writes
+its `build/` into `internal/webui/dist/` for embedding.
 
 ## Development Cycle
 
-Every task follows this cycle. No shortcuts.
+Every task follows this cycle.
 
 ```
 1. PLAN
-   Use superpowers:brainstorming for feature design
-   Use superpowers:writing-plans for implementation plan
-   Get user approval before writing code
+   superpowers:brainstorming → feature design
+   superpowers:writing-plans → implementation plan
+   Get user approval before writing code.
 
 2. CODE
-   Use superpowers:subagent-driven-development for parallel execution
-   Follow per-service CLAUDE.md patterns (see services/*/CLAUDE.md)
-   One logical unit at a time
+   superpowers:subagent-driven-development for parallel execution.
+   One logical unit at a time.
 
-3. TEST LOCALLY
-   make test          ← unit tests must pass
-   make dev-up        ← start local Docker stack
-   make test-e2e      ← integration tests must pass
-   If tests fail → use superpowers:systematic-debugging
-   Fix → retest (loop until green)
+3. TEST
+   make test                ← Go unit tests
+   make dev                 ← run the binary against host Postgres + Ollama
+   make test-e2e            ← integration tests
+   If tests fail → superpowers:systematic-debugging.
 
 4. COMMIT
-   One commit per logical unit
-   Format: type(service): what and why
-   Types: feat, fix, refactor, test, docs
-   Never batch frontend + backend in one commit
+   One commit per logical unit.
+   Format: type(scope): what and why
+   Types: feat, fix, refactor, test, docs, chore
+   Never batch frontend + backend in one commit.
 
 5. VERIFY
-   make verify              ← health check all services on localhost
-   If verify fails → docker logs, fix, go back to step 3
-   Use superpowers:verification-before-completion before claiming done
+   make verify              ← curl localhost:3001/health
+   superpowers:verification-before-completion before claiming done.
 
 6. REPORT
-   Use superpowers:requesting-code-review for self-review
-   Tell user: what was built, which URLs to test
-   Show clean git log of all commits
+   superpowers:requesting-code-review for self-review.
+   Report: what was built, how to test, clean git log.
 ```
 
 ## Commands
 
-### Local Development (Docker)
+### Run / build
 ```
-make dev-up                  # Start full local stack (all services + infra)
-make dev-up CHAT_MODEL=qwen2.5:7b   # Override default model
-make dev-down                # Tear down local stack
-make dev-down-clean          # Tear down + delete volumes
-make dev-logs                # Tail all service logs
-make dev-logs-{service}      # Tail one service
-make dev-restart-{service}   # Rebuild + restart one container
-```
-
-### Build
-```
-make build                   # Build all Go services
-make build-{service}         # Build one (hermes|thesaurus|sophia|logos)
-make build-iris              # Build React + bundle Node server
+make dev                     # go run ./cmd/localfinance against host PG + Ollama
+make build                   # dist/localfinance (embeds React UI)
+make webui-build             # rebuild React only → internal/webui/dist
+make installer               # dist/LocalFinance.app
+make installer-run           # build + open the .app
+make installer-clean         # rm dist/LocalFinance.app
+make clean                   # rm dist/
 ```
 
-### Test
+### Test / verify
 ```
-make test                    # All unit tests (Go + Node)
-make test-{service}          # One service
-make test-e2e                # Integration tests (requires make dev-up)
-make test-e2e-{suite}        # One suite (auth|upload|chat|categories)
-```
-
-### Eval (Phase 0 hallucination gate)
-```
-make eval-hallucination      # Run live-Ollama eval — manual graded
-```
-
-### Verify
-```
-make verify                  # Health check all services on localhost
-make verify-{service}        # Health check one
+make test                    # go test ./internal/... ./cmd/...
+make test-e2e                # tests/e2e/run-all.sh (requires make dev running)
+make eval-hallucination      # insight hallucination eval (live Ollama, EVAL_OLLAMA=1)
+make verify                  # curl localhost:3001/health
 ```
 
 ## Commit Conventions
 
-Format:
 ```
-type(service): what changed and why
+type(scope): what changed and why
 
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
-**One logical unit per commit.** If you can describe it with "and", split it.
+One logical unit per commit. If you can describe it with "and", split it.
 
-Examples of GOOD commits:
+Good:
 ```
-feat(thesaurus): add category rules CRUD with user-scoped queries
-feat(iris): add Settings page for managing category rules
-test(e2e): add category rules integration test
+feat(insights): add weekly cadence rule
+fix(parse): handle BOM in Wells Fargo CSV
+test(e2e): cover category-rules upload flow
 ```
 
-Examples of BAD commits:
+Bad:
 ```
-Add category rules, settings page, and update Makefile    ← too many things
-create files                                               ← meaningless
-fix stuff                                                  ← meaningless
+Add rules, settings page, and Makefile target    ← too many things
+fix stuff                                          ← meaningless
 ```
 
 ## Debugging Protocol
 
 When `make verify` fails:
 
-1. `make verify-{service}` — identify which service
-2. `make dev-logs-{service}` — read recent log output
+1. `curl -v http://localhost:3001/health` — what does it say?
+2. Tail server logs — `~/Library/Application Support/LocalFinance/logs/`
+   when running the .app, stdout when running `make dev`.
 3. Match pattern → known fix:
-   - `address already in use` → `make dev-restart-{service}`
-   - `connection refused` to DB → check `docker compose ps`, restart infra
-   - `401 Unauthorized` on internal call → move endpoint to `/internal/` route group
-   - `model not found` → `ollama pull <model-name>`
-   - `timeout` → increase timeout in code, retry
-4. Fix → rebuild → restart → `make verify`
-5. Max 3 retries, then escalate to user with: what failed, logs, what was tried, suspected cause
+   - `address already in use` → kill the prior `localfinance` process
+   - `connection refused` to DB → start Postgres (`docker compose -f docker-compose.dev.yml up -d`)
+   - `ollama: connection refused` → `ollama serve &`
+   - `model not found` → `ollama pull gemma3:4b`
+4. Fix → rebuild → re-run → `make verify`.
+5. Max 3 retries, then escalate with: what failed, logs, what was tried, suspected cause.
 
-## Superpowers Skills — When To Use
+## Superpowers Skills
 
 | Skill | When |
 |-------|------|
 | `superpowers:brainstorming` | Before any new feature — explore design with user |
 | `superpowers:writing-plans` | After design approval — create implementation plan |
-| `superpowers:subagent-driven-development` | Executing plan — dispatch parallel agents per task |
+| `superpowers:subagent-driven-development` | Executing a plan — dispatch parallel agents per task |
 | `superpowers:systematic-debugging` | When tests fail or behavior is unexpected |
 | `superpowers:requesting-code-review` | After completing work — self-review before reporting |
-| `superpowers:verification-before-completion` | Before claiming done — verify everything passes |
-| `superpowers:finishing-a-development-branch` | When work is complete — decide merge/PR/cleanup |
-
-## Runtime Target
-
-- **Platform:** macOS (Apple Silicon recommended)
-- **Mode:** Local Docker stack (`make dev-up`) for development; `LocalFinance.app` for end-user install (Phase 1 deliverable)
-- **Ollama:** Assumed pre-installed via `brew install ollama`; default model `llama3.1:8b`
-- **Data:** Postgres in Docker today; embedded in `.app` once installer ships
-
-## Active plan
-
-See `docs/designs/product-direction.md` and `docs/designs/phase1-implementation-plan.md` for current scope and execution plan.
+| `superpowers:verification-before-completion` | Before claiming done |
+| `superpowers:finishing-a-development-branch` | When work is complete — merge/PR/cleanup |

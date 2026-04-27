@@ -174,3 +174,19 @@ verify-$(1):
 	fi
 endef
 $(foreach svc,$(ALL_SERVICES),$(eval $(call VERIFY_SERVICE,$(svc))))
+
+# ─── macOS Installer ──────────────────────────────────
+.PHONY: installer installer-clean installer-run installer-test
+
+installer:
+	@bash installer/build.sh
+
+installer-clean:
+	@rm -rf $(DIST)/LocalFinance.app $(DIST)/cache
+	@echo "Cleaned installer artifacts"
+
+installer-run: installer
+	@$(DIST)/LocalFinance.app/Contents/MacOS/launcher --skip-browser
+
+installer-test:
+	@cd installer/launcher && go test -ldflags="-linkmode=external" ./... -count=1

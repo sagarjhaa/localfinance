@@ -5,6 +5,7 @@ dist/
 # Node
 node_modules/
 services/iris/client/build/
+internal/webui/dist/
 
 # IDE
 .idea/
@@ -25,7 +26,8 @@ config.json
 deployment/jetson.env
 
 # Data - Never commit
-data/
+# Anchored at repo root to avoid masking internal/data/ source code.
+/data/
 *.db
 inbox/
 **/uploads/

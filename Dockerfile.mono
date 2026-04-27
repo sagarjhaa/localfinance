@@ -1,0 +1,23 @@
+# Consolidated localfinance binary built off the go.work workspace.
+# Phase 2 swap: docker-compose.dev.yml's thesaurus service now runs this
+# instead of services/thesaurus. Sophia/Logos still ship as their own
+# containers until Phase 3+.
+FROM golang:1.26-alpine AS builder
+WORKDIR /app
+
+# Workspace mode owns module resolution — copy the whole tree in one shot.
+# We rely on Docker's build cache plus go's module cache (mounted below) to
+# keep rebuilds fast.
+COPY . .
+
+ENV CGO_ENABLED=0
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    go build -ldflags="-s -w" -o /service ./cmd/localfinance
+
+FROM alpine:3.19
+RUN apk --no-cache add ca-certificates curl poppler-utils
+COPY --from=builder /service /service
+HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
+  CMD curl -sf http://localhost:${PORT:-3001}/health || exit 1
+ENTRYPOINT ["/service"]

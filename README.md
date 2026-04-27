@@ -1,86 +1,62 @@
 # LocalFinance
 
-Privacy-first personal finance system. Upload bank/credit-card statements, chat with your transactions, get rule-based spending insights — all running locally on your Mac. No cloud. No telemetry. No bank-account login sharing.
+Privacy-first personal finance for macOS. Upload bank/credit-card statements;
+chat with your transactions; rule-based spending insights — all running locally
+on your Mac. No cloud. No telemetry.
 
-## What it does
+## Quick start (development)
 
-- Upload CSV / PDF statements from any bank
-- Statements are parsed locally (no cloud OCR)
-- Chat with your transactions in natural language ("how much did I spend on groceries last month?")
-- Get rule-based insights: category shifts, new recurring charges, unusual spending, anomalies
-- Month-in-Review summary on every statement upload
-- All data stays on your Mac in a local Postgres database
+```
+brew install ollama postgresql@15
+ollama serve &
+ollama pull gemma3:4b
+docker compose -f docker-compose.dev.yml up -d   # or run host Postgres on :5432
+make dev
+```
 
-## Status
+UI opens at http://localhost:3001. Default credentials are seeded on first run.
 
-**Current:** Phase 1 in progress (insights engine + macOS installer). See `docs/designs/product-direction.md` and `docs/designs/phase1-implementation-plan.md`.
+Default DB env (override as needed):
+```
+DB_HOST=localhost DB_PORT=5432 DB_USER=postgres DB_PASSWORD=devpass DB_NAME=localfinance
+```
 
-**Goal:** A `LocalFinance.app` you double-click on macOS that bundles everything except Ollama (which you install separately via brew).
+If `DB_HOST` is unset, the binary boots an embedded Postgres under
+`~/Library/Application Support/LocalFinance/postgres/` instead.
+
+## Quick start (.app for end users)
+
+```
+make installer
+open dist/LocalFinance.app
+```
+
+The first launch walks the user through Ollama install + model download.
 
 ## Architecture
 
-| Service | Port | Responsibility |
-|---|---|---|
-| **Iris** | 3001 | React UI + Express proxy. ZERO business logic. |
-| **Hermes** | 3000 | API Gateway (future routing/aggregation) |
-| **Thesaurus** | 8001 | Auth, CRUD, PostgreSQL. Source of truth for all data. |
-| **Sophia** | 8002 | AI/Ollama integration. Two-pass chat with real data. |
-| **Logos** | 8003 | Document parsing (CSV, PDF). Stateless processor. |
+Single Go binary (`cmd/localfinance`) serves the React UI, owns all data
+and AI logic, and embeds Postgres. Internal packages:
 
-**Infra:** PostgreSQL 15, Redis 7, Ollama (configurable model), MinIO
+- `internal/api` — HTTP routes (Gin)
+- `internal/auth` — JWT, password hashing, default-user seed
+- `internal/data` — GORM models, repositories, embedded Postgres lifecycle
+- `internal/parse` — PDF/CSV ingest pipeline
+- `internal/ai` — Ollama client + chat/insight logic
+- `internal/insights` — rules engine + narrator
+- `internal/monthreview` — period summary cache
+- `internal/ollama` — host Ollama probes + model pull SSE
+- `internal/webui` — `go:embed` React build
 
-## Requirements
-
-- macOS (Apple Silicon recommended)
-- 16GB RAM minimum (8b model), 32GB+ for 14b models
-- [Ollama](https://ollama.com) installed and running
-- A model pulled: `ollama pull llama3.1:8b` (default)
-
-## Quick start (local dev)
-
-```bash
-# Start everything in Docker
-make dev-up
-
-# Open the UI
-open http://localhost:3001
-
-# Tear down
-make dev-down
-```
-
-## Run with a different model
-
-```bash
-ollama pull qwen2.5:7b
-make dev-up CHAT_MODEL=qwen2.5:7b
-```
+See `docs/superpowers/specs/2026-04-27-service-consolidation-design.md`
+for the full design.
 
 ## Tests
 
-```bash
-make test           # unit tests (Go + Node)
-make test-e2e       # integration tests (requires make dev-up)
 ```
-
-## Privacy
-
-- All processing happens on your Mac
-- Statements are parsed locally; nothing is sent to any cloud
-- LLM inference runs entirely through your local Ollama
-- The only network traffic is between your browser and `localhost:3001`
-
-## Project layout
-
-```
-services/
-  iris/         # React UI + Express proxy
-  hermes/       # API gateway
-  thesaurus/    # Auth + Postgres CRUD
-  sophia/       # AI / Ollama integration
-  logos/        # Statement parsers
-docs/designs/   # Product direction + implementation plans
-evals/          # Hallucination eval fixtures (Phase 0)
+make test                # unit tests
+make test-e2e            # integration (requires make dev running)
+make eval-hallucination  # Phase 0 hallucination eval (manual graded)
 ```
 
 ## License

@@ -8,14 +8,30 @@ import Chat from './pages/Chat';
 import Profile from './pages/Profile';
 import InsightsPage from './pages/InsightsPage';
 import MonthReviewPage from './pages/MonthReviewPage';
+import InstallOllama from './pages/setup/InstallOllama';
+import PullModel from './pages/setup/PullModel';
 
 
 function App() {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [setupStep, setSetupStep] = useState(null); // 'install_ollama' | 'pull_model' | 'ready'
 
   useEffect(() => {
-    const initializeAuth = async () => {
+    const initialize = async () => {
+      // First: check setup state. The wizard runs before auth.
+      try {
+        const res = await fetch('/api/setup/state');
+        if (res.ok) {
+          const data = await res.json();
+          setSetupStep(data.step);
+        } else {
+          setSetupStep('ready'); // assume ready on error so we don't block forever
+        }
+      } catch (_) {
+        setSetupStep('ready');
+      }
+
       if (isAuthenticated()) {
         try {
           const response = await authAPI.getMe();
@@ -27,7 +43,7 @@ function App() {
       }
       setIsLoading(false);
     };
-    initializeAuth();
+    initialize();
   }, []);
 
   const handleLogin = (userData) => {
@@ -66,10 +82,26 @@ function App() {
     );
   }
 
+  // Setup wizard takes precedence over auth — runs before login.
+  if (setupStep === 'install_ollama' || setupStep === 'pull_model') {
+    const target = setupStep === 'install_ollama' ? '/setup/install' : '/setup/pull';
+    return (
+      <Router>
+        <Routes>
+          <Route path="/setup/install" element={<InstallOllama />} />
+          <Route path="/setup/pull" element={<PullModel />} />
+          <Route path="*" element={<Navigate to={target} replace />} />
+        </Routes>
+      </Router>
+    );
+  }
+
   if (!user) {
     return (
       <Router>
         <Routes>
+          <Route path="/setup/install" element={<InstallOllama />} />
+          <Route path="/setup/pull" element={<PullModel />} />
           <Route path="/login" element={<Login onLogin={handleLogin} />} />
           <Route path="/register" element={<Register onLogin={handleLogin} />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
@@ -89,6 +121,9 @@ function App() {
         <Route path="/insights" element={<InsightsPage user={user} onLogout={handleLogout} />} />
         <Route path="/month-review" element={<MonthReviewPage user={user} onLogout={handleLogout} />} />
         <Route path="/month-review/:period" element={<MonthReviewPage user={user} onLogout={handleLogout} />} />
+
+        <Route path="/setup/install" element={<InstallOllama />} />
+        <Route path="/setup/pull" element={<PullModel />} />
 
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

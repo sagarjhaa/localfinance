@@ -205,3 +205,9 @@ returns 200; SIGTERM cleans up every child including the Postgres process.
 `make installer-test` passes 8 unit tests for the launcher's testable
 seams (`findResources`, `freePort`, `waitForHealthy`, `parseArgs`,
 `hasModel`, `ollamaTags`).
+
+---
+
+**Update 2026-04-27**: services collapsed to single binary; see
+`docs/superpowers/plans/2026-04-27-service-consolidation.md` for the
+migration that supersedes the multi-service installer task.

@@ -138,6 +138,7 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 		authProtected := v1.Group("/auth")
 		authProtected.Use(middleware.AuthMiddleware(db))
 		{
+			authProtected.GET("/me", authHandler.GetMe)
 			authProtected.POST("/logout", authHandler.Logout)
 			authProtected.POST("/refresh", authHandler.RefreshToken)
 			authProtected.POST("/change-password", authHandler.ChangePassword)

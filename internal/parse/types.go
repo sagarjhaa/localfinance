@@ -1,7 +1,7 @@
 package parse
 
 import (
-	"github.com/sagarjhaa/localfinance/services/logos/models"
+	"github.com/sagarjhaa/localfinance/internal/parse/models"
 )
 
 // ProcessResult is the lightweight result Logos hands off after AI parsing.

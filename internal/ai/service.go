@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sagarjhaa/localfinance/services/sophia/config"
+	"github.com/sagarjhaa/localfinance/internal/ai/config"
 )
 
 type Service struct {

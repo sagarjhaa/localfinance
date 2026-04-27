@@ -6,7 +6,7 @@ import (
 	"log"
 
 	"github.com/sagarjhaa/localfinance/internal/auth"
-	"github.com/sagarjhaa/localfinance/services/thesaurus/config"
+	"github.com/sagarjhaa/localfinance/internal/data/config"
 	"github.com/sagarjhaa/localfinance/internal/data/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

@@ -23,7 +23,7 @@ import (
 	"github.com/sagarjhaa/localfinance/internal/monthreview"
 	"github.com/sagarjhaa/localfinance/internal/parse"
 	"github.com/sagarjhaa/localfinance/internal/webui"
-	sophiaconfig "github.com/sagarjhaa/localfinance/services/sophia/config"
+	sophiaconfig "github.com/sagarjhaa/localfinance/internal/ai/config"
 	"gorm.io/gorm"
 )
 

@@ -15,8 +15,8 @@ import (
 	"github.com/sagarjhaa/localfinance/internal/api"
 	"github.com/sagarjhaa/localfinance/internal/data/database"
 	"github.com/sagarjhaa/localfinance/internal/postgres"
-	sophiaconfig "github.com/sagarjhaa/localfinance/services/sophia/config"
-	"github.com/sagarjhaa/localfinance/services/thesaurus/config"
+	sophiaconfig "github.com/sagarjhaa/localfinance/internal/ai/config"
+	"github.com/sagarjhaa/localfinance/internal/data/config"
 )
 
 func main() {

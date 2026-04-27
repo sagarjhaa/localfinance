@@ -178,6 +178,12 @@ test-iris:
 	@echo "Testing Iris..."
 	@cd services/iris && PATH=$(NODE_BIN):$$PATH node server/__tests__/auth-routes.test.js
 
+# ─── Eval (manual, gated by EVAL_OLLAMA=1) ────────────
+.PHONY: eval-hallucination
+eval-hallucination:
+	@echo "Running insight hallucination eval (requires local Ollama + EVAL_OLLAMA=1)..."
+	@cd services/sophia && EVAL_OLLAMA=1 go test -tags=eval -run HallucinationEval -v -count=1 -timeout 30m ./ai/...
+
 # ─── Test (e2e — requires dev-up) ─────────────────────
 .PHONY: test-e2e test-e2e-auth test-e2e-upload test-e2e-chat test-e2e-categories
 

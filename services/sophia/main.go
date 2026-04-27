@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"log"
+	"net/http"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sagarjhaa/localfinance/services/sophia/ai"
@@ -21,6 +24,23 @@ func main() {
 	aiService, err := ai.NewService(cfg.AI)
 	if err != nil {
 		log.Fatalf("Failed to initialize AI service: %v", err)
+	}
+
+	// Startup probe: verify Ollama is reachable AND the configured model is
+	// installed. Fail fast — better than discovering it on the first user
+	// request. Can be skipped by setting SKIP_OLLAMA_PROBE=1 (useful for tests
+	// or environments where Ollama lives behind a slow cold-start tunnel).
+	if os.Getenv("SKIP_OLLAMA_PROBE") != "1" {
+		probeCtx, probeCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		probeClient := &http.Client{Timeout: 10 * time.Second}
+		if err := ai.Probe(probeCtx, probeClient, cfg.AI.OllamaHost, cfg.AI.ModelName); err != nil {
+			probeCancel()
+			log.Fatalf("Ollama startup probe failed: %v", err)
+		}
+		probeCancel()
+		log.Printf("Ollama probe OK: model %q reachable at %s", cfg.AI.ModelName, cfg.AI.OllamaHost)
+	} else {
+		log.Printf("Ollama startup probe skipped (SKIP_OLLAMA_PROBE=1)")
 	}
 
 	router := gin.New()

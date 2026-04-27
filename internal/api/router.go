@@ -107,7 +107,15 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 
 	// First-run setup wizard endpoints. Public — they run before auth and
 	// gate access to the rest of the app while Ollama is missing.
-	setupH := setup.New(os.Getenv("OLLAMA_HOST"))
+	// setup.New gets the Ollama host. Default to 127.0.0.1:11434 when env is
+	// unset — important for .app launches via Finder where launchd provides a
+	// minimal env. Without this, the wizard would show "install Ollama" even
+	// when Ollama is running locally.
+	ollamaHost := os.Getenv("OLLAMA_HOST")
+	if ollamaHost == "" {
+		ollamaHost = "http://127.0.0.1:11434"
+	}
+	setupH := setup.New(ollamaHost)
 	setupGroup := router.Group("/api/setup")
 	{
 		setupGroup.GET("/state", setupH.State)

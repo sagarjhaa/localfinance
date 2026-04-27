@@ -146,6 +146,7 @@ for m in $INSTALLED; do
   esac
 done
 
+PULLING=""
 if [ "$HAVE_SWEET_SPOT" = "1" ]; then
   say "Compatible model already installed — skipping pull"
 elif echo "$INSTALLED" | grep -Fxq "$MODEL"; then
@@ -153,6 +154,7 @@ elif echo "$INSTALLED" | grep -Fxq "$MODEL"; then
 else
   say "Pulling ${MODEL} in background (${MEM_GB} GB RAM detected)"
   nohup ollama pull "$MODEL" >/dev/null 2>&1 &
+  PULLING="$MODEL"
 fi
 
 say "Opening ${DEST}/LocalFinance.app"
@@ -160,15 +162,22 @@ open "${DEST}/LocalFinance.app"
 
 cat >&2 <<MSG
 
-${BLUE}==>${RESET} LocalFinance is starting up.
+${BLUE}==>${RESET_C} LocalFinance is starting up.
 
   URL:      http://localhost:3001
   Email:    local@localfinance.app
   Password: localfinance
 
-  Model ${MODEL} is downloading in the background; the first-run wizard
-  will pick it up automatically.
+MSG
+if [ -n "$PULLING" ]; then
+  cat >&2 <<MSG
+  Model ${PULLING} is downloading in the background; the first-run
+  wizard will pick it up automatically.
 
+MSG
+fi
+cat >&2 <<MSG
+  Logs: ~/Library/Application Support/LocalFinance/logs/server.log
   Docs: https://github.com/sagarjhaa/localfinance#readme
 
 MSG

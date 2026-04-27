@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sagarjhaa/localfinance/services/sophia/monthreview"
+	"github.com/sagarjhaa/localfinance/internal/monthreview"
 )
 
 // MonthReviewHandler exposes the per-period review endpoints.

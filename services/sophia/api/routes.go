@@ -11,8 +11,8 @@ import (
 	"github.com/sagarjhaa/localfinance/services/sophia/ai"
 	"github.com/sagarjhaa/localfinance/services/sophia/api/handlers"
 	"github.com/sagarjhaa/localfinance/services/sophia/config"
-	"github.com/sagarjhaa/localfinance/services/sophia/insights"
-	"github.com/sagarjhaa/localfinance/services/sophia/monthreview"
+	"github.com/sagarjhaa/localfinance/internal/insights"
+	"github.com/sagarjhaa/localfinance/internal/monthreview"
 )
 
 func SetupRoutes(router *gin.Engine, aiService *ai.Service, thesaurusConfig config.ThesaurusConfig, modelName string) {

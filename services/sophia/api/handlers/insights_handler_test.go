@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sagarjhaa/localfinance/services/sophia/insights"
+	"github.com/sagarjhaa/localfinance/internal/insights"
 	"github.com/sagarjhaa/localfinance/services/sophia/models"
 )
 

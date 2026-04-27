@@ -150,3 +150,13 @@ Effort estimates show both scales: human team → CC+gstack.
 - **Effort:** L (human 3-4wk) → CC+gstack ~10-15h
 - **Priority:** P2
 - **Blocked by:** AI parse path landed
+
+### [P2] Menu bar status item for LocalFinance.app
+- **What:** Tiny icon in the Mac menu bar with: status indicator (green = running), "Open LocalFinance" (opens browser to localhost:3001), "View Logs" (opens log file), "Quit". Replaces the LSUIElement=true silent-agent mode.
+- **Why:** Today the .app runs as a background agent with no UI hooks at all — to quit you have to use Activity Monitor or `pkill`. A menu bar item makes the running state visible and gives the user a way to interact without a terminal.
+- **Pros:** Standard Mac UX. User always knows it's running. One-click quit + open. Lets us drop the "background-only" workaround.
+- **Cons:** Needs Cgo + AppKit OR a Swift wrapper that launches the Go binary as a subprocess. Either way, more build complexity.
+- **Context:** Sagar flagged the bouncy-dock-icon problem on 2026-04-27. Quick fix shipped (LSUIElement=true). Better polish is this menu bar item.
+- **Effort:** M (human 1-2wk) → CC+gstack ~6-8h
+- **Priority:** P2
+- **Blocked by:** none

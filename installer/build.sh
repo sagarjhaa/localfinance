@@ -32,7 +32,12 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleExecutable</key><string>LocalFinance</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSMinimumSystemVersion</key><string>11.0</string>
-  <key>LSUIElement</key><false/>
+  <!-- LSUIElement=true: run as a background-only agent. No Dock icon, no
+       menu bar (and no eternal-bounce). User accesses the app through their
+       browser at http://localhost:3001. To quit: Activity Monitor or
+       `pkill -f LocalFinance`. A proper menu-bar status item is a future
+       polish (see TODOS). -->
+  <key>LSUIElement</key><true/>
 </dict>
 </plist>
 PLIST

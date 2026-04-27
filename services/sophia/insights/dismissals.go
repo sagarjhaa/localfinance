@@ -11,7 +11,7 @@ import (
 // ThesaurusDismissalFetcher implements DismissalFetcher by calling Thesaurus's
 // internal endpoint:
 //
-//	GET ${BaseURL}/internal/users/${userID}/dismissed-insights
+//	GET ${BaseURL}/api/v1/internal/users/${userID}/dismissed-insights
 //
 // The endpoint returns a JSON array of objects with at least an "insight_key"
 // field. Other fields (created_at, etc.) are ignored — the engine only cares
@@ -40,7 +40,7 @@ func (f *ThesaurusDismissalFetcher) ListDismissedKeys(ctx context.Context, userI
 		client = http.DefaultClient
 	}
 
-	url := fmt.Sprintf("%s/internal/users/%s/dismissed-insights", f.BaseURL, userID)
+	url := fmt.Sprintf("%s/api/v1/internal/users/%s/dismissed-insights", f.BaseURL, userID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build dismissals request: %w", err)

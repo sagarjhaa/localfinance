@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,7 +11,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -21,6 +24,10 @@ import (
 	"github.com/sagarjhaa/localfinance/services/logos/processors"
 	"github.com/sagarjhaa/localfinance/shared/middleware"
 )
+
+// maxPDFPagesForVision caps the number of PDF pages we render for the
+// vision-parse path. Statements over this size fall back to text extraction.
+const maxPDFPagesForVision = 25
 
 // supportedFormats is what Logos can hand off to Sophia. Excel binary
 // parsing was dropped along with the regex processors — users should
@@ -101,33 +108,71 @@ func processDocument(req models.ProcessRequest, cfg *config.Config) {
 
 	ext := strings.ToLower(filepath.Ext(req.FilePath))
 
-	// Extract raw text from the file. PDF: pdftotext + Go fallback. CSV/TXT:
-	// read bytes as UTF-8. XLSX: refused — user must convert to CSV.
-	rawText, err := extractTextForAI(req.FilePath, ext)
-	if err != nil {
-		log.Printf("[%s] text extraction failed: %v", req.DocumentID, err)
-		updateDocumentStatus(cfg.Thesaurus.BaseURL, req.DocumentID, "error",
-			fmt.Sprintf("Text extraction failed: %v", err), "")
-		return
+	// PDF parse strategy: vision-first (render pages → /parse-images), with a
+	// text-extract fallback if rendering fails (e.g. pdftoppm missing).
+	// Non-PDFs go straight to the text /parse path.
+	var transactions []models.Transaction
+	var modelUsed string
+	var rawText string
+	var parseErr error
+
+	if ext == ".pdf" {
+		images, rErr := renderPDFToPNGs(req.FilePath)
+		if rErr == nil {
+			log.Printf("[%s] rendered %d page(s) for vision parse", req.DocumentID, len(images))
+			transactions, modelUsed, parseErr = parseViaSophiaImages(
+				cfg.Sophia.BaseURL, req.UserID.String(), images, req.FilePath)
+		} else {
+			log.Printf("[%s] PDF render failed (%v); falling back to text parse", req.DocumentID, rErr)
+			parseErr = rErr
+		}
 	}
 
-	// Send extracted text to Sophia for AI parsing.
-	transactions, modelUsed, err := parseViaSophia(cfg.Sophia.BaseURL, req.UserID.String(), rawText, req.FilePath)
-	if err != nil {
-		log.Printf("[%s] Sophia parse failed: %v", req.DocumentID, err)
+	// Fallback / non-PDF text path. Triggered when vision didn't run (non-PDF)
+	// or vision failed (render error or upstream parse error).
+	if parseErr != nil || ext != ".pdf" {
+		var terr error
+		rawText, terr = extractTextForAI(req.FilePath, ext)
+		if terr != nil {
+			log.Printf("[%s] text extraction failed: %v", req.DocumentID, terr)
+			updateDocumentStatus(cfg.Thesaurus.BaseURL, req.DocumentID, "error",
+				fmt.Sprintf("Text extraction failed: %v", terr), "")
+			return
+		}
+		transactions, modelUsed, parseErr = parseViaSophia(
+			cfg.Sophia.BaseURL, req.UserID.String(), rawText, req.FilePath)
+	}
+
+	if parseErr != nil {
+		log.Printf("[%s] Sophia parse failed: %v", req.DocumentID, parseErr)
 		updateDocumentStatus(cfg.Thesaurus.BaseURL, req.DocumentID, "error",
-			fmt.Sprintf("AI parse failed: %v", err), "")
+			fmt.Sprintf("AI parse failed: %v", parseErr), rawText)
 		return
 	}
 
 	if len(transactions) == 0 {
 		log.Printf("[%s] Sophia returned 0 transactions", req.DocumentID)
+		// For metadata + status payload, opportunistically extract text if
+		// the vision path skipped that step.
+		if rawText == "" {
+			if t, _ := extractTextForAI(req.FilePath, ext); t != "" {
+				rawText = t
+			}
+		}
 		updateDocumentStatus(cfg.Thesaurus.BaseURL, req.DocumentID, "error",
 			"AI returned no transactions from this file", rawText)
 		return
 	}
 
 	log.Printf("[%s] Sophia parsed %d transactions using model %s", req.DocumentID, len(transactions), modelUsed)
+
+	// Metadata detection (institution/account) needs raw text — fetch it now
+	// if the vision path bypassed extraction. Best-effort; non-fatal.
+	if rawText == "" {
+		if t, _ := extractTextForAI(req.FilePath, ext); t != "" {
+			rawText = t
+		}
+	}
 
 	result := processors.ProcessResult{
 		Transactions:      transactions,
@@ -661,4 +706,143 @@ func containsAny(s string, substrs ...string) bool {
 		}
 	}
 	return false
+}
+
+// renderPDFToPNGs shells out to pdftoppm to render each PDF page as a 150 DPI
+// PNG, then base64-encodes each page. Returns up to maxPDFPagesForVision pages.
+// Cleans up the temp dir on return.
+//
+// pdftoppm is provided by poppler-utils (already in the Logos container image).
+func renderPDFToPNGs(filePath string) ([]string, error) {
+	tmpDir, err := os.MkdirTemp("", "logos-pdfimg-")
+	if err != nil {
+		return nil, fmt.Errorf("render pdf: mkdir temp: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	prefix := filepath.Join(tmpDir, "page")
+	cmd := exec.Command("pdftoppm", "-r", "150", "-png", filePath, prefix)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("render pdf: pdftoppm failed: %w (output: %s)", err, string(out))
+	}
+
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		return nil, fmt.Errorf("render pdf: read tmp dir: %w", err)
+	}
+
+	var pngFiles []string
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".png") {
+			pngFiles = append(pngFiles, filepath.Join(tmpDir, e.Name()))
+		}
+	}
+	if len(pngFiles) == 0 {
+		return nil, fmt.Errorf("render pdf: no pages produced")
+	}
+	sort.Slice(pngFiles, func(i, j int) bool {
+		return pageNumFromFilename(pngFiles[i]) < pageNumFromFilename(pngFiles[j])
+	})
+	if len(pngFiles) > maxPDFPagesForVision {
+		pngFiles = pngFiles[:maxPDFPagesForVision]
+	}
+
+	images := make([]string, 0, len(pngFiles))
+	for _, p := range pngFiles {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return nil, fmt.Errorf("render pdf: read page %s: %w", p, err)
+		}
+		images = append(images, base64.StdEncoding.EncodeToString(data))
+	}
+	return images, nil
+}
+
+// pageNumFromFilename extracts the trailing integer from "...-NN.png".
+// Returns 0 if no integer is found.
+func pageNumFromFilename(name string) int {
+	base := strings.TrimSuffix(filepath.Base(name), ".png")
+	idx := strings.LastIndex(base, "-")
+	if idx < 0 || idx == len(base)-1 {
+		return 0
+	}
+	var n int
+	if _, err := fmt.Sscanf(base[idx+1:], "%d", &n); err != nil {
+		return 0
+	}
+	return n
+}
+
+// parseViaSophiaImages POSTs base64 PNGs to Sophia /api/v1/parse-images. 5-min
+// timeout because vision inference is slower than text on most local models.
+func parseViaSophiaImages(sophiaURL, userID string, images []string, fileSource string) ([]models.Transaction, string, error) {
+	payload, err := json.Marshal(map[string]interface{}{
+		"images":  images,
+		"user_id": userID,
+	})
+	if err != nil {
+		return nil, "", fmt.Errorf("marshal request: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		sophiaURL+"/api/v1/parse-images", bytes.NewReader(payload))
+	if err != nil {
+		return nil, "", fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 5 * time.Minute}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, "", fmt.Errorf("call sophia parse-images: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		return nil, "", fmt.Errorf("sophia parse-images returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var parsed struct {
+		Transactions []map[string]interface{} `json:"transactions"`
+		Count        int                      `json:"count"`
+		Model        string                   `json:"model"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return nil, "", fmt.Errorf("decode sophia response: %w", err)
+	}
+
+	txns := convertParsedTransactions(parsed.Transactions, fileSource)
+	return txns, parsed.Model, nil
+}
+
+// convertParsedTransactions converts Sophia's []map[string]interface{} payload
+// into typed []models.Transaction. Shared between text and image paths.
+func convertParsedTransactions(raw []map[string]interface{}, fileSource string) []models.Transaction {
+	txns := make([]models.Transaction, 0, len(raw))
+	for _, r := range raw {
+		t := models.Transaction{FileSource: fileSource}
+		if d, ok := r["date"].(string); ok {
+			if parsed, err := time.Parse("2006-01-02", d); err == nil {
+				t.Date = parsed
+			}
+		}
+		if d, ok := r["description"].(string); ok {
+			t.Description = d
+		}
+		switch v := r["amount"].(type) {
+		case float64:
+			t.Amount = v
+		case string:
+			fmt.Sscanf(v, "%f", &t.Amount)
+		}
+		if c, ok := r["category"].(string); ok {
+			t.Category = c
+		}
+		txns = append(txns, t)
+	}
+	return txns
 }

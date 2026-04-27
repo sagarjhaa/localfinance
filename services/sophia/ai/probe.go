@@ -102,6 +102,30 @@ func familyPreference(name string) int {
 	return 0
 }
 
+// isVisionCapable returns true for model name prefixes known to support image
+// inputs in Ollama. Heuristic — Ollama doesn't expose capability metadata via
+// /api/tags, so we have to recognize names. The PDF parse path renders pages
+// to images and sends them as multimodal input, so when two models tie on
+// size + family inside the sweet spot, the vision-capable one wins.
+func isVisionCapable(name string) bool {
+	lower := strings.ToLower(name)
+	prefixes := []string{
+		"gemma3",
+		"llama3.2-vision",
+		"qwen2.5-vl",
+		"llava",
+		"bakllava",
+		"moondream",
+		"minicpm-v",
+	}
+	for _, p := range prefixes {
+		if strings.HasPrefix(lower, p) {
+			return true
+		}
+	}
+	return false
+}
+
 // extractParamCount returns the parameter count in billions for a tag like
 // "llama3.1:8b" → 8.0, or 0 if it can't be parsed.
 func extractParamCount(name string) float64 {
@@ -168,6 +192,7 @@ func SelectBestModel(ctx context.Context, client HTTPDoer, ollamaHost string) (s
 		params    float64
 		family    int
 		sweetSpot bool
+		vision    bool
 	}
 	candidates := make([]scored, 0, len(body.Models))
 	for _, m := range body.Models {
@@ -177,6 +202,7 @@ func SelectBestModel(ctx context.Context, client HTTPDoer, ollamaHost string) (s
 			params:    p,
 			family:    familyPreference(m.Name),
 			sweetSpot: p >= 3 && p <= 14,
+			vision:    isVisionCapable(m.Name),
 		})
 	}
 	sort.SliceStable(candidates, func(i, j int) bool {
@@ -185,6 +211,11 @@ func SelectBestModel(ctx context.Context, client HTTPDoer, ollamaHost string) (s
 		// can't meet the parse timeout.
 		if candidates[i].sweetSpot != candidates[j].sweetSpot {
 			return candidates[i].sweetSpot
+		}
+		// Inside the sweet spot, prefer vision-capable models so the PDF parse
+		// path can use the same model for chat + vision parse.
+		if candidates[i].vision != candidates[j].vision {
+			return candidates[i].vision
 		}
 		if candidates[i].params != candidates[j].params {
 			return candidates[i].params > candidates[j].params

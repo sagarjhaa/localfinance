@@ -24,12 +24,16 @@ type Service struct {
 }
 
 type OllamaRequest struct {
-	Model       string            `json:"model"`
-	Prompt      string            `json:"prompt"`
-	Stream      bool              `json:"stream"`
-	Temperature float32           `json:"temperature,omitempty"`
-	MaxTokens   int               `json:"max_tokens,omitempty"`
+	Model       string                 `json:"model"`
+	Prompt      string                 `json:"prompt"`
+	Stream      bool                   `json:"stream"`
+	Temperature float32                `json:"temperature,omitempty"`
+	MaxTokens   int                    `json:"max_tokens,omitempty"`
 	Options     map[string]interface{} `json:"options,omitempty"`
+	// Images holds base64-encoded PNG/JPEG bytes (no data: prefix) for
+	// multimodal/vision models. Ollama's /api/generate accepts this alongside
+	// the prompt — a PDF parse path renders pages to PNGs and sends them here.
+	Images []string `json:"images,omitempty"`
 }
 
 type OllamaResponse struct {
@@ -1211,4 +1215,93 @@ func containsAny(s string, substrs []string) bool {
 		}
 	}
 	return false
+}
+
+// ParseTransactionsFromImages extracts transactions from PDF page images using
+// a multimodal (vision) Ollama model. Images must be base64-encoded PNG/JPEG
+// bytes (no data: prefix). The prompt mirrors ParseTransactions but references
+// the images instead of statement text. num_ctx is bumped to 32768 because
+// vision models still benefit from a large context for the JSON output.
+func (s *Service) ParseTransactionsFromImages(images []string, userModel string) ([]map[string]interface{}, error) {
+	if len(images) == 0 {
+		return nil, fmt.Errorf("no images provided")
+	}
+
+	prompt := `Extract transactions from the statement images you are looking at, as JSON.
+Fields: date (YYYY-MM-DD), description (Clean Name), amount (Positive=Charge, Negative=Payment), category (Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Health, Cash, EMI, Education, Other).
+
+STRICT RULES:
+1. Only extract transactions from the activity table. Do not extract account headers, reward balances, or summary totals.
+2. The date must be the one listed on the transaction line. Do not use the statement's overall date.
+3. If a transaction doesn't fit a category, use "Other". NEVER create new categories.
+4. No raw codes/cities/states in description.
+5. If year unknown, use 2026.
+6. Output ONLY the JSON array inside <JSON> tags.
+
+Examples:
+Input row: 03/12 AMZN Mktp US*Amzn.com/bill WA $22.50
+Output: {"date": "2026-03-12", "description": "Amazon", "amount": 22.50, "category": "Shopping"}
+
+Input row: 02/18 SAFEWAY #1196 SUNNYVALE CA 28.33
+Output: {"date": "2026-02-18", "description": "Safeway", "amount": 28.33, "category": "Food"}
+
+Input row: 03/12 AUTOMATIC PAYMENT - THANK YOU -1323.73
+Output: {"date": "2026-03-12", "description": "Payment Received", "amount": -1323.73, "category": "Income"}
+
+Start your response exactly with "<JSON>[" and end with "]</JSON>".`
+
+	reqBody := OllamaRequest{
+		Model:       userModel,
+		Prompt:      prompt,
+		Stream:      false,
+		Temperature: 0.1,
+		Images:      images,
+		Options:     map[string]interface{}{"num_ctx": 32768},
+	}
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+	resp, err := s.httpClient.Post(s.config.OllamaHost+"/api/generate", "application/json", bytes.NewReader(jsonBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to call Ollama API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("Ollama API returned status %d: %s", resp.StatusCode, string(body))
+	}
+	var ollamaResp OllamaResponse
+	if err := json.Unmarshal(body, &ollamaResp); err != nil {
+		return nil, fmt.Errorf("failed to parse Ollama response: %w", err)
+	}
+
+	// Reuse the same JSON extraction + repair pipeline as the text path.
+	jsonStr := ""
+	if start := strings.Index(ollamaResp.Response, "<JSON>"); start >= 0 {
+		start += 6
+		if end := strings.Index(ollamaResp.Response[start:], "</JSON>"); end >= 0 {
+			jsonStr = strings.TrimSpace(ollamaResp.Response[start : start+end])
+		}
+	}
+	if jsonStr == "" {
+		jsonStr = extractJSON(ollamaResp.Response)
+	}
+	jsonStr = strings.ReplaceAll(jsonStr, "\r\n", " ")
+	jsonStr = strings.ReplaceAll(jsonStr, "\n", " ")
+	jsonStr = strings.ReplaceAll(jsonStr, "\r", " ")
+	for strings.Contains(jsonStr, "  ") {
+		jsonStr = strings.ReplaceAll(jsonStr, "  ", " ")
+	}
+	jsonStr = repairJSON(jsonStr)
+
+	var transactions []map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &transactions); err != nil {
+		if err2 := json.Unmarshal([]byte("["+jsonStr+"]"), &transactions); err2 != nil {
+			log.Printf("vision parse JSON error. Raw response (first 500 chars): %s", ollamaResp.Response[:min(500, len(ollamaResp.Response))])
+			return nil, fmt.Errorf("failed to parse vision response as JSON: %w", err)
+		}
+	}
+	return transactions, nil
 }

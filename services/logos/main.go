@@ -223,7 +223,7 @@ func parseViaSophia(sophiaURL, userID, text, fileSource string) ([]models.Transa
 		"user_id": userID,
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
@@ -233,7 +233,7 @@ func parseViaSophia(sophiaURL, userID, text, fileSource string) ([]models.Transa
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 5 * time.Minute}
+	client := &http.Client{Timeout: 3 * time.Minute}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, "", fmt.Errorf("call sophia: %w", err)

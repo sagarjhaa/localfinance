@@ -117,12 +117,18 @@ func extractParamCount(name string) float64 {
 }
 
 // SelectBestModel queries Ollama at ollamaHost for installed models and
-// returns the "best" one by parameter count, breaking ties with the
-// known-good family preference (qwen2.5 > qwen ~ llama3.1 > llama3.2 > others).
-// Returns an error if Ollama is unreachable OR if no models are installed.
+// returns the "best" one for the LocalFinance parse + chat workload.
 //
-// Used by main.go when MODEL_NAME is "auto" or empty, so the user doesn't have
-// to pick a model — Sophia picks the largest one already pulled.
+// Heuristic:
+//   - Prefer models in the 3B-14B parameter sweet spot (fast enough for the
+//     1-3 minute parse timeout, large enough for solid PDF understanding)
+//   - Within that range, pick the largest, family-preference tie-break
+//     (qwen2.5 > llama3.1 > llama3.2 > others)
+//   - If nothing in that range is installed, fall back to the largest model
+//     present (so 120B-only hosts still work, just slowly)
+//   - Error if Ollama is unreachable or has zero models installed
+//
+// Used by main.go when MODEL_NAME is "auto" or empty.
 func SelectBestModel(ctx context.Context, client HTTPDoer, ollamaHost string) (string, error) {
 	if ollamaHost == "" {
 		return "", fmt.Errorf("ollama host not configured")
@@ -158,19 +164,28 @@ func SelectBestModel(ctx context.Context, client HTTPDoer, ollamaHost string) (s
 	}
 
 	type scored struct {
-		name   string
-		params float64
-		family int
+		name      string
+		params    float64
+		family    int
+		sweetSpot bool
 	}
 	candidates := make([]scored, 0, len(body.Models))
 	for _, m := range body.Models {
+		p := extractParamCount(m.Name)
 		candidates = append(candidates, scored{
-			name:   m.Name,
-			params: extractParamCount(m.Name),
-			family: familyPreference(m.Name),
+			name:      m.Name,
+			params:    p,
+			family:    familyPreference(m.Name),
+			sweetSpot: p >= 3 && p <= 14,
 		})
 	}
 	sort.SliceStable(candidates, func(i, j int) bool {
+		// Sweet-spot models always rank above non-sweet-spot ones, regardless
+		// of parameter count. This keeps a 7B/8B from losing to a 120B that
+		// can't meet the parse timeout.
+		if candidates[i].sweetSpot != candidates[j].sweetSpot {
+			return candidates[i].sweetSpot
+		}
 		if candidates[i].params != candidates[j].params {
 			return candidates[i].params > candidates[j].params
 		}

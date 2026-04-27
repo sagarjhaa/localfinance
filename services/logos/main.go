@@ -5,31 +5,33 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	pdf "github.com/ledongthuc/pdf"
 	"github.com/sagarjhaa/localfinance/services/logos/config"
 	"github.com/sagarjhaa/localfinance/services/logos/models"
 	"github.com/sagarjhaa/localfinance/services/logos/processors"
 	"github.com/sagarjhaa/localfinance/shared/middleware"
 )
 
+// supportedFormats is what Logos can hand off to Sophia. Excel binary
+// parsing was dropped along with the regex processors — users should
+// convert .xlsx to .csv before uploading.
+var supportedFormats = []string{"csv", "pdf", "txt"}
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
-
-	// Initialize processor manager
-	processorManager := processors.NewManager()
 
 	router := gin.New()
 	router.Use(middleware.CorrelationMiddleware("logos"))
@@ -40,11 +42,12 @@ func main() {
 			"status":            "healthy",
 			"service":           "logos",
 			"version":           "1.0.0",
-			"supported_formats": processorManager.GetSupportedTypes(),
+			"supported_formats": supportedFormats,
 		})
 	})
 
-	// Process endpoint — receives document from Thesaurus, parses, sends transactions back
+	// Process endpoint — receives document from Thesaurus, extracts text,
+	// hands off to Sophia for AI parsing, sends transactions back.
 	router.POST("/api/v1/process", func(c *gin.Context) {
 		var req models.ProcessRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -58,14 +61,13 @@ func main() {
 			"document_id": req.DocumentID,
 		})
 
-		// Process asynchronously
-		go processDocument(req, processorManager, cfg)
+		go processDocument(req, cfg)
 	})
 
 	// Supported formats info
 	router.GET("/api/v1/info/formats", func(c *gin.Context) {
 		c.JSON(200, gin.H{
-			"supported_formats": processorManager.GetSupportedTypes(),
+			"supported_formats": supportedFormats,
 			"max_file_size":     cfg.Processing.MaxFileSize,
 		})
 	})
@@ -76,51 +78,73 @@ func main() {
 	}
 
 	log.Printf("📜 Logos service starting on port %s", port)
-	log.Printf("📄 Supported formats: %v", processorManager.GetSupportedTypes())
+	log.Printf("📄 Supported formats: %v", supportedFormats)
 	log.Printf("🔗 Thesaurus URL: %s", cfg.Thesaurus.BaseURL)
+	log.Printf("🔗 Sophia URL: %s (AI parse)", cfg.Sophia.BaseURL)
 
 	if err := router.Run(":" + port); err != nil {
 		log.Fatalf("Failed to start Logos service: %v", err)
 	}
 }
 
-func processDocument(req models.ProcessRequest, pm *processors.Manager, cfg *config.Config) {
+func processDocument(req models.ProcessRequest, cfg *config.Config) {
 	start := time.Now()
 	log.Printf("[%s] Processing document: %s (type: %s)", req.DocumentID, req.FilePath, req.FileType)
 
-	// Open the file
-	file, err := os.Open(req.FilePath)
+	// File must exist and be readable
+	stat, err := os.Stat(req.FilePath)
 	if err != nil {
 		log.Printf("[%s] Error opening file: %v", req.DocumentID, err)
 		updateDocumentStatus(cfg.Thesaurus.BaseURL, req.DocumentID, "error", fmt.Sprintf("Cannot open file: %v", err), "")
 		return
 	}
-	defer file.Close()
 
-	// Get file info for size
-	stat, _ := file.Stat()
+	ext := strings.ToLower(filepath.Ext(req.FilePath))
 
-	// Process the document
-	result, err := pm.ProcessDocument(file, req.FilePath)
+	// Extract raw text from the file. PDF: pdftotext + Go fallback. CSV/TXT:
+	// read bytes as UTF-8. XLSX: refused — user must convert to CSV.
+	rawText, err := extractTextForAI(req.FilePath, ext)
 	if err != nil {
-		log.Printf("[%s] Error processing: %v", req.DocumentID, err)
-		updateDocumentStatus(cfg.Thesaurus.BaseURL, req.DocumentID, "error", fmt.Sprintf("Processing failed: %v", err), "")
+		log.Printf("[%s] text extraction failed: %v", req.DocumentID, err)
+		updateDocumentStatus(cfg.Thesaurus.BaseURL, req.DocumentID, "error",
+			fmt.Sprintf("Text extraction failed: %v", err), "")
 		return
 	}
 
-	result.ProcessingTimeMs = time.Since(start).Milliseconds()
-	if stat != nil {
-		result.FileSize = stat.Size()
+	// Send extracted text to Sophia for AI parsing.
+	transactions, modelUsed, err := parseViaSophia(cfg.Sophia.BaseURL, req.UserID.String(), rawText, req.FilePath)
+	if err != nil {
+		log.Printf("[%s] Sophia parse failed: %v", req.DocumentID, err)
+		updateDocumentStatus(cfg.Thesaurus.BaseURL, req.DocumentID, "error",
+			fmt.Sprintf("AI parse failed: %v", err), "")
+		return
 	}
 
-	log.Printf("[%s] Parsed %d transactions in %dms", req.DocumentID, result.TransactionsFound, result.ProcessingTimeMs)
+	if len(transactions) == 0 {
+		log.Printf("[%s] Sophia returned 0 transactions", req.DocumentID)
+		updateDocumentStatus(cfg.Thesaurus.BaseURL, req.DocumentID, "error",
+			"AI returned no transactions from this file", rawText)
+		return
+	}
 
-	// Set transaction type
+	log.Printf("[%s] Sophia parsed %d transactions using model %s", req.DocumentID, len(transactions), modelUsed)
+
+	result := processors.ProcessResult{
+		Transactions:      transactions,
+		TransactionsFound: len(transactions),
+		ProcessingTimeMs:  time.Since(start).Milliseconds(),
+		FileSize:          stat.Size(),
+	}
+
+	// Normalize transaction type from amount sign
 	for i := range result.Transactions {
 		if result.Transactions[i].Amount >= 0 {
 			result.Transactions[i].Type = "credit"
 		} else {
 			result.Transactions[i].Type = "debit"
+		}
+		if result.Transactions[i].FileSource == "" {
+			result.Transactions[i].FileSource = req.FilePath
 		}
 	}
 
@@ -130,21 +154,9 @@ func processDocument(req models.ProcessRequest, pm *processors.Manager, cfg *con
 	// Step 2: AI categorize remaining uncategorized transactions via Ollama
 	aiCategorize(result.Transactions)
 
-	// Detect statement metadata from file content
-	var meta processors.StatementMetadata
-	var rawText string
-	fileBytes, readErr := os.ReadFile(req.FilePath)
-	if readErr == nil {
-		rawText = string(fileBytes) // works for CSV; for PDF we need extracted text
-		if strings.HasSuffix(strings.ToLower(req.FilePath), ".pdf") {
-			// Re-extract PDF text for detection
-			if pdfText, err := extractPDFTextForDetection(req.FilePath); err == nil {
-				rawText = pdfText
-			}
-		}
-		meta = processors.DetectStatementInfo(rawText)
-		log.Printf("[%s] Detected: type=%s institution=%s account=%s", req.DocumentID, meta.AccountType, meta.Institution, meta.AccountNumber)
-	}
+	// Detect statement metadata from extracted text
+	meta := processors.DetectStatementInfo(rawText)
+	log.Printf("[%s] Detected: type=%s institution=%s account=%s", req.DocumentID, meta.AccountType, meta.Institution, meta.AccountNumber)
 
 	// Send transactions + metadata to Thesaurus
 	if result.TransactionsFound > 0 && req.AccountID.String() != "00000000-0000-0000-0000-000000000000" {
@@ -168,36 +180,170 @@ func processDocument(req models.ProcessRequest, pm *processors.Manager, cfg *con
 	log.Printf("[%s] Processing complete — %d transactions saved", req.DocumentID, result.TransactionsFound)
 }
 
-func extractPDFTextForDetection(filePath string) (string, error) {
-	// Try Go library first
-	pdfFile, reader, err := pdf.Open(filePath)
-	if err == nil {
-		defer pdfFile.Close()
-		var text strings.Builder
-		for i := 1; i <= reader.NumPage(); i++ {
-			page := reader.Page(i)
-			if page.V.IsNull() {
-				continue
-			}
-			content, err := page.GetPlainText(nil)
-			if err != nil {
-				continue
-			}
-			text.WriteString(content)
-			text.WriteString("\n")
+// extractTextForAI returns the file's raw text suitable for forwarding to
+// Sophia's /api/v1/parse endpoint.
+//   - PDF: uses processors.ExtractPDFText (pdftotext with Go fallback).
+//   - CSV/TXT: reads file bytes verbatim as UTF-8.
+//   - XLSX/XLS: refused — Logos no longer parses Excel binary formats.
+//     Users should re-export to CSV.
+func extractTextForAI(filePath, ext string) (string, error) {
+	switch ext {
+	case ".pdf":
+		return processors.ExtractPDFText(filePath)
+	case ".csv", ".txt", ".tsv":
+		b, err := os.ReadFile(filePath)
+		if err != nil {
+			return "", fmt.Errorf("read %s: %w", ext, err)
 		}
-		if text.Len() > 100 {
-			return text.String(), nil
+		return string(b), nil
+	case ".xlsx", ".xls":
+		return "", fmt.Errorf("excel binary format no longer supported — please convert to CSV before uploading")
+	default:
+		// Best-effort: try reading as text. If it's binary garbage Sophia
+		// will simply return zero transactions and we'll surface a clear
+		// error to the user.
+		b, err := os.ReadFile(filePath)
+		if err != nil {
+			return "", fmt.Errorf("unsupported file type %q: %w", ext, err)
+		}
+		return string(b), nil
+	}
+}
+
+// parseViaSophia POSTs the extracted text to Sophia's AI parse endpoint and
+// converts the returned []map[string]interface{} into []models.Transaction.
+// Uses a 5-minute timeout because LLM parsing on 8b/14b models is slow.
+func parseViaSophia(sophiaURL, userID, text, fileSource string) ([]models.Transaction, string, error) {
+	if strings.TrimSpace(text) == "" {
+		return nil, "", fmt.Errorf("empty text — nothing to parse")
+	}
+
+	payload, _ := json.Marshal(map[string]string{
+		"text":    text,
+		"user_id": userID,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		sophiaURL+"/api/v1/parse", bytes.NewReader(payload))
+	if err != nil {
+		return nil, "", fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 5 * time.Minute}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, "", fmt.Errorf("call sophia: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		return nil, "", fmt.Errorf("sophia returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var parsed struct {
+		Transactions []map[string]interface{} `json:"transactions"`
+		Count        int                      `json:"count"`
+		Model        string                   `json:"model"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return nil, "", fmt.Errorf("decode sophia response: %w", err)
+	}
+
+	transactions := make([]models.Transaction, 0, len(parsed.Transactions))
+	for _, m := range parsed.Transactions {
+		t := mapToTransaction(m, fileSource)
+		// Skip junk rows with neither description nor amount
+		if strings.TrimSpace(t.Description) == "" && t.Amount == 0 {
+			continue
+		}
+		transactions = append(transactions, t)
+	}
+
+	return transactions, parsed.Model, nil
+}
+
+// mapToTransaction converts a single Sophia parse-response map into a
+// models.Transaction. Field names match Sophia's output:
+// {date, description, amount, category, type, reference}.
+func mapToTransaction(m map[string]interface{}, fileSource string) models.Transaction {
+	t := models.Transaction{
+		FileSource: fileSource,
+		CreatedAt:  time.Now(),
+	}
+
+	if s, ok := m["description"].(string); ok {
+		t.Description = strings.TrimSpace(s)
+	}
+	if s, ok := m["category"].(string); ok {
+		t.Category = strings.TrimSpace(s)
+	}
+	if s, ok := m["type"].(string); ok {
+		t.Type = strings.TrimSpace(s)
+	}
+	if s, ok := m["reference"].(string); ok {
+		t.Reference = strings.TrimSpace(s)
+	}
+
+	switch v := m["amount"].(type) {
+	case float64:
+		t.Amount = v
+	case int:
+		t.Amount = float64(v)
+	case string:
+		// Tolerate numeric strings like "12.34" or "-12.34"
+		clean := strings.ReplaceAll(strings.TrimSpace(v), ",", "")
+		clean = strings.TrimPrefix(clean, "$")
+		if f, err := parseFloat(clean); err == nil {
+			t.Amount = f
 		}
 	}
 
-	// Fallback to pdftotext for PDFs the Go library can't handle (Chase, Capital One)
-	cmd := exec.Command("pdftotext", "-layout", filePath, "-")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("pdftotext failed: %w", err)
+	if s, ok := m["date"].(string); ok {
+		t.Date = parseDate(s)
 	}
-	return string(output), nil
+	if t.Date.IsZero() {
+		t.Date = time.Now()
+	}
+
+	return t
+}
+
+// parseFloat is a tiny stdlib-only float parser wrapper.
+func parseFloat(s string) (float64, error) {
+	var f float64
+	_, err := fmt.Sscanf(s, "%f", &f)
+	return f, err
+}
+
+// parseDate handles the date formats Sophia tends to emit. Returns zero
+// time on failure so callers can fall back.
+func parseDate(s string) time.Time {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}
+	}
+	formats := []string{
+		"2006-01-02",
+		time.RFC3339,
+		"01/02/2006",
+		"02/01/2006",
+		"01-02-2006",
+		"2006/01/02",
+		"Jan 2, 2006",
+		"Jan 02, 2006",
+		"2 Jan 2006",
+	}
+	for _, f := range formats {
+		if t, err := time.Parse(f, s); err == nil {
+			return t
+		}
+	}
+	return time.Time{}
 }
 
 func sendTransactionsWithMetadata(baseURL string, accountID fmt.Stringer, documentID string, transactions []models.Transaction, meta processors.StatementMetadata) error {

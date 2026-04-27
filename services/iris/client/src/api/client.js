@@ -132,6 +132,21 @@ export const proxyAPI = {
   },
 };
 
+// Insights / Month-in-Review API (Iris -> Sophia/Thesaurus)
+export const insightsAPI = {
+  list: (userId) => apiClient.get(`/v1/insights/${encodeURIComponent(userId)}`),
+  generate: (userId, period) => apiClient.post('/v1/insights/', { user_id: userId, period }),
+  dismiss: (userId, { insight_key, rule_id }) =>
+    apiClient.post(`/v1/insights/${encodeURIComponent(userId)}/dismiss`, { insight_key, rule_id }),
+};
+
+export const monthReviewAPI = {
+  get: (period, userId) =>
+    apiClient.get(`/v1/month-review/${encodeURIComponent(period)}`, { params: { user_id: userId } }),
+  invalidate: (period, userId) =>
+    apiClient.delete(`/v1/month-review/${encodeURIComponent(period)}`, { params: { user_id: userId } }),
+};
+
 // Health check
 export const healthAPI = {
   check: () => apiClient.get('/health'),

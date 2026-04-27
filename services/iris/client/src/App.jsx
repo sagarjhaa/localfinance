@@ -6,6 +6,8 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Chat from './pages/Chat';
 import Profile from './pages/Profile';
+import InsightsPage from './pages/InsightsPage';
+import MonthReviewPage from './pages/MonthReviewPage';
 
 
 function App() {
@@ -84,6 +86,9 @@ function App() {
 
         <Route path="/chat" element={<Chat user={user} onLogout={handleLogout} />} />
         <Route path="/profile" element={<Profile user={user} onLogout={handleLogout} />} />
+        <Route path="/insights" element={<InsightsPage user={user} onLogout={handleLogout} />} />
+        <Route path="/month-review" element={<MonthReviewPage user={user} onLogout={handleLogout} />} />
+        <Route path="/month-review/:period" element={<MonthReviewPage user={user} onLogout={handleLogout} />} />
 
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

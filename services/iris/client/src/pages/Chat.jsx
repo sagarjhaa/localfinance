@@ -252,6 +252,20 @@ const Chat = ({ user, onLogout }) => {
             <span style={{ fontSize: 14 }}>The Vault</span>
           </div>
           <div
+            onClick={() => window.location.href = '/insights'}
+            style={S.navItem}
+          >
+            <span style={{ fontSize: 20 }}>&#128161;</span>
+            <span style={{ fontSize: 14 }}>Insights</span>
+          </div>
+          <div
+            onClick={() => window.location.href = '/month-review'}
+            style={S.navItem}
+          >
+            <span style={{ fontSize: 20 }}>&#128197;</span>
+            <span style={{ fontSize: 14 }}>Month in Review</span>
+          </div>
+          <div
             onClick={() => window.location.href = '/chat'}
             style={S.navActive}
           >

@@ -151,6 +151,24 @@ const Dashboard = ({ user, onLogout }) => {
   const isActive = uploading || processing || revealing;
   const hasResults = visibleTransactions.length > 0;
 
+  // Infer the dominant period (YYYY-MM) from parsed transactions so we can link
+  // to /month-review/<period>. Picks the most common YYYY-MM among valid dates.
+  const inferredPeriod = (() => {
+    if (!allTransactions.length) return null;
+    const counts = {};
+    for (const t of allTransactions) {
+      if (!t?.date) continue;
+      const d = new Date(t.date);
+      if (isNaN(d.getTime())) continue;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      counts[key] = (counts[key] || 0) + 1;
+    }
+    const entries = Object.entries(counts);
+    if (!entries.length) return null;
+    entries.sort((a, b) => b[1] - a[1]);
+    return entries[0][0];
+  })();
+
   return (
     <div style={S.page}>
       {/* Sidebar */}
@@ -173,6 +191,20 @@ const Dashboard = ({ user, onLogout }) => {
           >
             <span style={{ fontSize: 20 }}>&#128274;</span>
             <span style={{ fontSize: 14 }}>The Vault</span>
+          </div>
+          <div
+            onClick={() => window.location.href = '/insights'}
+            style={S.navItem}
+          >
+            <span style={{ fontSize: 20 }}>&#128161;</span>
+            <span style={{ fontSize: 14 }}>Insights</span>
+          </div>
+          <div
+            onClick={() => window.location.href = '/month-review'}
+            style={S.navItem}
+          >
+            <span style={{ fontSize: 20 }}>&#128197;</span>
+            <span style={{ fontSize: 14 }}>Month in Review</span>
           </div>
           <div
             onClick={() => window.location.href = '/chat'}
@@ -269,13 +301,32 @@ const Dashboard = ({ user, onLogout }) => {
           {/* Processed Ledger Header */}
           {hasResults && (
             <section style={{ marginTop: 80 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 40 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
                 <div>
                   <h3 style={S.ledgerTitle}>Processed Ledger</h3>
                   <p style={{ fontSize: 14, color: COLORS.stone500, marginTop: 4 }}>Institutional records post-enrichment</p>
                 </div>
                 <button onClick={reset} style={S.exportBtn}>+ New Upload</button>
               </div>
+
+              {/* Upload-success CTA: link to month-in-review for the inferred period */}
+              {!processing && !revealing && (
+                <a
+                  href={inferredPeriod ? `/month-review/${inferredPeriod}` : '/insights'}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 10,
+                    padding: '12px 20px', marginBottom: 24,
+                    background: COLORS.stone50, border: `1px solid ${COLORS.stone200}`,
+                    color: COLORS.primary, textDecoration: 'none', borderRadius: 999,
+                    fontSize: 13, fontWeight: 600,
+                  }}
+                >
+                  <span style={{ fontSize: 16 }}>&#128161;</span>
+                  {inferredPeriod
+                    ? `View Month in Review →`
+                    : `View Insights →`}
+                </a>
+              )}
             </section>
           )}
 

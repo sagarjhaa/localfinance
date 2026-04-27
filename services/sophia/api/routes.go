@@ -4,11 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sagarjhaa/localfinance/services/sophia/ai"
 	"github.com/sagarjhaa/localfinance/services/sophia/api/handlers"
 	"github.com/sagarjhaa/localfinance/services/sophia/config"
+	"github.com/sagarjhaa/localfinance/services/sophia/insights"
+	"github.com/sagarjhaa/localfinance/services/sophia/monthreview"
 )
 
 func SetupRoutes(router *gin.Engine, aiService *ai.Service, thesaurusConfig config.ThesaurusConfig, modelName string) {
@@ -19,6 +23,22 @@ func SetupRoutes(router *gin.Engine, aiService *ai.Service, thesaurusConfig conf
 	chatHandler := handlers.NewChatHandler(aiService)
 	insightsHandler := handlers.NewInsightsHandler(aiService)
 	categorizeHandler := handlers.NewCategorizeHandler(aiService)
+
+	// Wire month-review service: shares the dismissal fetcher + narrator with
+	// the insights handler so dismissal state stays consistent. Engine and
+	// narrator are constructed fresh — they're stateless.
+	thesaurusURL := os.Getenv("THESAURUS_URL")
+	if thesaurusURL == "" {
+		thesaurusURL = thesaurusConfig.BaseURL
+	}
+	mrDismiss := insights.NewThesaurusDismissalFetcher(thesaurusURL)
+	mrDismiss.Client = &http.Client{Timeout: 5 * time.Second}
+	var mrNarrator insights.Narrator = insights.NewTemplateNarrator()
+	if os.Getenv("INSIGHTS_LLM_POLISH") == "1" {
+		mrNarrator = insights.NewLLMNarrator(aiService)
+	}
+	mrService := monthreview.NewService(insights.NewEngine(mrDismiss), mrNarrator, aiService)
+	monthReviewHandler := handlers.NewMonthReviewHandler(mrService)
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {
@@ -46,6 +66,13 @@ func SetupRoutes(router *gin.Engine, aiService *ai.Service, thesaurusConfig conf
 			insights.GET("/:userId", insightsHandler.GetUserInsights)
 			insights.POST("/analyze", insightsHandler.AnalyzeSpendingPatterns)
 		}
+
+		// Month-in-Review routes
+		// Internal: called by Logos after a successful upload to pre-warm the cache.
+		v1.POST("/internal/month-review/generate", monthReviewHandler.Generate)
+		// Public: read by Iris for the JWT user (or via ?user_id= query for tests).
+		v1.GET("/month-review/:period", monthReviewHandler.Get)
+		v1.DELETE("/month-review/:period", monthReviewHandler.Delete)
 
 		// Categorization routes - Transaction categorization
 		categorize := v1.Group("/categorize")

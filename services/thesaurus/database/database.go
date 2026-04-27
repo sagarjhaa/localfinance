@@ -1,6 +1,7 @@
 package database
 
 import (
+	"errors"
 	"fmt"
 	"log"
 
@@ -76,21 +77,22 @@ func Migrate(db *gorm.DB) error {
 	return nil
 }
 
-// SeedDefaultUser creates the local-only default user on first boot if no
-// users exist. Single-user app: this user is the implicit owner of all data.
-// On a fresh install the credentials are local@localfinance.app / localfinance;
-// the user can change them in the Profile page.
+// SeedDefaultUser ensures the local-only default user exists. Single-user app:
+// this user is the implicit owner of all data. On a fresh install the
+// credentials are local@localfinance.app / localfinance; the user can change
+// them in the Profile page.
 //
-// Idempotent — safe to re-call.
+// Idempotent — checked by email lookup, not user count, so prior dev/test
+// users in the DB don't suppress the default seed.
 func SeedDefaultUser(db *gorm.DB) error {
-	var count int64
-	if err := db.Model(&models.User{}).Count(&count).Error; err != nil {
-		return fmt.Errorf("failed to count users: %w", err)
-	}
-
-	if count > 0 {
+	var existing models.User
+	err := db.Where("email = ?", DefaultUserEmail).First(&existing).Error
+	if err == nil {
 		log.Println("👤 default user already exists")
 		return nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return fmt.Errorf("failed to look up default user: %w", err)
 	}
 
 	hashed, err := auth.HashPassword(DefaultUserPassword)

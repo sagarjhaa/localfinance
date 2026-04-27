@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -19,7 +20,29 @@ import (
 	"github.com/sagarjhaa/localfinance/internal/data/config"
 )
 
+// initLogging tees slog output to a file under the data dir AND stderr so the
+// .app launched via Finder/`open` (which swallows stderr) still leaves a
+// post-mortem log behind. Honors LOCALFINANCE_LOG_FILE for override.
+func initLogging() {
+	logPath := os.Getenv("LOCALFINANCE_LOG_FILE")
+	if logPath == "" {
+		logDir := filepath.Join(dataDir(), "logs")
+		if err := os.MkdirAll(logDir, 0o755); err != nil {
+			// Can't write logs; stderr will have to do.
+			return
+		}
+		logPath = filepath.Join(logDir, "server.log")
+	}
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return
+	}
+	w := io.MultiWriter(os.Stderr, f)
+	slog.SetDefault(slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: slog.LevelInfo})))
+}
+
 func main() {
+	initLogging()
 	// If DB_HOST is unset, run an embedded Postgres for the .app build path.
 	// If DB_HOST is set, connect to a host Postgres (dev/Docker).
 	if os.Getenv("DB_HOST") == "" {
@@ -70,17 +93,25 @@ func main() {
 		slog.Error("ai config load failed", "err", err)
 		os.Exit(1)
 	}
+	// First-run setup-mode: if MODEL_NAME=auto and no model is installed yet,
+	// or Ollama itself isn't reachable, we DON'T fail-fast. The /api/setup/*
+	// wizard is a public route group and will guide the user through Ollama
+	// install + model pull. The binary still boots; AI features just won't
+	// work until a model is present.
+	setupMode := false
 	if aiCfg.AI.ModelName == "" || strings.EqualFold(aiCfg.AI.ModelName, "auto") {
 		selectCtx, selectCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		selectClient := &http.Client{Timeout: 10 * time.Second}
 		picked, err := ai.SelectBestModel(selectCtx, selectClient, aiCfg.AI.OllamaHost)
 		selectCancel()
 		if err != nil {
-			slog.Error("auto model selection failed", "err", err)
-			os.Exit(1)
+			slog.Warn("auto model selection deferred — entering setup mode", "err", err)
+			setupMode = true
+			aiCfg.AI.ModelName = ""
+		} else {
+			slog.Info("auto-selected model", "model", picked)
+			aiCfg.AI.ModelName = picked
 		}
-		slog.Info("auto-selected model", "model", picked)
-		aiCfg.AI.ModelName = picked
 	}
 	aiSvc, err := ai.NewService(aiCfg.AI)
 	if err != nil {
@@ -101,18 +132,22 @@ func main() {
 	}
 	aiSvc.SetThesaurusURL(thesaurusURL)
 
-	if os.Getenv("SKIP_OLLAMA_PROBE") != "1" {
+	if os.Getenv("SKIP_OLLAMA_PROBE") == "1" {
+		slog.Info("ollama probe skipped (SKIP_OLLAMA_PROBE=1)")
+	} else if setupMode {
+		slog.Info("running in setup mode — wizard at /setup will guide first-run install")
+	} else {
 		probeCtx, probeCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		probeClient := &http.Client{Timeout: 10 * time.Second}
-		if err := ai.Probe(probeCtx, probeClient, aiCfg.AI.OllamaHost, aiCfg.AI.ModelName); err != nil {
-			probeCancel()
-			slog.Error("ollama probe failed", "err", err)
-			os.Exit(1)
-		}
+		err := ai.Probe(probeCtx, probeClient, aiCfg.AI.OllamaHost, aiCfg.AI.ModelName)
 		probeCancel()
-		slog.Info("ollama probe ok", "model", aiCfg.AI.ModelName, "host", aiCfg.AI.OllamaHost)
-	} else {
-		slog.Info("ollama probe skipped (SKIP_OLLAMA_PROBE=1)")
+		if err != nil {
+			// Non-fatal: enter setup mode so the wizard can guide the user.
+			slog.Warn("ollama probe failed — entering setup mode", "err", err)
+			setupMode = true
+		} else {
+			slog.Info("ollama probe ok", "model", aiCfg.AI.ModelName, "host", aiCfg.AI.OllamaHost)
+		}
 	}
 
 	router := api.NewGinRouterWithAI(db, aiSvc, aiCfg.AI.ModelName)

@@ -1,9 +1,14 @@
 import axios from 'axios';
 
-// Create axios instance with base configuration
+// After the consolidation (Phase 1.5), every endpoint lives on the same
+// Go binary at /api/v1/* (with a few unversioned ones at /api/setup/* and
+// /health). The legacy Iris Express proxy that used to map /api/auth/*,
+// /api/upload/*, and /api/proxy/<svc>/* into Thesaurus/Sophia/Logos paths
+// is gone. baseURL is empty so every call below uses full absolute paths
+// matching the server.
 const apiClient = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || '/api',
-  timeout: 300000, // 300s for Ollama inference on Jetson (AI parse can take 2-3min)
+  baseURL: process.env.REACT_APP_API_URL || '',
+  timeout: 300000, // 300s for Ollama inference (AI parse can take 2-3min)
   headers: {
     'Content-Type': 'application/json',
   },
@@ -48,108 +53,90 @@ apiClient.interceptors.response.use(
   }
 );
 
-// Auth API
+// Auth API — server: /api/v1/auth/*
 export const authAPI = {
-  login: (credentials) => apiClient.post('/auth/login', credentials),
-  register: (data) => apiClient.post('/auth/register', data),
-  logout: () => apiClient.post('/auth/logout'),
-  getMe: () => apiClient.get('/auth/me'),
-  refresh: () => apiClient.post('/auth/refresh'),
-  validate: (token) => apiClient.post('/auth/validate', { token }),
+  login: (credentials) => apiClient.post('/api/v1/auth/login', credentials),
+  register: (data) => apiClient.post('/api/v1/auth/register', data),
+  logout: () => apiClient.post('/api/v1/auth/logout'),
+  getMe: () => apiClient.get('/api/v1/auth/me'),
+  refresh: () => apiClient.post('/api/v1/auth/refresh'),
+  validate: (token) => apiClient.post('/api/v1/auth/validate', { token }),
   changePassword: ({ current_password, new_password }) =>
-    apiClient.post('/auth/change-password', { current_password, new_password }),
+    apiClient.post('/api/v1/auth/change-password', { current_password, new_password }),
 };
 
-// Document API (polling for processing status)
+// Document API — server: /api/v1/documents/* and /api/v1/transactions/by-document
 export const documentAPI = {
-  getStatus: (documentId) => apiClient.get(`/upload/status/${documentId}`),
-  getTransactions: (documentId) => apiClient.get('/upload/transactions', { params: { document_id: documentId } }),
+  getStatus: (documentId) =>
+    apiClient.get(`/api/v1/documents/${encodeURIComponent(documentId)}`),
+  getTransactions: (documentId) =>
+    apiClient.get('/api/v1/transactions/by-document', { params: { document_id: documentId } }),
 };
 
-// Upload API
+// Upload API — server: POST /api/v1/upload (single file, multipart). The old
+// /upload/multiple, /upload/files, /upload/files/:name endpoints don't exist
+// on the consolidated binary; multiple-file flows just call single() in a loop.
 export const uploadAPI = {
   single: (file, onProgress) => {
     const formData = new FormData();
     formData.append('file', file);
-    
-    return apiClient.post('/upload/single', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+    return apiClient.post('/api/v1/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: onProgress,
     });
   },
-  
-  multiple: (files, onProgress) => {
-    const formData = new FormData();
-    files.forEach((file) => {
-      formData.append('files', file);
-    });
-    
-    return apiClient.post('/upload/multiple', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      onUploadProgress: onProgress,
-    });
-  },
-  
-  getFiles: () => apiClient.get('/upload/files'),
-  deleteFile: (filename) => apiClient.delete(`/upload/files/${filename}`),
 };
 
-// Proxy API
+// proxyAPI shim — kept so existing pages (Profile, Dashboard polling, etc.)
+// keep working. Each method routes the caller's already-fully-qualified path
+// straight to the server. Pre-consolidation, /api/proxy/<svc> would hop through
+// Iris; now there's no hop.
 export const proxyAPI = {
-  health: () => apiClient.get('/proxy/health'),
-  services: () => apiClient.get('/proxy/services'),
-  batch: (requests) => apiClient.post('/proxy/batch', { requests }),
-  
-  // Service-specific methods
-  hermes: {
-    get: (path, params) => apiClient.get(`/proxy/hermes${path}`, { params }),
-    post: (path, data) => apiClient.post(`/proxy/hermes${path}`, data),
-    put: (path, data) => apiClient.put(`/proxy/hermes${path}`, data),
-    delete: (path) => apiClient.delete(`/proxy/hermes${path}`),
-  },
-  
   thesaurus: {
-    get: (path, params, config) => apiClient.get(`/proxy/thesaurus${path}`, { params, ...config }),
-    post: (path, data, config) => apiClient.post(`/proxy/thesaurus${path}`, data, config),
-    put: (path, data, config) => apiClient.put(`/proxy/thesaurus${path}`, data, config),
-    delete: (path, config) => apiClient.delete(`/proxy/thesaurus${path}`, config),
+    get: (path, params, config) => apiClient.get(path, { params, ...config }),
+    post: (path, data, config) => apiClient.post(path, data, config),
+    put: (path, data, config) => apiClient.put(path, data, config),
+    delete: (path, config) => apiClient.delete(path, config),
   },
-  
-  logos: {
-    get: (path, params) => apiClient.get(`/proxy/logos${path}`, { params }),
-    post: (path, data) => apiClient.post(`/proxy/logos${path}`, data),
-    put: (path, data) => apiClient.put(`/proxy/logos${path}`, data),
-    delete: (path) => apiClient.delete(`/proxy/logos${path}`),
-  },
-  
   sophia: {
-    get: (path, params) => apiClient.get(`/proxy/sophia${path}`, { params }),
-    post: (path, data) => apiClient.post(`/proxy/sophia${path}`, data),
-    put: (path, data) => apiClient.put(`/proxy/sophia${path}`, data),
-    delete: (path) => apiClient.delete(`/proxy/sophia${path}`),
+    get: (path, params) => apiClient.get(path, { params }),
+    post: (path, data) => apiClient.post(path, data),
+    put: (path, data) => apiClient.put(path, data),
+    delete: (path) => apiClient.delete(path),
+  },
+  // Hermes was a thin gateway service that's now gone. Logos got folded into
+  // the parse pipeline. Both kept here as no-op shims so existing imports
+  // don't blow up — but pages should stop using them.
+  hermes: {
+    get: (path, params) => apiClient.get(path, { params }),
+    post: (path, data) => apiClient.post(path, data),
+    put: (path, data) => apiClient.put(path, data),
+    delete: (path) => apiClient.delete(path),
+  },
+  logos: {
+    get: (path, params) => apiClient.get(path, { params }),
+    post: (path, data) => apiClient.post(path, data),
+    put: (path, data) => apiClient.put(path, data),
+    delete: (path) => apiClient.delete(path),
   },
 };
 
-// Insights / Month-in-Review API (Iris -> Sophia/Thesaurus)
+// Insights / Month-in-Review API — server: /api/v1/insights/*, /api/v1/month-review/*
 export const insightsAPI = {
-  list: (userId) => apiClient.get(`/v1/insights/${encodeURIComponent(userId)}`),
-  generate: (userId, period) => apiClient.post('/v1/insights/', { user_id: userId, period }),
+  list: (userId) => apiClient.get(`/api/v1/insights/${encodeURIComponent(userId)}`),
+  generate: (userId, period) => apiClient.post('/api/v1/insights/', { user_id: userId, period }),
   dismiss: (userId, { insight_key, rule_id }) =>
-    apiClient.post(`/v1/insights/${encodeURIComponent(userId)}/dismiss`, { insight_key, rule_id }),
+    apiClient.post(`/api/v1/insights/${encodeURIComponent(userId)}/dismiss`, { insight_key, rule_id }),
 };
 
 export const monthReviewAPI = {
   get: (period, userId) =>
-    apiClient.get(`/v1/month-review/${encodeURIComponent(period)}`, { params: { user_id: userId } }),
+    apiClient.get(`/api/v1/month-review/${encodeURIComponent(period)}`, { params: { user_id: userId } }),
   invalidate: (period, userId) =>
-    apiClient.delete(`/v1/month-review/${encodeURIComponent(period)}`, { params: { user_id: userId } }),
+    apiClient.delete(`/api/v1/month-review/${encodeURIComponent(period)}`, { params: { user_id: userId } }),
 };
 
-// Health check
+// Health check — unversioned, served at root
 export const healthAPI = {
   check: () => apiClient.get('/health'),
 };
@@ -184,11 +171,9 @@ export const clearAuthData = () => {
 // Format file size
 export const formatFileSize = (bytes) => {
   if (bytes === 0) return '0 Bytes';
-  
   const k = 1024;
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
@@ -205,9 +190,9 @@ export const handleAsync = async (asyncFn, errorMessage = 'Operation failed') =>
     return { data: result.data, error: null };
   } catch (error) {
     console.error(errorMessage, error);
-    return { 
-      data: null, 
-      error: error.message || errorMessage 
+    return {
+      data: null,
+      error: error.message || errorMessage,
     };
   }
 };

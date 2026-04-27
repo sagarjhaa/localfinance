@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sagarjhaa/localfinance/services/sophia/models"
+	models "github.com/sagarjhaa/localfinance/internal/ai"
 )
 
 func runRule(rule Rule, txs []models.TransactionRef) []Insight {

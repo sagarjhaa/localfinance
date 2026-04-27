@@ -12,17 +12,17 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sagarjhaa/localfinance/internal/ai"
 	"github.com/sagarjhaa/localfinance/internal/insights"
-	"github.com/sagarjhaa/localfinance/services/sophia/models"
 )
 
 // fakeFetcher implements TransactionFetcher for the handler tests.
 type fakeFetcher struct {
-	txs []models.TransactionRef
+	txs []ai.TransactionRef
 	err error
 }
 
-func (f *fakeFetcher) FetchTransactionsSince(_ string, _ time.Time) ([]models.TransactionRef, error) {
+func (f *fakeFetcher) FetchTransactionsSince(_ string, _ time.Time) ([]ai.TransactionRef, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -46,8 +46,8 @@ func newTestHandler(fetcher TransactionFetcher, now time.Time) *InsightsHandler 
 	}
 }
 
-func tx(id string, daysAgoFromNow int, now time.Time, desc, category string, amt float64) models.TransactionRef {
-	return models.TransactionRef{
+func tx(id string, daysAgoFromNow int, now time.Time, desc, category string, amt float64) ai.TransactionRef {
+	return ai.TransactionRef{
 		ID:          id,
 		Date:        now.AddDate(0, 0, -daysAgoFromNow).Format(time.RFC3339),
 		Description: desc,
@@ -63,7 +63,7 @@ func TestGenerateInsights_Success(t *testing.T) {
 
 	// Build txs that should trigger detectNewRecurringMerchant: 2 charges in
 	// last 30d, none earlier.
-	txs := []models.TransactionRef{
+	txs := []ai.TransactionRef{
 		tx("a", 28, now, "ChatGPT Plus", "Software", 20),
 		tx("b", 1, now, "ChatGPT Plus", "Software", 20),
 	}
@@ -73,7 +73,7 @@ func TestGenerateInsights_Success(t *testing.T) {
 	router := gin.New()
 	router.POST("/insights", h.GenerateInsights)
 
-	body, _ := json.Marshal(models.InsightsRequest{UserID: "u1", Period: "the last 90 days"})
+	body, _ := json.Marshal(ai.InsightsRequest{UserID: "u1", Period: "the last 90 days"})
 	req := httptest.NewRequest("POST", "/insights", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -85,7 +85,7 @@ func TestGenerateInsights_Success(t *testing.T) {
 
 	var got struct {
 		UserID    string                    `json:"user_id"`
-		Insights  []models.FinancialInsight `json:"insights"`
+		Insights  []ai.FinancialInsight `json:"insights"`
 		Narrative struct {
 			Overall    string            `json:"overall"`
 			PerInsight map[string]string `json:"per_insight"`
@@ -122,7 +122,7 @@ func TestGenerateInsights_Success(t *testing.T) {
 	}
 }
 
-func insightTypes(xs []models.FinancialInsight) []string {
+func insightTypes(xs []ai.FinancialInsight) []string {
 	out := make([]string, 0, len(xs))
 	for _, x := range xs {
 		out = append(out, x.Type)
@@ -138,7 +138,7 @@ func TestGenerateInsights_FetcherError(t *testing.T) {
 	router := gin.New()
 	router.POST("/insights", h.GenerateInsights)
 
-	body, _ := json.Marshal(models.InsightsRequest{UserID: "u1"})
+	body, _ := json.Marshal(ai.InsightsRequest{UserID: "u1"})
 	req := httptest.NewRequest("POST", "/insights", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -173,7 +173,7 @@ func TestGenerateInsights_EmptyTransactions(t *testing.T) {
 	router := gin.New()
 	router.POST("/insights", h.GenerateInsights)
 
-	body, _ := json.Marshal(models.InsightsRequest{UserID: "u1"})
+	body, _ := json.Marshal(ai.InsightsRequest{UserID: "u1"})
 	req := httptest.NewRequest("POST", "/insights", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()

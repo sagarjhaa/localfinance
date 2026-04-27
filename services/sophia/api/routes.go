@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sagarjhaa/localfinance/services/sophia/ai"
-	"github.com/sagarjhaa/localfinance/services/sophia/api/handlers"
+	"github.com/sagarjhaa/localfinance/internal/ai"
+	"github.com/sagarjhaa/localfinance/internal/api/handlers"
 	"github.com/sagarjhaa/localfinance/services/sophia/config"
 	"github.com/sagarjhaa/localfinance/internal/insights"
 	"github.com/sagarjhaa/localfinance/internal/monthreview"

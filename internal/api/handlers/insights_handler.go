@@ -7,15 +7,14 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sagarjhaa/localfinance/services/sophia/ai"
+	"github.com/sagarjhaa/localfinance/internal/ai"
 	"github.com/sagarjhaa/localfinance/internal/insights"
-	"github.com/sagarjhaa/localfinance/services/sophia/models"
 )
 
 // TransactionFetcher is what the handler needs from a Thesaurus client. The
 // concrete implementation in production is *ai.Service. Tests inject fakes.
 type TransactionFetcher interface {
-	FetchTransactionsSince(userID string, start time.Time) ([]models.TransactionRef, error)
+	FetchTransactionsSince(userID string, start time.Time) ([]ai.TransactionRef, error)
 }
 
 // InsightsHandler wires together the deterministic insights engine, a narrator,
@@ -63,7 +62,7 @@ func NewInsightsHandler(aiService *ai.Service) *InsightsHandler {
 // findings, and returns both the structured FinancialInsight list and the
 // narrative.
 func (h *InsightsHandler) GenerateInsights(c *gin.Context) {
-	var request models.InsightsRequest
+	var request ai.InsightsRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -114,7 +113,7 @@ func (h *InsightsHandler) GenerateInsights(c *gin.Context) {
 		}
 	}
 
-	publicInsights := make([]models.FinancialInsight, 0, len(engineInsights))
+	publicInsights := make([]ai.FinancialInsight, 0, len(engineInsights))
 	for _, ins := range engineInsights {
 		fi := ins.ToFinancialInsight()
 		// Prefer narrator's per-insight prose (deterministic, factual) over the
@@ -176,7 +175,7 @@ func (h *InsightsHandler) GetUserInsights(c *gin.Context) {
 		Start: windowStart, End: now,
 	})
 
-	publicInsights := make([]models.FinancialInsight, 0, len(engineInsights))
+	publicInsights := make([]ai.FinancialInsight, 0, len(engineInsights))
 	for _, ins := range engineInsights {
 		fi := ins.ToFinancialInsight()
 		if t, ok := narrative.PerInsight[ins.Key]; ok && t != "" {
@@ -195,17 +194,17 @@ func (h *InsightsHandler) GetUserInsights(c *gin.Context) {
 // AnalyzeSpendingPatterns remains a stub that returns a canned analysis shape.
 // The new structured insights live on GenerateInsights / GetUserInsights.
 func (h *InsightsHandler) AnalyzeSpendingPatterns(c *gin.Context) {
-	var request models.InsightsRequest
+	var request ai.InsightsRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	analysis := models.SpendingAnalysis{
+	analysis := ai.SpendingAnalysis{
 		UserID:        request.UserID,
 		Period:        "monthly",
 		TotalSpending: 0.0,
-		CategoryBreakdown: map[string]models.CategoryStats{
+		CategoryBreakdown: map[string]ai.CategoryStats{
 			"Food": {
 				Amount: 250.0, Count: 15, Percentage: 25.0, Average: 16.67, Trend: "stable",
 			},
@@ -213,7 +212,7 @@ func (h *InsightsHandler) AnalyzeSpendingPatterns(c *gin.Context) {
 				Amount: 180.0, Count: 8, Percentage: 18.0, Average: 22.50, Trend: "increasing",
 			},
 		},
-		Trends: []models.SpendingTrend{
+		Trends: []ai.SpendingTrend{
 			{
 				Category: "Food", Direction: "stable", Magnitude: 2.5,
 				Description: "Food spending has remained consistent over the past month",

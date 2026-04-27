@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/sagarjhaa/localfinance/internal/insights"
-	"github.com/sagarjhaa/localfinance/services/sophia/models"
+	models "github.com/sagarjhaa/localfinance/internal/ai"
 )
 
 // engineRunner is the slice of *insights.Engine the service depends on.

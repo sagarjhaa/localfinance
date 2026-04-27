@@ -7,16 +7,42 @@
 package api
 
 import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+	"time"
+
 	"github.com/gin-gonic/gin"
+	"github.com/sagarjhaa/localfinance/internal/ai"
 	"github.com/sagarjhaa/localfinance/internal/api/handlers"
 	"github.com/sagarjhaa/localfinance/internal/api/middleware"
+	"github.com/sagarjhaa/localfinance/internal/insights"
+	"github.com/sagarjhaa/localfinance/internal/monthreview"
+	sophiaconfig "github.com/sagarjhaa/localfinance/services/sophia/config"
 	"gorm.io/gorm"
 )
 
 // NewGinRouter builds the consolidated Gin router. db is the shared GORM
 // handle; handlers are constructed once at startup so per-request work stays
 // allocation-light.
+// NewGinRouter constructs the consolidated router with the database handle.
+// AI service is built internally from env (OLLAMA_HOST, MODEL_NAME, THESAURUS_URL)
+// so existing tests that only need DB-backed routes don't have to wire Ollama.
 func NewGinRouter(db *gorm.DB) *gin.Engine {
+	cfg, _ := sophiaconfig.Load()
+	aiSvc, _ := ai.NewService(cfg.AI)
+	thesaurusURL := os.Getenv("THESAURUS_URL")
+	if thesaurusURL == "" {
+		thesaurusURL = cfg.Thesaurus.BaseURL
+	}
+	aiSvc.SetThesaurusURL(thesaurusURL)
+	return NewGinRouterWithAI(db, aiSvc, cfg.AI.ModelName)
+}
+
+// NewGinRouterWithAI builds the router with an explicit AI service. Lets the
+// process entrypoint share the AI service across routes and probes.
+func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
@@ -31,6 +57,21 @@ func NewGinRouter(db *gorm.DB) *gin.Engine {
 	conversationHandler := handlers.NewConversationHandler(db)
 	preferenceHandler := handlers.NewPreferenceHandler(db)
 	dismissedInsightsHandler := handlers.NewDismissedInsightsHandler(db)
+
+	// AI-tier handlers (Sophia legacy).
+	chatHandler := handlers.NewChatHandler(aiSvc)
+	insightsHandler := handlers.NewInsightsHandler(aiSvc)
+	categorizeHandler := handlers.NewCategorizeHandler(aiSvc)
+
+	// Wire month-review service. Mirrors services/sophia/api/routes.go.
+	mrDismiss := insights.NewThesaurusDismissalFetcher(os.Getenv("THESAURUS_URL"))
+	mrDismiss.Client = &http.Client{Timeout: 5 * time.Second}
+	var mrNarrator insights.Narrator = insights.NewTemplateNarrator()
+	if os.Getenv("INSIGHTS_LLM_POLISH") == "1" {
+		mrNarrator = insights.NewLLMNarrator(aiSvc)
+	}
+	mrService := monthreview.NewService(insights.NewEngine(mrDismiss), mrNarrator, aiSvc)
+	monthReviewHandler := handlers.NewMonthReviewHandler(mrService)
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "healthy", "service": "localfinance"})
@@ -157,6 +198,127 @@ func NewGinRouter(db *gorm.DB) *gin.Engine {
 				budgets.GET("/user/:userId", budgetHandler.GetBudgetsByUser)
 			}
 		}
+
+		// AI-tier routes (formerly Sophia, port 8002). Now served on the unified
+		// router so Iris can call /api/v1/chat/, /insights/, /categorize/, etc.
+		chat := v1.Group("/chat")
+		{
+			chat.POST("/", chatHandler.HandleFinancialQuery)
+			chat.GET("/history/:userId", chatHandler.GetChatHistory)
+		}
+
+		insightsGrp := v1.Group("/insights")
+		{
+			insightsGrp.POST("/", insightsHandler.GenerateInsights)
+			insightsGrp.GET("/:userId", insightsHandler.GetUserInsights)
+			insightsGrp.POST("/:userId/dismiss", dismissedInsightsHandler.Create)
+			insightsGrp.POST("/analyze", insightsHandler.AnalyzeSpendingPatterns)
+		}
+
+		categorize := v1.Group("/categorize")
+		{
+			categorize.POST("/", categorizeHandler.CategorizeTransaction)
+			categorize.POST("/batch", categorizeHandler.CategorizeTransactionBatch)
+		}
+
+		// Month-in-Review: internal generate (no auth), public get/delete.
+		v1.POST("/internal/month-review/generate", monthReviewHandler.Generate)
+		v1.GET("/month-review/:period", monthReviewHandler.Get)
+		v1.DELETE("/month-review/:period", monthReviewHandler.Delete)
+
+		// AI parsing endpoints (consumed by upload pipeline).
+		v1.POST("/parse", func(c *gin.Context) {
+			var req struct {
+				Text   string `json:"text" binding:"required"`
+				UserID string `json:"user_id"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(400, gin.H{"error": err.Error()})
+				return
+			}
+			userModel := modelName
+			if req.UserID != "" {
+				userModel = aiSvc.GetUserModelPreference(req.UserID)
+			}
+			transactions, err := aiSvc.ParseTransactions(req.Text, userModel)
+			if err != nil {
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(200, gin.H{
+				"transactions": transactions,
+				"count":        len(transactions),
+				"model":        userModel,
+			})
+		})
+
+		v1.POST("/parse-images", func(c *gin.Context) {
+			var req struct {
+				Images []string `json:"images" binding:"required"`
+				UserID string   `json:"user_id"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(400, gin.H{"error": err.Error()})
+				return
+			}
+			if len(req.Images) == 0 {
+				c.JSON(400, gin.H{"error": "images array is empty"})
+				return
+			}
+			userModel := modelName
+			if req.UserID != "" {
+				userModel = aiSvc.GetUserModelPreference(req.UserID)
+			}
+			transactions, err := aiSvc.ParseTransactionsFromImages(req.Images, userModel)
+			if err != nil {
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(200, gin.H{
+				"transactions": transactions,
+				"count":        len(transactions),
+				"model":        userModel,
+			})
+		})
+
+		v1.GET("/models", func(c *gin.Context) {
+			resp, err := http.Get(aiSvc.GetOllamaHost() + "/api/tags")
+			if err != nil {
+				c.JSON(500, gin.H{"error": "Failed to connect to Ollama"})
+				return
+			}
+			defer resp.Body.Close()
+			var result struct {
+				Models []struct {
+					Name       string `json:"name"`
+					Size       int64  `json:"size"`
+					ModifiedAt string `json:"modified_at"`
+				} `json:"models"`
+			}
+			_ = json.NewDecoder(resp.Body).Decode(&result)
+			type ModelInfo struct {
+				Name string `json:"name"`
+				Size string `json:"size"`
+			}
+			var modelsOut []ModelInfo
+			for _, m := range result.Models {
+				sizeGB := float64(m.Size) / 1e9
+				sizeStr := fmt.Sprintf("%.1f GB", sizeGB)
+				if sizeGB < 1 {
+					sizeStr = fmt.Sprintf("%.0f MB", float64(m.Size)/1e6)
+				}
+				modelsOut = append(modelsOut, ModelInfo{Name: m.Name, Size: sizeStr})
+			}
+			c.JSON(200, modelsOut)
+		})
+
+		v1.GET("/status/", func(c *gin.Context) {
+			c.JSON(200, gin.H{
+				"ai_service": "operational",
+				"model":      modelName,
+				"endpoints":  []string{"/api/v1/chat", "/api/v1/insights", "/api/v1/categorize"},
+			})
+		})
 	}
 
 	return router

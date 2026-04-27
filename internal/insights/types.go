@@ -10,7 +10,7 @@ package insights
 import (
 	"time"
 
-	"github.com/sagarjhaa/localfinance/services/sophia/models"
+	models "github.com/sagarjhaa/localfinance/internal/ai"
 )
 
 // Rule IDs are stable string constants. They are part of the Insight.Key digest, so

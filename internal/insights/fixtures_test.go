@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sagarjhaa/localfinance/services/sophia/models"
+	models "github.com/sagarjhaa/localfinance/internal/ai"
 )
 
 // fixedNow is the pinned "current time" used by all tests. Picked as a Wednesday

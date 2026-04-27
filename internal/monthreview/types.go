@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/sagarjhaa/localfinance/internal/insights"
-	"github.com/sagarjhaa/localfinance/services/sophia/models"
+	models "github.com/sagarjhaa/localfinance/internal/ai"
 )
 
 // Period identifies a calendar month in UTC.

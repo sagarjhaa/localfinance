@@ -4,8 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sagarjhaa/localfinance/services/sophia/ai"
-	"github.com/sagarjhaa/localfinance/services/sophia/models"
+	"github.com/sagarjhaa/localfinance/internal/ai"
 )
 
 type CategorizeHandler struct {
@@ -17,7 +16,7 @@ func NewCategorizeHandler(aiService *ai.Service) *CategorizeHandler {
 }
 
 func (h *CategorizeHandler) CategorizeTransaction(c *gin.Context) {
-	var request models.CategorizationRequest
+	var request ai.CategorizationRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -42,7 +41,7 @@ func (h *CategorizeHandler) CategorizeTransaction(c *gin.Context) {
 }
 
 func (h *CategorizeHandler) CategorizeTransactionBatch(c *gin.Context) {
-	var requests []models.CategorizationRequest
+	var requests []ai.CategorizationRequest
 	if err := c.ShouldBindJSON(&requests); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

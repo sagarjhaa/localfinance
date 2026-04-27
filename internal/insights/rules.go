@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sagarjhaa/localfinance/services/sophia/models"
+	models "github.com/sagarjhaa/localfinance/internal/ai"
 )
 
 // txDateFormats are the layouts we accept on TransactionRef.Date. Sophia gets dates

@@ -6,8 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/sagarjhaa/localfinance/services/sophia/ai"
-	"github.com/sagarjhaa/localfinance/services/sophia/models"
+	"github.com/sagarjhaa/localfinance/internal/ai"
 )
 
 type ChatHandler struct {
@@ -19,7 +18,7 @@ func NewChatHandler(aiService *ai.Service) *ChatHandler {
 }
 
 func (h *ChatHandler) HandleFinancialQuery(c *gin.Context) {
-	var query models.FinancialQuery
+	var query ai.FinancialQuery
 	if err := c.ShouldBindJSON(&query); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -51,7 +50,7 @@ func (h *ChatHandler) GetChatHistory(c *gin.Context) {
 	// For now, return empty history - in production, this would query a chat history store
 	c.JSON(http.StatusOK, gin.H{
 		"user_id": userID,
-		"messages": []models.ChatMessage{},
+		"messages": []ai.ChatMessage{},
 		"message": "Chat history feature coming soon",
 	})
 }
@@ -60,7 +59,7 @@ func (h *ChatHandler) GetChatHistory(c *gin.Context) {
 func (h *ChatHandler) saveChatMessage(userID, question, answer string) error {
 	// TODO: Implement chat history persistence
 	// This would save to a chat_messages table or similar
-	message := models.ChatMessage{
+	message := ai.ChatMessage{
 		ID:        uuid.New(),
 		UserID:    userID,
 		Message:   question,

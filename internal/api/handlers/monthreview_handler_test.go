@@ -10,14 +10,14 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sagarjhaa/localfinance/internal/ai"
 	"github.com/sagarjhaa/localfinance/internal/insights"
-	"github.com/sagarjhaa/localfinance/services/sophia/models"
 	"github.com/sagarjhaa/localfinance/internal/monthreview"
 )
 
-type stubFetcher struct{ txns []models.TransactionRef }
+type stubFetcher struct{ txns []ai.TransactionRef }
 
-func (s *stubFetcher) FetchTransactionsSince(_ string, _ time.Time) ([]models.TransactionRef, error) {
+func (s *stubFetcher) FetchTransactionsSince(_ string, _ time.Time) ([]ai.TransactionRef, error) {
 	return s.txns, nil
 }
 
@@ -37,12 +37,12 @@ func (stubNarrator) Narrate(_ context.Context, _ []insights.Insight, _ insights.
 	}, nil
 }
 
-func newTestRouter() (*gin.Engine, *monthreview.Service) {
+func newMonthReviewTestRouter() (*gin.Engine, *monthreview.Service) {
 	gin.SetMode(gin.TestMode)
 	svc := &monthreview.Service{
 		Engine:       stubEngine{},
 		Narrator:     stubNarrator{},
-		Transactions: &stubFetcher{txns: []models.TransactionRef{{Date: "2026-04-12", Amount: 10}}},
+		Transactions: &stubFetcher{txns: []ai.TransactionRef{{Date: "2026-04-12", Amount: 10}}},
 		Cache:        monthreview.NewMemoryCache(),
 		Clock:        func() time.Time { return time.Date(2026, 4, 30, 0, 0, 0, 0, time.UTC) },
 	}
@@ -55,7 +55,7 @@ func newTestRouter() (*gin.Engine, *monthreview.Service) {
 }
 
 func TestMonthReview_InternalGenerate(t *testing.T) {
-	r, svc := newTestRouter()
+	r, svc := newMonthReviewTestRouter()
 
 	body, _ := json.Marshal(map[string]string{"user_id": "u-1", "period": "2026-04"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/internal/month-review/generate", bytes.NewReader(body))
@@ -79,7 +79,7 @@ func TestMonthReview_InternalGenerate(t *testing.T) {
 }
 
 func TestMonthReview_PublicGet_QueryUserID(t *testing.T) {
-	r, _ := newTestRouter()
+	r, _ := newMonthReviewTestRouter()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/month-review/2026-04?user_id=u-2", nil)
 	w := httptest.NewRecorder()
@@ -90,7 +90,7 @@ func TestMonthReview_PublicGet_QueryUserID(t *testing.T) {
 }
 
 func TestMonthReview_PublicGet_BadPeriod(t *testing.T) {
-	r, _ := newTestRouter()
+	r, _ := newMonthReviewTestRouter()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/month-review/bogus?user_id=u", nil)
 	w := httptest.NewRecorder()
@@ -101,7 +101,7 @@ func TestMonthReview_PublicGet_BadPeriod(t *testing.T) {
 }
 
 func TestMonthReview_PublicGet_MissingUser(t *testing.T) {
-	r, _ := newTestRouter()
+	r, _ := newMonthReviewTestRouter()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/month-review/2026-04", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -111,7 +111,7 @@ func TestMonthReview_PublicGet_MissingUser(t *testing.T) {
 }
 
 func TestMonthReview_DeleteInvalidates(t *testing.T) {
-	r, svc := newTestRouter()
+	r, svc := newMonthReviewTestRouter()
 	svc.Cache.Set("u-3", monthreview.Period{Year: 2026, Month: 4}, monthreview.MonthReview{UserID: "u-3", Period: "2026-04"})
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/month-review/2026-04?user_id=u-3", nil)

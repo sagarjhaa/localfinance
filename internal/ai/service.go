@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/sagarjhaa/localfinance/services/sophia/config"
-	"github.com/sagarjhaa/localfinance/services/sophia/models"
 )
 
 type Service struct {
@@ -151,7 +150,7 @@ func isConversational(question string) bool {
 	return false
 }
 
-func (s *Service) handleConversational(question string, userModel string) (models.AIResponse, error) {
+func (s *Service) handleConversational(question string, userModel string) (AIResponse, error) {
 	prompt := fmt.Sprintf(`You are a friendly financial assistant for LocalFinance, a privacy-first personal finance app.
 The user said: "%s"
 
@@ -159,10 +158,10 @@ Respond naturally and briefly. If it's a greeting, greet back and mention what y
 
 	response, err := s.queryOllamaWithModel(prompt, 0.7, userModel)
 	if err != nil {
-		return models.AIResponse{}, err
+		return AIResponse{}, err
 	}
 
-	return models.AIResponse{
+	return AIResponse{
 		Answer:     response,
 		Confidence: 1.0,
 	}, nil
@@ -170,7 +169,7 @@ Respond naturally and briefly. If it's a greeting, greet back and mention what y
 
 // AnswerFinancialQuery orchestrates conversation persistence and query handling.
 // It creates/reuses a conversation, saves messages, and generates titles for new conversations.
-func (s *Service) AnswerFinancialQuery(query models.FinancialQuery) (models.AIResponse, error) {
+func (s *Service) AnswerFinancialQuery(query FinancialQuery) (AIResponse, error) {
 	// Determine conversation ID — reuse existing or create new
 	conversationID := query.ConversationID
 	isNewConversation := false
@@ -195,7 +194,7 @@ func (s *Service) AnswerFinancialQuery(query models.FinancialQuery) (models.AIRe
 	userModel := s.GetUserModelPreference(query.UserID)
 
 	// Route to appropriate handler
-	var response models.AIResponse
+	var response AIResponse
 	var err error
 	if isConversational(query.Question) {
 		response, err = s.handleConversational(query.Question, userModel)
@@ -203,7 +202,7 @@ func (s *Service) AnswerFinancialQuery(query models.FinancialQuery) (models.AIRe
 		response, err = s.handleFinancialQuery(query, userModel)
 	}
 	if err != nil {
-		return models.AIResponse{}, err
+		return AIResponse{}, err
 	}
 
 	response.Model = userModel
@@ -229,20 +228,20 @@ func (s *Service) AnswerFinancialQuery(query models.FinancialQuery) (models.AIRe
 // Pass 1: LLM parses user question → structured query intent (API params)
 // Execute: Call Thesaurus REST API with those params → real transaction data
 // Pass 2: Real data + original question → LLM generates natural language answer
-func (s *Service) handleFinancialQuery(query models.FinancialQuery, userModel string) (models.AIResponse, error) {
+func (s *Service) handleFinancialQuery(query FinancialQuery, userModel string) (AIResponse, error) {
 	// Pass 1: Parse user question into structured query intent
 	intent, err := s.parseQueryIntent(query.Question, userModel)
 	if err != nil {
 		log.Printf("Pass 1 failed, falling back to generic: %v", err)
 		// Fallback: just get recent transactions
-		intent = &models.QueryIntent{NeedsSearch: true, Limit: 50}
+		intent = &QueryIntent{NeedsSearch: true, Limit: 50}
 	}
 
 	log.Printf("Query intent: %+v", intent)
 
 	// Execute: Fetch real data from Thesaurus based on intent
-	var transactions []models.TransactionRef
-	var summaryItems []models.SpendingSummaryItem
+	var transactions []TransactionRef
+	var summaryItems []SpendingSummaryItem
 
 	if intent.NeedsSummary {
 		summaryItems, err = s.fetchSpendingSummary(query.UserID, intent.StartDate, intent.EndDate)
@@ -269,10 +268,10 @@ func (s *Service) handleFinancialQuery(query models.FinancialQuery, userModel st
 	// Pass 2: Generate natural language answer from real data
 	answer, err := s.generateAnswer(query.Question, dataContext, userModel)
 	if err != nil {
-		return models.AIResponse{}, fmt.Errorf("failed to generate answer: %w", err)
+		return AIResponse{}, fmt.Errorf("failed to generate answer: %w", err)
 	}
 
-	return models.AIResponse{
+	return AIResponse{
 		Answer:     answer,
 		Confidence: s.calculateConfidence(transactions, summaryItems),
 		Sources:    transactions,
@@ -406,7 +405,7 @@ Title:`, question)
 }
 
 // Pass 1: Ask LLM to parse the user's question into structured query parameters
-func (s *Service) parseQueryIntent(question string, userModel string) (*models.QueryIntent, error) {
+func (s *Service) parseQueryIntent(question string, userModel string) (*QueryIntent, error) {
 	today := time.Now().Format("2006-01-02")
 
 	prompt := fmt.Sprintf(`You are a query parser. Convert this financial question into a JSON query.
@@ -435,12 +434,12 @@ Question: %s`, today, question)
 	// Extract JSON from the response (LLM might wrap it in markdown)
 	jsonStr := extractJSON(response)
 
-	var intent models.QueryIntent
+	var intent QueryIntent
 	if err := json.Unmarshal([]byte(jsonStr), &intent); err != nil {
 		log.Printf("Failed to parse intent JSON: %s (raw: %s)", err, jsonStr)
 		// Fallback: if the question mentions categories/spending, assume summary
 		lower := strings.ToLower(question)
-		intent = models.QueryIntent{Limit: 50}
+		intent = QueryIntent{Limit: 50}
 		if containsAny(lower, []string{"category", "categories", "spending", "spent", "breakdown", "summary", "total"}) {
 			intent.NeedsSummary = true
 			// Default to last 30 days
@@ -463,7 +462,7 @@ Question: %s`, today, question)
 }
 
 // Execute: Call Thesaurus /transactions/summary endpoint
-func (s *Service) fetchSpendingSummary(userID, startDate, endDate string) ([]models.SpendingSummaryItem, error) {
+func (s *Service) fetchSpendingSummary(userID, startDate, endDate string) ([]SpendingSummaryItem, error) {
 	if s.thesaurusURL == "" {
 		return nil, fmt.Errorf("thesaurus URL not configured")
 	}
@@ -495,11 +494,11 @@ func (s *Service) fetchSpendingSummary(userID, startDate, endDate string) ([]mod
 		return nil, err
 	}
 
-	var items []models.SpendingSummaryItem
+	var items []SpendingSummaryItem
 	if err := json.Unmarshal(body, &items); err != nil {
 		// Try wrapped response
 		var wrapped struct {
-			Summary []models.SpendingSummaryItem `json:"summary"`
+			Summary []SpendingSummaryItem `json:"summary"`
 		}
 		if err2 := json.Unmarshal(body, &wrapped); err2 == nil {
 			return wrapped.Summary, nil
@@ -511,7 +510,7 @@ func (s *Service) fetchSpendingSummary(userID, startDate, endDate string) ([]mod
 }
 
 // Execute: Call Thesaurus /transactions/search endpoint
-func (s *Service) searchTransactions(userID string, intent *models.QueryIntent) ([]models.TransactionRef, error) {
+func (s *Service) searchTransactions(userID string, intent *QueryIntent) ([]TransactionRef, error) {
 	if s.thesaurusURL == "" {
 		return nil, fmt.Errorf("thesaurus URL not configured")
 	}
@@ -567,12 +566,12 @@ func (s *Service) searchTransactions(userID string, intent *models.QueryIntent) 
 		return s.getUserTransactionsFiltered(userID, intent)
 	}
 
-	var transactions []models.TransactionRef
+	var transactions []TransactionRef
 	if err := json.Unmarshal(body, &transactions); err != nil {
 		// Try wrapped response
 		var wrapped struct {
-			Data         []models.TransactionRef `json:"data"`
-			Transactions []models.TransactionRef `json:"transactions"`
+			Data         []TransactionRef `json:"data"`
+			Transactions []TransactionRef `json:"transactions"`
 		}
 		if err2 := json.Unmarshal(body, &wrapped); err2 == nil {
 			if len(wrapped.Data) > 0 {
@@ -587,7 +586,7 @@ func (s *Service) searchTransactions(userID string, intent *models.QueryIntent) 
 }
 
 // Fallback: use list endpoint with query params
-func (s *Service) getUserTransactionsFiltered(userID string, intent *models.QueryIntent) ([]models.TransactionRef, error) {
+func (s *Service) getUserTransactionsFiltered(userID string, intent *QueryIntent) ([]TransactionRef, error) {
 	params := url.Values{}
 	params.Set("user_id", userID)
 	if intent.Category != "" {
@@ -610,7 +609,7 @@ func (s *Service) getUserTransactionsFiltered(userID string, intent *models.Quer
 // FetchTransactionsSince fetches all of a user's transactions on or after the
 // given start date from Thesaurus. Used by the insights pipeline to build a
 // 90-day rolling window.
-func (s *Service) FetchTransactionsSince(userID string, start time.Time) ([]models.TransactionRef, error) {
+func (s *Service) FetchTransactionsSince(userID string, start time.Time) ([]TransactionRef, error) {
 	if s.thesaurusURL == "" {
 		return nil, fmt.Errorf("thesaurus URL not configured")
 	}
@@ -622,15 +621,15 @@ func (s *Service) FetchTransactionsSince(userID string, start time.Time) ([]mode
 	return s.fetchTransactions(u)
 }
 
-func (s *Service) getUserTransactions(userID string, limit int) ([]models.TransactionRef, error) {
+func (s *Service) getUserTransactions(userID string, limit int) ([]TransactionRef, error) {
 	if s.thesaurusURL == "" {
-		return []models.TransactionRef{}, nil
+		return []TransactionRef{}, nil
 	}
 	u := fmt.Sprintf("%s/api/v1/internal/transactions?user_id=%s&limit=%d", s.thesaurusURL, userID, limit)
 	return s.fetchTransactions(u)
 }
 
-func (s *Service) fetchTransactions(u string) ([]models.TransactionRef, error) {
+func (s *Service) fetchTransactions(u string) ([]TransactionRef, error) {
 	resp, err := s.httpClient.Get(u)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch transactions: %w", err)
@@ -638,7 +637,7 @@ func (s *Service) fetchTransactions(u string) ([]models.TransactionRef, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return []models.TransactionRef{}, nil
+		return []TransactionRef{}, nil
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -647,14 +646,14 @@ func (s *Service) fetchTransactions(u string) ([]models.TransactionRef, error) {
 	}
 
 	// Try multiple response shapes
-	var direct []models.TransactionRef
+	var direct []TransactionRef
 	if err := json.Unmarshal(body, &direct); err == nil {
 		return direct, nil
 	}
 
 	var wrapped struct {
-		Data         []models.TransactionRef `json:"data"`
-		Transactions []models.TransactionRef `json:"transactions"`
+		Data         []TransactionRef `json:"data"`
+		Transactions []TransactionRef `json:"transactions"`
 	}
 	if err := json.Unmarshal(body, &wrapped); err == nil {
 		if len(wrapped.Data) > 0 {
@@ -663,11 +662,11 @@ func (s *Service) fetchTransactions(u string) ([]models.TransactionRef, error) {
 		return wrapped.Transactions, nil
 	}
 
-	return []models.TransactionRef{}, nil
+	return []TransactionRef{}, nil
 }
 
 // Build data context string from real query results for Pass 2
-func (s *Service) buildDataContext(transactions []models.TransactionRef, summary []models.SpendingSummaryItem) string {
+func (s *Service) buildDataContext(transactions []TransactionRef, summary []SpendingSummaryItem) string {
 	var sb strings.Builder
 
 	if len(summary) > 0 {
@@ -887,7 +886,7 @@ func (s *Service) queryOllama(prompt string) (string, error) {
 	return s.queryOllamaRaw(fullPrompt, s.config.Temperature)
 }
 
-func (s *Service) calculateConfidence(txns []models.TransactionRef, summary []models.SpendingSummaryItem) float64 {
+func (s *Service) calculateConfidence(txns []TransactionRef, summary []SpendingSummaryItem) float64 {
 	if len(txns) == 0 && len(summary) == 0 {
 		return 0.3 // No data — low confidence
 	}
@@ -898,7 +897,7 @@ func (s *Service) calculateConfidence(txns []models.TransactionRef, summary []mo
 }
 
 // CategorizeTransaction uses AI to categorize a transaction
-func (s *Service) CategorizeTransaction(description string) (models.CategoryResult, error) {
+func (s *Service) CategorizeTransaction(description string) (CategoryResult, error) {
 	prompt := fmt.Sprintf(`Categorize this financial transaction into one of these categories:
 
 Categories: Food, Transportation, Shopping, Entertainment, Bills, Healthcare, Education, Travel, Income, Other
@@ -909,10 +908,10 @@ Response format: Category: [category] | Confidence: [0.0-1.0] | Reason: [brief e
 
 	response, err := s.queryOllama(prompt)
 	if err != nil {
-		return models.CategoryResult{}, err
+		return CategoryResult{}, err
 	}
 
-	return models.CategoryResult{
+	return CategoryResult{
 		Category:   s.extractCategory(response),
 		Confidence: 0.8,
 		Reasoning:  response,
@@ -920,14 +919,14 @@ Response format: Category: [category] | Confidence: [0.0-1.0] | Reason: [brief e
 }
 
 // GenerateInsights generates financial insights for a user
-func (s *Service) GenerateInsights(userID string) ([]models.FinancialInsight, error) {
+func (s *Service) GenerateInsights(userID string) ([]FinancialInsight, error) {
 	// Get spending summary for last 30 days
 	startDate := time.Now().AddDate(0, 0, -30).Format("2006-01-02")
 	endDate := time.Now().Format("2006-01-02")
 
 	summary, err := s.fetchSpendingSummary(userID, startDate, endDate)
 	if err != nil || len(summary) == 0 {
-		return []models.FinancialInsight{{
+		return []FinancialInsight{{
 			Type:        "no_data",
 			Title:       "No Transaction Data",
 			Description: "Upload bank statements to get personalized insights.",
@@ -950,7 +949,7 @@ Insights:`, dataContext)
 
 	// Parse insights from response
 	lines := strings.Split(response, "\n")
-	var insights []models.FinancialInsight
+	var insights []FinancialInsight
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "-") {
@@ -966,7 +965,7 @@ Insights:`, dataContext)
 		if len(parts) == 2 {
 			desc = strings.TrimSpace(parts[1])
 		}
-		insights = append(insights, models.FinancialInsight{
+		insights = append(insights, FinancialInsight{
 			Type:        "spending_insight",
 			Title:       title,
 			Description: desc,
@@ -979,7 +978,7 @@ Insights:`, dataContext)
 	}
 
 	if len(insights) == 0 {
-		insights = []models.FinancialInsight{{
+		insights = []FinancialInsight{{
 			Type:        "spending_pattern",
 			Title:       "Spending Analysis",
 			Description: response,

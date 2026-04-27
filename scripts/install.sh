@@ -13,6 +13,22 @@ if [ "$(uname -s)" != "Darwin" ]; then
   echo >&2 "LocalFinance currently supports macOS only. Detected: $(uname -s)"; exit 1
 fi
 
+# Build deps — Go and Node are required for `make installer` since we don't
+# yet ship prebuilt binaries. Once Releases land this whole block goes away.
+ensure_dep() {
+  local cmd="$1" pkg="$2"
+  if command -v "$cmd" >/dev/null 2>&1; then return 0; fi
+  if command -v brew >/dev/null 2>&1; then
+    say "Installing $pkg via brew"
+    brew install "$pkg"
+  else
+    echo >&2 "Need $cmd to build LocalFinance from source. Install Homebrew (https://brew.sh) or $pkg manually and re-run."
+    exit 1
+  fi
+}
+ensure_dep go go
+ensure_dep node node
+
 # Ollama install
 if command -v ollama >/dev/null 2>&1; then
   say "Ollama already installed"

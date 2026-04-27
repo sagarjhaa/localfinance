@@ -41,6 +41,10 @@ dev:
 # ─── Build ────────────────────────────────────────────
 .PHONY: build webui-build clean
 webui-build:
+	@if [ ! -d services/iris/client/node_modules ]; then \
+		echo "Installing React deps (first run)..."; \
+		cd services/iris/client && $(NPM) install --silent 2>&1 | tail -3 ; \
+	fi
 	@cd services/iris/client && CI=false $(NPM) run build 2>&1 | tail -3
 	@rm -rf internal/webui/dist
 	@cp -r services/iris/client/build internal/webui/dist

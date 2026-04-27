@@ -293,13 +293,17 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	// Invalidate all existing sessions for this user
-	if err := h.db.Model(&models.UserSession{}).
-		Where("user_id = ?", userID).
-		Update("is_active", false).Error; err != nil {
+	// Invalidate other sessions for this user, but keep the current one active
+	// so the client doesn't have to re-login after a password change.
+	currentToken, _ := auth.ExtractTokenFromHeader(c.GetHeader("Authorization"))
+	q := h.db.Model(&models.UserSession{}).Where("user_id = ?", userID)
+	if currentToken != "" {
+		q = q.Where("token <> ?", currentToken)
+	}
+	if err := q.Update("is_active", false).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Session cleanup error"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Password changed successfully. Please login again."})
+	c.JSON(http.StatusOK, gin.H{"message": "password updated"})
 }

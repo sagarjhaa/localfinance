@@ -30,17 +30,7 @@ brew install ollama
 Or download the signed installer from [ollama.com/download](https://ollama.com/download).
 Start it once so it registers as a launch agent (subsequent boots are automatic).
 
-### 2. Install Postgres (until embedded Postgres ships)
-
-```
-brew install postgresql@15
-brew services start postgresql@15
-```
-
-> **Roadmap:** A future build embeds Postgres in the .app so this step
-> goes away. Track [the issue](https://github.com/sagarjhaa/localfinance/issues).
-
-### 3. Get LocalFinance.app
+### 2. Get LocalFinance.app
 
 **Option A — download the prebuilt .app** (when releases are published):
 
@@ -58,7 +48,7 @@ make installer
 open dist/LocalFinance.app
 ```
 
-### 4. Launch
+### 3. Launch
 
 Right-click `LocalFinance.app` → **Open** (first time only). Your browser
 opens at `http://localhost:3001` and the first-run wizard takes over.
@@ -69,7 +59,7 @@ The wizard:
 - Pulls the model with a live progress bar (~2-5 GB, takes 3-10 minutes).
 - Drops you at the login screen.
 
-### 5. Sign in
+### 4. Sign in
 
 Login is **pre-filled with default credentials** — just click **AUTHENTICATE**:
 
@@ -78,7 +68,7 @@ Login is **pre-filled with default credentials** — just click **AUTHENTICATE**
 
 Change them in **Profile → Update Password** once you're in.
 
-### 6. Upload your first statement
+### 5. Upload your first statement
 
 Dashboard → drag a PDF or CSV onto the drop zone. The app:
 
@@ -124,19 +114,19 @@ in `~/Library/Application Support/LocalFinance/` survives.
 ### Run from source
 
 ```
-brew install ollama postgresql@15
+brew install ollama
 ollama serve &
 ollama pull gemma3:4b
-brew services start postgresql@15
-make dev
+make dev   # boots embedded Postgres on first run; ~80MB download, cached after
 ```
 
 The `make dev` target runs `go run ./cmd/localfinance` against host
 Postgres + host Ollama. No Docker required (compose is optional).
 
-If `DB_HOST` is unset, the binary boots an **embedded Postgres** under
-`~/Library/Application Support/LocalFinance/postgres/` (downloads ~80 MB
-on first run). Useful for testing the .app code path without brew.
+By default (no `DB_HOST` env), the binary boots an **embedded Postgres**
+under `~/Library/Application Support/LocalFinance/postgres/` (downloads
+~80 MB on first run, cached after). To use a host Postgres instead set
+`DB_HOST=localhost DB_USER=postgres DB_PASSWORD=devpass DB_NAME=localfinance`.
 
 ### Tests
 
@@ -186,9 +176,8 @@ You're helping validate this for friends-and-family. The smoothest
 demo:
 
 1. Have them install Ollama via `brew install ollama` (one command).
-2. Have them install Postgres via `brew install postgresql@15` (one command).
-3. Send them `LocalFinance.app` (zip the bundle, AirDrop or share via Drive).
-4. They right-click → Open. Wizard does the rest.
+2. Send them `LocalFinance.app` (zip the bundle, AirDrop or share via Drive).
+3. They right-click → Open. Wizard does the rest.
 
 If they hit Gatekeeper hard ("can't be opened because Apple cannot
 check it for malicious software"), have them go to System Settings →

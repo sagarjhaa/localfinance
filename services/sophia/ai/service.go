@@ -57,7 +57,11 @@ func (s *Service) GetOllamaHost() string {
 }
 
 // GetUserModelPreference fetches the user's preferred chat model from Thesaurus.
-// Falls back to the default config model if the preference is not set or on error.
+// Falls back to the runtime default (s.config.ModelName) if:
+//   - the preference is not set
+//   - Thesaurus is unreachable
+//   - the preferred model is no longer installed on Ollama (stale preference
+//     from a prior session — common after switching machines or pruning models)
 func (s *Service) GetUserModelPreference(userID string) string {
 	if s.thesaurusURL == "" {
 		return s.config.ModelName
@@ -76,7 +80,41 @@ func (s *Service) GetUserModelPreference(userID string) string {
 		return s.config.ModelName
 	}
 
+	// Validate the preferred model is actually installed on Ollama. If not,
+	// silently fall back to the runtime default rather than 404'ing.
+	if !s.modelInstalled(pref.ChatModel) {
+		return s.config.ModelName
+	}
 	return pref.ChatModel
+}
+
+// modelInstalled returns true if Ollama at s.config.OllamaHost has the named
+// model in its installed list. Best-effort: returns true on any transport
+// error so we don't gratuitously override a user preference when Ollama is
+// momentarily slow.
+func (s *Service) modelInstalled(name string) bool {
+	resp, err := s.httpClient.Get(s.config.OllamaHost + "/api/tags")
+	if err != nil {
+		return true
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return true
+	}
+	var body struct {
+		Models []struct {
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return true
+	}
+	for _, m := range body.Models {
+		if m.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // isConversational checks if a question is a greeting or general chat, not a financial query

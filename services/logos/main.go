@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -153,6 +154,13 @@ func processDocument(req models.ProcessRequest, pm *processors.Manager, cfg *con
 			updateDocumentStatus(cfg.Thesaurus.BaseURL, req.DocumentID, "error", fmt.Sprintf("Failed to save transactions: %v", err), "")
 			return
 		}
+
+		// Fire-and-forget month-review generation. Period is inferred from the
+		// first transaction's date (statements typically cover one month); falls
+		// back to "now" if dates are missing. Failures are logged but do not
+		// affect the upload's success status.
+		period := inferPeriod(result.Transactions)
+		go triggerMonthReview(req.UserID.String(), period, req.DocumentID)
 	}
 
 	// Update document status to processed (include extracted text for AI comparison)
@@ -442,6 +450,62 @@ func applyUserRules(transactions []models.Transaction, userID uuid.UUID) {
 	if matched > 0 {
 		log.Printf("User rules matched %d/%d transactions", matched, len(transactions))
 	}
+}
+
+// inferPeriod returns a "YYYY-MM" string derived from the first transaction
+// with a non-zero date; falls back to the current month (UTC).
+func inferPeriod(txns []models.Transaction) string {
+	for _, t := range txns {
+		if !t.Date.IsZero() {
+			d := t.Date.UTC()
+			return fmt.Sprintf("%04d-%02d", d.Year(), int(d.Month()))
+		}
+	}
+	now := time.Now().UTC()
+	return fmt.Sprintf("%04d-%02d", now.Year(), int(now.Month()))
+}
+
+// triggerMonthReview posts to Sophia's internal generate endpoint. Wrapped in
+// a 60s timeout so a slow LLM doesn't pin the goroutine indefinitely. All
+// errors are logged but never propagated — month-review is best-effort.
+func triggerMonthReview(userID, period, documentID string) {
+	if userID == "" || userID == "00000000-0000-0000-0000-000000000000" {
+		return
+	}
+	sophiaURL := os.Getenv("SOPHIA_URL")
+	if sophiaURL == "" {
+		sophiaURL = "http://localhost:8002"
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	payload, _ := json.Marshal(map[string]string{
+		"user_id": userID,
+		"period":  period,
+	})
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		sophiaURL+"/api/v1/internal/month-review/generate",
+		bytes.NewReader(payload))
+	if err != nil {
+		log.Printf("[%s] month-review trigger: build request failed: %v", documentID, err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("[%s] month-review trigger failed (non-fatal): %v", documentID, err)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		log.Printf("[%s] month-review trigger returned status %d", documentID, resp.StatusCode)
+		return
+	}
+	log.Printf("[%s] month-review triggered for period %s", documentID, period)
 }
 
 func containsAny(s string, substrs ...string) bool {

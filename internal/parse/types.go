@@ -1,4 +1,4 @@
-package processors
+package parse
 
 import (
 	"github.com/sagarjhaa/localfinance/services/logos/models"

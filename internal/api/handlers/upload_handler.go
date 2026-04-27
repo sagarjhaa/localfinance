@@ -1,32 +1,32 @@
 package handlers
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/sagarjhaa/localfinance/internal/data/models"
+	"github.com/sagarjhaa/localfinance/internal/parse"
 	"gorm.io/gorm"
 )
 
 type UploadHandler struct {
 	db       *gorm.DB
-	logosURL string
+	pipeline *parse.Pipeline
 }
 
 func NewUploadHandler(db *gorm.DB) *UploadHandler {
-	logosURL := os.Getenv("LOGOS_URL")
-	if logosURL == "" {
-		logosURL = "http://localhost:8003"
-	}
-	return &UploadHandler{db: db, logosURL: logosURL}
+	return &UploadHandler{db: db}
+}
+
+// SetPipeline wires the parse pipeline. Optional: when nil, uploads will
+// still be persisted but no async processing fires (useful in tests).
+func (h *UploadHandler) SetPipeline(p *parse.Pipeline) {
+	h.pipeline = p
 }
 
 // UploadDocument handles file upload, stores document record, fires to Logos
@@ -88,8 +88,18 @@ func (h *UploadHandler) UploadDocument(c *gin.Context) {
 		return
 	}
 
-	// Fire to Logos for processing (async)
-	go h.sendToLogos(documentID, filePath, ext, uid, accountID)
+	// Fire the in-process parse pipeline (async). Logos no longer exists as a
+	// separate service — extract -> AI parse -> categorize -> persist all run
+	// here on the unified binary.
+	if h.pipeline != nil {
+		go h.pipeline.ProcessDocument(context.Background(), parse.Request{
+			DocumentID: documentID,
+			FilePath:   filePath,
+			FileType:   ext,
+			UserID:     uid,
+			AccountID:  accountID,
+		})
+	}
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"message":     "File uploaded, processing started",
@@ -118,29 +128,6 @@ func (h *UploadHandler) ensureAccount(userID uuid.UUID) (uuid.UUID, error) {
 		return uuid.Nil, err
 	}
 	return account.ID, nil
-}
-
-func (h *UploadHandler) sendToLogos(documentID, filePath, fileType string, userID, accountID uuid.UUID) {
-	payload, _ := json.Marshal(map[string]interface{}{
-		"document_id": documentID,
-		"file_path":   filePath,
-		"file_type":   fileType,
-		"user_id":     userID,
-		"account_id":  accountID,
-	})
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Post(h.logosURL+"/api/v1/process", "application/json", bytes.NewReader(payload))
-	if err != nil {
-		log.Printf("[%s] Failed to send to Logos: %v", documentID, err)
-		h.db.Model(&models.Document{}).Where("id = ?", documentID).Updates(map[string]interface{}{
-			"status":        "error",
-			"error_message": fmt.Sprintf("Logos service unavailable: %v", err),
-		})
-		return
-	}
-	defer resp.Body.Close()
-	log.Printf("[%s] Sent to Logos, status: %d", documentID, resp.StatusCode)
 }
 
 // GetProcessingStatus returns document processing status

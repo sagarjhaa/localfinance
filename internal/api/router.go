@@ -7,6 +7,7 @@
 package api
 
 import (
+	stdContext "context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 	"github.com/sagarjhaa/localfinance/internal/api/middleware"
 	"github.com/sagarjhaa/localfinance/internal/insights"
 	"github.com/sagarjhaa/localfinance/internal/monthreview"
+	"github.com/sagarjhaa/localfinance/internal/parse"
 	sophiaconfig "github.com/sagarjhaa/localfinance/services/sophia/config"
 	"gorm.io/gorm"
 )
@@ -72,6 +74,21 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 	}
 	mrService := monthreview.NewService(insights.NewEngine(mrDismiss), mrNarrator, aiSvc)
 	monthReviewHandler := handlers.NewMonthReviewHandler(mrService)
+
+	// Parse pipeline replaces the old Logos service. Wired into the upload
+	// handler so file uploads kick off in-process AI parsing.
+	pipeline := parse.New(db, aiSvc, modelName)
+	pipeline.OnPersisted = func(userID, period, documentID string) {
+		p, err := monthreview.ParsePeriod(period)
+		if err != nil {
+			return
+		}
+		ctx, cancel := stdContext.WithTimeout(stdContext.Background(), 60*time.Second)
+		defer cancel()
+		// Fire-and-forget month review generation. Errors are non-fatal.
+		_, _ = mrService.Generate(ctx, userID, p)
+	}
+	uploadHandler.SetPipeline(pipeline)
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "healthy", "service": "localfinance"})

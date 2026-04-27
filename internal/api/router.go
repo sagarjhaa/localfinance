@@ -18,6 +18,7 @@ import (
 	"github.com/sagarjhaa/localfinance/internal/ai"
 	"github.com/sagarjhaa/localfinance/internal/api/handlers"
 	"github.com/sagarjhaa/localfinance/internal/api/middleware"
+	"github.com/sagarjhaa/localfinance/internal/api/setup"
 	"github.com/sagarjhaa/localfinance/internal/insights"
 	"github.com/sagarjhaa/localfinance/internal/monthreview"
 	"github.com/sagarjhaa/localfinance/internal/parse"
@@ -94,6 +95,17 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "healthy", "service": "localfinance"})
 	})
+
+	// First-run setup wizard endpoints. Public — they run before auth and
+	// gate access to the rest of the app while Ollama is missing.
+	setupH := setup.New(os.Getenv("OLLAMA_HOST"))
+	setupGroup := router.Group("/api/setup")
+	{
+		setupGroup.GET("/state", setupH.State)
+		setupGroup.GET("/ollama-status", setupH.OllamaStatus)
+		setupGroup.GET("/recommended", setupH.Recommended)
+		setupGroup.POST("/pull-model", setupH.PullModel)
+	}
 
 	v1 := router.Group("/api/v1")
 	{

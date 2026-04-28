@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { FONTS, COLORS, APP } from '../theme';
-import { proxyAPI, authAPI } from '../api/client';
+import { proxyAPI, authAPI, setAuthData } from '../api/client';
 import { useIsNarrow, useIsMedium } from '../hooks/useMediaQuery';
 
-const Profile = ({ user, onLogout }) => {
+const Profile = ({ user, setUser, onLogout }) => {
   const isNarrow = useIsNarrow();
   const isMedium = useIsMedium();
   const S = styles(isNarrow, isMedium);
@@ -44,12 +44,34 @@ const Profile = ({ user, onLogout }) => {
     setSaving(true);
     setMessage('');
     try {
-      await proxyAPI.thesaurus.put('/api/v1/preferences', {
-        chat_model: chatModel,
-        display_name: displayName,
-        first_name: firstName,
-        last_name: lastName,
-      });
+      // Two requests: User table owns first_name/last_name; the preferences
+      // table only owns chat_model. Profile's "display name" field has no
+      // home server-side yet, so it's a no-op until we add it.
+      await Promise.all([
+        proxyAPI.thesaurus.put(`/api/v1/users/${user.id}`, {
+          first_name: firstName,
+          last_name: lastName,
+        }),
+        proxyAPI.thesaurus.put('/api/v1/preferences', {
+          chat_model: chatModel,
+        }),
+      ]);
+
+      // Refresh the user object so the sidebar (and anything else reading
+      // user.first_name) reflects the change immediately.
+      try {
+        const me = await authAPI.getMe();
+        const fresh = me?.data?.user;
+        if (fresh && setUser) {
+          setUser(fresh);
+          const token = localStorage.getItem('authToken');
+          if (token) setAuthData(token, fresh);
+        }
+      } catch (_) {
+        // Save succeeded; refresh failed. UX is fine; sidebar will catch up
+        // on next nav. Don't error the save.
+      }
+
       setMessage('Saved.');
       setMessageType('success');
       setTimeout(() => setMessage(''), 3000);

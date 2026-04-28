@@ -117,7 +117,7 @@ function App() {
         <Route path="/dashboard" element={<Dashboard user={user} onLogout={handleLogout} />} />
 
         <Route path="/chat" element={<Chat user={user} onLogout={handleLogout} />} />
-        <Route path="/profile" element={<Profile user={user} onLogout={handleLogout} />} />
+        <Route path="/profile" element={<Profile user={user} setUser={setUser} onLogout={handleLogout} />} />
         <Route path="/insights" element={<InsightsPage user={user} onLogout={handleLogout} />} />
         <Route path="/month-review" element={<MonthReviewPage user={user} onLogout={handleLogout} />} />
         <Route path="/month-review/:period" element={<MonthReviewPage user={user} onLogout={handleLogout} />} />

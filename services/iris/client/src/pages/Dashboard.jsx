@@ -9,7 +9,7 @@ import { useToast } from '../components/Toast';
 const categoryIcons = {
   Food: '🍽️', Transport: '✈️', Shopping: '🛍️', Entertainment: '🎬',
   Utilities: '⚡', Housing: '🏠', Income: '💰', Transfer: '↗️',
-  Health: '💊', Cash: '🏧', EMI: '📋', Education: '📚', Other: '⚙️',
+  'Card Payment': '💳', Health: '💊', Cash: '🏧', EMI: '📋', Education: '📚', Other: '⚙️',
 };
 
 const Dashboard = ({ user, onLogout }) => {
@@ -27,6 +27,7 @@ const Dashboard = ({ user, onLogout }) => {
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState({}); // { [txId]: 'up' | 'down' }
   const [expandedFeedback, setExpandedFeedback] = useState(null); // tx id of the open thumbs-down menu
+  const [showCardPayments, setShowCardPayments] = useState(false);
   const { toast } = useToast();
   // The Static-vs-AI dual parse view was removed once Logos started routing every
   // upload through Sophia/Ollama — the "static" column was always identical to
@@ -371,7 +372,24 @@ const Dashboard = ({ user, onLogout }) => {
                 <div style={{ padding: '16px 20px', borderBottom: '1px solid ' + COLORS.stone200, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <h3 style={{ fontFamily: FONTS.headline, fontSize: 16, fontWeight: 700, margin: 0 }}>What's in this statement</h3>
-                    <p style={{ fontFamily: FONTS.body, fontSize: 11, color: COLORS.stone500, margin: '4px 0 0 0' }}>{allTransactions.length} transactions, read locally and kept here.</p>
+                    <p style={{ fontFamily: FONTS.body, fontSize: 11, color: COLORS.stone500, margin: '4px 0 0 0' }}>
+                      {(() => {
+                        const cardPayments = allTransactions.filter(t => t.category === 'Card Payment').length;
+                        const real = allTransactions.length - cardPayments;
+                        if (cardPayments > 0) {
+                          return <>
+                            {real} purchases shown · {cardPayments} card payment{cardPayments === 1 ? '' : 's'} hidden ·{' '}
+                            <button
+                              onClick={() => setShowCardPayments(!showCardPayments)}
+                              style={{ background: 'none', border: 'none', padding: 0, color: COLORS.saffron, cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}
+                            >
+                              {showCardPayments ? 'Hide them again' : 'Show them too'}
+                            </button>
+                          </>;
+                        }
+                        return <>{allTransactions.length} transactions, read locally and kept here.</>;
+                      })()}
+                    </p>
                   </div>
                   <span style={{ fontSize: 10, fontWeight: 600, color: COLORS.green, background: COLORS.stone100, padding: '4px 8px', borderRadius: 4 }}>SAVED</span>
                 </div>
@@ -387,7 +405,9 @@ const Dashboard = ({ user, onLogout }) => {
                       </tr>
                     </thead>
                     <tbody>
-                      {allTransactions.map((t, i) => {
+                      {allTransactions
+                        .filter(t => showCardPayments || t.category !== 'Card Payment')
+                        .map((t, i) => {
                         const fb = feedback[t.id] || t.user_signal || '';
                         const expanded = expandedFeedback === t.id;
                         return (

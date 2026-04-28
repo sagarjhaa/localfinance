@@ -1010,7 +1010,7 @@ func (s *Service) ParseTransactions(text string, userModel string) ([]map[string
 	text = extractTransactionSection(text, 60000)
 
 	prompt := fmt.Sprintf(`Extract transactions as JSON.
-Fields: date (YYYY-MM-DD), description (Clean Name), amount (Positive=Charge, Negative=Payment), category (Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Health, Cash, EMI, Education, Other).
+Fields: date (YYYY-MM-DD), description (Clean Name), amount (Positive=Charge, Negative=Payment), category (Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Card Payment, Health, Cash, EMI, Education, Other).
 
 STRICT RULES:
 1. Only extract transactions from the activity table. Do not extract account headers, reward balances, or summary totals.
@@ -1018,7 +1018,8 @@ STRICT RULES:
 3. If a transaction doesn't fit a category, use "Other". NEVER create new categories.
 4. No raw codes/cities/states in description.
 5. If year unknown, use 2026.
-6. Output ONLY the JSON array inside <JSON> tags.
+6. On a credit card statement, payments to the card itself (descriptions like "AUTOMATIC PAYMENT - THANK YOU", "PAYMENT RECEIVED", "ONLINE PAYMENT - THANK YOU") are NOT income. They are the user paying down their card balance. Use category "Card Payment" for these. Only use "Income" for genuine refunds, paychecks, dividends, or reimbursements.
+7. Output ONLY the JSON array inside <JSON> tags.
 
 Examples:
 Input: 03/12 AMZN Mktp US*Amzn.com/bill WA $22.50
@@ -1028,7 +1029,10 @@ Input: 02/18 SAFEWAY #1196 SUNNYVALE CA 28.33
 Output: {"date": "2026-02-18", "description": "Safeway", "amount": 28.33, "category": "Food"}
 
 Input: 03/12 AUTOMATIC PAYMENT - THANK YOU -1323.73
-Output: {"date": "2026-03-12", "description": "Payment Received", "amount": -1323.73, "category": "Income"}
+Output: {"date": "2026-03-12", "description": "Card Payment", "amount": -1323.73, "category": "Card Payment"}
+
+Input: 03/15 REFUND AMAZON.COM ORDER #123-456 -42.99
+Output: {"date": "2026-03-15", "description": "Amazon Refund", "amount": -42.99, "category": "Income"}
 
 Start your response exactly with "<JSON>[" and end with "]</JSON>".
 
@@ -1231,7 +1235,7 @@ func (s *Service) ParseTransactionsFromImages(images []string, userModel string)
 	}
 
 	prompt := `Extract transactions from the statement images you are looking at, as JSON.
-Fields: date (YYYY-MM-DD), description (Clean Name), amount (Positive=Charge, Negative=Payment), category (Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Health, Cash, EMI, Education, Other).
+Fields: date (YYYY-MM-DD), description (Clean Name), amount (Positive=Charge, Negative=Payment), category (Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Card Payment, Health, Cash, EMI, Education, Other).
 
 STRICT RULES:
 1. Only extract transactions from the activity table. Do not extract account headers, reward balances, or summary totals.
@@ -1239,7 +1243,8 @@ STRICT RULES:
 3. If a transaction doesn't fit a category, use "Other". NEVER create new categories.
 4. No raw codes/cities/states in description.
 5. If year unknown, use 2026.
-6. Output ONLY the JSON array inside <JSON> tags.
+6. On a credit card statement, payments to the card itself (descriptions like "AUTOMATIC PAYMENT - THANK YOU", "PAYMENT RECEIVED", "ONLINE PAYMENT - THANK YOU") are NOT income. They are the user paying down their card balance. Use category "Card Payment" for these. Only use "Income" for genuine refunds, paychecks, dividends, or reimbursements.
+7. Output ONLY the JSON array inside <JSON> tags.
 
 Examples:
 Input row: 03/12 AMZN Mktp US*Amzn.com/bill WA $22.50
@@ -1249,7 +1254,10 @@ Input row: 02/18 SAFEWAY #1196 SUNNYVALE CA 28.33
 Output: {"date": "2026-02-18", "description": "Safeway", "amount": 28.33, "category": "Food"}
 
 Input row: 03/12 AUTOMATIC PAYMENT - THANK YOU -1323.73
-Output: {"date": "2026-03-12", "description": "Payment Received", "amount": -1323.73, "category": "Income"}
+Output: {"date": "2026-03-12", "description": "Card Payment", "amount": -1323.73, "category": "Card Payment"}
+
+Input row: 03/15 REFUND AMAZON.COM ORDER #123-456 -42.99
+Output: {"date": "2026-03-15", "description": "Amazon Refund", "amount": -42.99, "category": "Income"}
 
 Start your response exactly with "<JSON>[" and end with "]</JSON>".`
 

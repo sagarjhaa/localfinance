@@ -67,8 +67,16 @@ export const authAPI = {
 
 // Document API — server: /api/v1/documents/* and /api/v1/transactions/by-document
 export const documentAPI = {
+  // List every uploaded statement (newest first), each row enriched with
+  // its parsed transaction count, period dates, money totals, and the
+  // account name the transactions landed in.
+  list: (userId) =>
+    apiClient.get('/api/v1/documents/', { params: { user_id: userId } }),
+  // In-flight upload polling — used by the Dashboard upload widget.
   getStatus: (documentId) =>
     apiClient.get(`/api/v1/documents/${encodeURIComponent(documentId)}`),
+  // Full transaction list for one uploaded statement, in date-asc order.
+  // Account record is preloaded so each row carries account.name etc.
   getTransactions: (documentId) =>
     apiClient.get('/api/v1/transactions/by-document', { params: { document_id: documentId } }),
 };

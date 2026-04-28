@@ -98,6 +98,10 @@ const MonthReviewPage = ({ user, onLogout }) => {
             <span style={{ fontSize: 20 }}>&#128196;</span>
             <span style={{ fontSize: 14 }}>Dashboard</span>
           </div>
+          <div onClick={() => window.location.href = '/statements'} style={S.navItem}>
+            <span style={{ fontSize: 20 }}>&#128203;</span>
+            <span style={{ fontSize: 14 }}>Statements</span>
+          </div>
           <div onClick={() => window.location.href = '/insights'} style={S.navItem}>
             <span style={{ fontSize: 20 }}>&#128161;</span>
             <span style={{ fontSize: 14 }}>Insights</span>

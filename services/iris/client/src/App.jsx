@@ -8,6 +8,7 @@ import Chat from './pages/Chat';
 import Profile from './pages/Profile';
 import InsightsPage from './pages/InsightsPage';
 import MonthReviewPage from './pages/MonthReviewPage';
+import Statements from './pages/Statements';
 import InstallOllama from './pages/setup/InstallOllama';
 import PullModel from './pages/setup/PullModel';
 import { ToastProvider } from './components/Toast';
@@ -118,6 +119,7 @@ function AppInner() {
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard user={user} onLogout={handleLogout} />} />
+          <Route path="/statements" element={<Statements user={user} onLogout={handleLogout} />} />
 
           <Route path="/chat" element={<Chat user={user} onLogout={handleLogout} />} />
           <Route path="/profile" element={<Profile user={user} setUser={setUser} onLogout={handleLogout} />} />

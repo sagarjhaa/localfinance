@@ -148,6 +148,7 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 		// Internal service routes (called by Logos, Sophia — no auth required)
 		documents := v1.Group("/documents")
 		{
+			documents.GET("/", documentHandler.ListUserDocuments)
 			documents.GET("/:id", documentHandler.GetDocument)
 			documents.PATCH("/:id/status", documentHandler.UpdateDocumentStatus)
 		}

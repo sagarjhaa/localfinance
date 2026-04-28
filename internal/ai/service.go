@@ -770,114 +770,90 @@ Answer:`, dataContext, question)
 	return s.queryOllamaWithModel(prompt, 0.2, userModel)
 }
 
-// queryOllamaRaw queries Ollama without prepending the system prompt
+// queryOllamaRaw queries Ollama without prepending the system prompt.
+// Background-context wrapper retained for callers that haven't been
+// plumbed for cancellation yet.
 func (s *Service) queryOllamaRaw(prompt string, temperature float32) (string, error) {
+	return s.queryOllamaRawCtx(context.Background(), prompt, temperature)
+}
+
+// queryOllamaRawCtx is the cancellable variant. Closing ctx aborts the
+// underlying HTTP request, which causes Ollama to drop the generation
+// server-side and free the GPU.
+func (s *Service) queryOllamaRawCtx(ctx context.Context, prompt string, temperature float32) (string, error) {
 	if temperature == 0 {
 		temperature = s.config.Temperature
 	}
-
-	requestBody := OllamaRequest{
+	return s.postGenerate(ctx, OllamaRequest{
 		Model:       s.config.ModelName,
 		Prompt:      prompt,
 		Stream:      false,
 		Temperature: temperature,
-	}
-
-	jsonBody, err := json.Marshal(requestBody)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	resp, err := s.httpClient.Post(
-		s.config.OllamaHost+"/api/generate",
-		"application/json",
-		bytes.NewBuffer(jsonBody),
-	)
-	if err != nil {
-		return "", fmt.Errorf("failed to call Ollama API: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("Ollama API returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read response: %w", err)
-	}
-
-	var ollamaResp OllamaResponse
-	if err := json.Unmarshal(body, &ollamaResp); err != nil {
-		return "", fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-
-	return ollamaResp.Response, nil
+	})
 }
 
 // queryOllamaWithModel queries Ollama with an explicit model override.
 func (s *Service) queryOllamaWithModel(prompt string, temperature float32, model string) (string, error) {
-	return s.queryOllamaWithOptions(prompt, temperature, model, nil)
+	return s.queryOllamaWithOptionsCtx(context.Background(), prompt, temperature, model, nil)
 }
 
 // queryOllamaWithOptions is like queryOllamaWithModel but lets callers set
-// Ollama Options (num_ctx, top_p, etc.). Used by the parse path which needs
-// a much larger context window than chat.
+// Ollama Options (num_ctx, top_p, etc.). Background-context wrapper.
 func (s *Service) queryOllamaWithOptions(prompt string, temperature float32, model string, options map[string]interface{}) (string, error) {
+	return s.queryOllamaWithOptionsCtx(context.Background(), prompt, temperature, model, options)
+}
+
+// queryOllamaWithOptionsCtx is the cancellable variant. Used by the parse
+// path so a timed-out parse actually stops Ollama instead of leaving a
+// zombie generation grinding on the GPU.
+func (s *Service) queryOllamaWithOptionsCtx(ctx context.Context, prompt string, temperature float32, model string, options map[string]interface{}) (string, error) {
 	if temperature == 0 {
 		temperature = s.config.Temperature
 	}
-
-	reqBody := OllamaRequest{
+	return s.postGenerate(ctx, OllamaRequest{
 		Model:       model,
 		Prompt:      prompt,
 		Stream:      false,
 		Temperature: temperature,
 		Options:     options,
-	}
+	})
+}
 
+// postGenerate is the single choke point for /api/generate. Every Ollama
+// text/vision call goes through here so cancellation behavior stays
+// consistent.
+func (s *Service) postGenerate(ctx context.Context, reqBody OllamaRequest) (string, error) {
 	jsonBody, err := json.Marshal(reqBody)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal request: %w", err)
 	}
-
-	resp, err := s.httpClient.Post(
-		s.config.OllamaHost+"/api/generate",
-		"application/json",
-		bytes.NewReader(jsonBody),
-	)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.config.OllamaHost+"/api/generate", bytes.NewReader(jsonBody))
+	if err != nil {
+		return "", fmt.Errorf("failed to build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to call Ollama API: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("Ollama API returned status %d: %s", resp.StatusCode, string(body))
 	}
-
 	var ollamaResp OllamaResponse
 	if err := json.Unmarshal(body, &ollamaResp); err != nil {
 		return "", fmt.Errorf("failed to parse Ollama response: %w", err)
 	}
-
 	return strings.TrimSpace(ollamaResp.Response), nil
 }
 
 // Generate is a minimal exported wrapper around the raw Ollama call used by
 // callers that already have a fully-formed prompt and don't need the
-// system-prompt prefix or model-preference lookup. The temperature is fixed at
-// a low value because callers (e.g. the insights narrator) want
-// near-deterministic output.
+// system-prompt prefix or model-preference lookup. Honors ctx cancellation.
 func (s *Service) Generate(ctx context.Context, prompt string) (string, error) {
-	// Honor cancellation by checking before issuing the request. The underlying
-	// http.Client doesn't take a ctx in queryOllamaRaw, so this is best-effort —
-	// callers that need hard cancellation should set Client.Timeout instead.
-	if err := ctx.Err(); err != nil {
-		return "", err
-	}
-	return s.queryOllamaRaw(prompt, 0.2)
+	return s.queryOllamaRawCtx(ctx, prompt, 0.2)
 }
 
 // queryOllama queries with the system prompt prepended (for categorization etc.)
@@ -1002,7 +978,7 @@ func (s *Service) extractCategory(response string) string {
 }
 
 // ParseTransactions uses the LLM to extract transactions from raw statement text
-func (s *Service) ParseTransactions(text string, userModel string) ([]map[string]interface{}, error) {
+func (s *Service) ParseTransactions(ctx context.Context, text string, userModel string) ([]map[string]interface{}, error) {
 	// Extract the transaction section — skip headers/summaries at the top.
 	// Look for the first line starting with a date pattern (MM/DD), then keep
 	// up to ~60k chars (covers a 10-page statement comfortably; larger PDFs
@@ -1046,7 +1022,7 @@ Statement:
 	// extractTransactionSection caps text at 60000 chars upstream; if a
 	// statement spills past 8192 tokens we accept slight quality loss in
 	// exchange for ~3x faster parse on a 4B model.
-	response, err := s.queryOllamaWithOptions(prompt, 0.1, userModel, map[string]interface{}{
+	response, err := s.queryOllamaWithOptionsCtx(ctx, prompt, 0.1, userModel, map[string]interface{}{
 		"num_ctx": 8192,
 	})
 	if err != nil {
@@ -1297,7 +1273,7 @@ func containsAny(s string, substrs []string) bool {
 // bytes (no data: prefix). The prompt mirrors ParseTransactions but references
 // the images instead of statement text. num_ctx is bumped to 32768 because
 // vision models still benefit from a large context for the JSON output.
-func (s *Service) ParseTransactionsFromImages(images []string, userModel string) ([]map[string]interface{}, error) {
+func (s *Service) ParseTransactionsFromImages(ctx context.Context, images []string, userModel string) ([]map[string]interface{}, error) {
 	if len(images) == 0 {
 		return nil, fmt.Errorf("no images provided")
 	}
@@ -1341,7 +1317,12 @@ Start your response exactly with "<JSON>[" and end with "]</JSON>".`
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
-	resp, err := s.httpClient.Post(s.config.OllamaHost+"/api/generate", "application/json", bytes.NewReader(jsonBody))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.config.OllamaHost+"/api/generate", bytes.NewReader(jsonBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call Ollama API: %w", err)
 	}

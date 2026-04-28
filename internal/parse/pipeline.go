@@ -198,27 +198,20 @@ func parseTimeout(kind string) time.Duration {
 	return time.Duration(def) * time.Second
 }
 
-// runWithTimeout wraps a synchronous parse call in a goroutine + select so
-// a slow LLM doesn't pin the upload pipeline forever. If the timeout fires,
-// the goroutine keeps running (we can't cancel the underlying http.Post
-// without ctx-aware AI calls), but the user sees the failure immediately.
-func runWithTimeout[T any](timeout time.Duration, fn func() (T, error)) (T, error) {
-	type result struct {
-		val T
-		err error
-	}
-	ch := make(chan result, 1)
-	go func() {
-		v, e := fn()
-		ch <- result{v, e}
-	}()
-	select {
-	case r := <-ch:
-		return r.val, r.err
-	case <-time.After(timeout):
+// withParseTimeout runs fn under a context with the configured deadline.
+// When the deadline fires, ctx is canceled — the underlying http.Client
+// aborts the in-flight Ollama request, which causes Ollama to drop the
+// generation server-side and free the GPU. No zombie goroutines.
+func withParseTimeout[T any](kind string, fn func(ctx context.Context) (T, error)) (T, error) {
+	timeout := parseTimeout(kind)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	v, err := fn(ctx)
+	if err != nil && ctx.Err() == context.DeadlineExceeded {
 		var zero T
 		return zero, fmt.Errorf("parse timed out after %s — try a smaller statement, switch to a faster model in Profile, or set PARSE_TIMEOUT_SEC", timeout)
 	}
+	return v, err
 }
 
 func (p *Pipeline) parseText(userID, text, fileSource string) ([]Transaction, string, error) {
@@ -229,8 +222,8 @@ func (p *Pipeline) parseText(userID, text, fileSource string) ([]Transaction, st
 	if userID != "" {
 		userModel = p.AI.GetUserModelPreference(userID)
 	}
-	parsed, err := runWithTimeout(parseTimeout("text"), func() ([]map[string]interface{}, error) {
-		return p.AI.ParseTransactions(text, userModel)
+	parsed, err := withParseTimeout("text", func(ctx context.Context) ([]map[string]interface{}, error) {
+		return p.AI.ParseTransactions(ctx, text, userModel)
 	})
 	if err != nil {
 		return nil, "", err
@@ -243,8 +236,8 @@ func (p *Pipeline) parseImages(userID string, images []string, fileSource string
 	if userID != "" {
 		userModel = p.AI.GetUserModelPreference(userID)
 	}
-	parsed, err := runWithTimeout(parseTimeout("vision"), func() ([]map[string]interface{}, error) {
-		return p.AI.ParseTransactionsFromImages(images, userModel)
+	parsed, err := withParseTimeout("vision", func(ctx context.Context) ([]map[string]interface{}, error) {
+		return p.AI.ParseTransactionsFromImages(ctx, images, userModel)
 	})
 	if err != nil {
 		return nil, "", err

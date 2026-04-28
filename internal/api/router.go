@@ -301,7 +301,7 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 				return
 			}
 			parseModel := pickParseModel()
-			transactions, err := aiSvc.ParseTransactions(req.Text, parseModel)
+			transactions, err := aiSvc.ParseTransactions(c.Request.Context(), req.Text, parseModel)
 			if err != nil {
 				c.JSON(500, gin.H{"error": err.Error()})
 				return
@@ -327,7 +327,7 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 				return
 			}
 			parseModel := pickParseModel()
-			transactions, err := aiSvc.ParseTransactionsFromImages(req.Images, parseModel)
+			transactions, err := aiSvc.ParseTransactionsFromImages(c.Request.Context(), req.Images, parseModel)
 			if err != nil {
 				c.JSON(500, gin.H{"error": err.Error()})
 				return

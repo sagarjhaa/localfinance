@@ -62,4 +62,10 @@ require (
 	modernc.org/sqlite v1.23.1 // indirect
 )
 
-replace github.com/sagarjhaa/statementmd => /Users/sagar/Documents/codebases/statementmd
+// statementmd lives in a sibling repo. Until it's published to GitHub
+// the replace directive points at a local checkout. For a fresh clone,
+// either:
+//   1. clone https://github.com/sagarjhaa/statementmd as a sibling dir
+//      and keep the replace line, or
+//   2. drop the replace line once statementmd is tagged on GitHub.
+replace github.com/sagarjhaa/statementmd => ../statementmd

@@ -214,4 +214,18 @@ it, we ship Phase 2 (Subscription Auditor). If we don't, we re-evaluate.
 
 ## License
 
-TBD (see `docs/designs/product-direction.md` — likely MIT or Apache 2.0).
+MIT — see [LICENSE](LICENSE).
+
+## Building from source
+
+```
+git clone https://github.com/sagarjhaa/localfinance
+git clone https://github.com/sagarjhaa/statementmd   # sibling dir; required by go.mod replace
+cd localfinance
+make build         # → dist/localfinance (Go binary with embedded React UI)
+make installer-run # → builds + opens dist/LocalFinance.app
+```
+
+Requires Go 1.21+, Node 18+, and `pdftotext` from poppler (`brew install poppler` on macOS).
+A local Ollama install is needed at runtime — the app guides first-run install via
+its setup wizard if not present.

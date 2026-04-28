@@ -10,6 +10,7 @@ import InsightsPage from './pages/InsightsPage';
 import MonthReviewPage from './pages/MonthReviewPage';
 import InstallOllama from './pages/setup/InstallOllama';
 import PullModel from './pages/setup/PullModel';
+import { ToastProvider } from './components/Toast';
 
 
 function App() {
@@ -111,23 +112,25 @@ function App() {
   }
 
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<Dashboard user={user} onLogout={handleLogout} />} />
+    <ToastProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<Dashboard user={user} onLogout={handleLogout} />} />
 
-        <Route path="/chat" element={<Chat user={user} onLogout={handleLogout} />} />
-        <Route path="/profile" element={<Profile user={user} setUser={setUser} onLogout={handleLogout} />} />
-        <Route path="/insights" element={<InsightsPage user={user} onLogout={handleLogout} />} />
-        <Route path="/month-review" element={<MonthReviewPage user={user} onLogout={handleLogout} />} />
-        <Route path="/month-review/:period" element={<MonthReviewPage user={user} onLogout={handleLogout} />} />
+          <Route path="/chat" element={<Chat user={user} onLogout={handleLogout} />} />
+          <Route path="/profile" element={<Profile user={user} setUser={setUser} onLogout={handleLogout} />} />
+          <Route path="/insights" element={<InsightsPage user={user} onLogout={handleLogout} />} />
+          <Route path="/month-review" element={<MonthReviewPage user={user} onLogout={handleLogout} />} />
+          <Route path="/month-review/:period" element={<MonthReviewPage user={user} onLogout={handleLogout} />} />
 
-        <Route path="/setup/install" element={<InstallOllama />} />
-        <Route path="/setup/pull" element={<PullModel />} />
+          <Route path="/setup/install" element={<InstallOllama />} />
+          <Route path="/setup/pull" element={<PullModel />} />
 
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </Router>
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </Router>
+    </ToastProvider>
   );
 }
 

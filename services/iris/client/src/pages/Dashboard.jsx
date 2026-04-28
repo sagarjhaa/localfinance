@@ -2,6 +2,9 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { uploadAPI, documentAPI, proxyAPI } from '../api/client';
 import { FONTS, COLORS, APP } from '../theme';
 import { useIsNarrow, useIsMedium } from '../hooks/useMediaQuery';
+import StatusPill from '../components/StatusPill';
+import Money from '../components/Money';
+import EyebrowHeading from '../components/EyebrowHeading';
 
 const categoryIcons = {
   Food: '🍽️', Transport: '✈️', Shopping: '🛍️', Entertainment: '🎬',
@@ -200,6 +203,7 @@ const Dashboard = ({ user, onLogout }) => {
           </div>
         </nav>
         <div style={S.sidebarFooter}>
+          {!isNarrow && <StatusPill style={{ marginBottom: 8 }} />}
           <div
             onClick={() => window.location.href = '/profile'}
             style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', flex: 1 }}
@@ -222,10 +226,13 @@ const Dashboard = ({ user, onLogout }) => {
 
         <div style={S.content}>
           {/* Title */}
-          <header style={{ marginBottom: 48 }}>
-            <h2 style={S.pageTitle}>This is what {heroMonthName} looked like.</h2>
-            <p style={{ color: '#737373', maxWidth: 480 }}>Hand me your statement and I'll show you where it went.</p>
-          </header>
+          <EyebrowHeading
+            eyebrow="THIS MONTH"
+            title={`This is what ${heroMonthName} looked like.`}
+            sub="Hand me your statement and I'll show you where it went."
+            style={{ marginBottom: 48 }}
+          />
+
 
           {error && <div style={S.error}>{error}</div>}
 
@@ -343,8 +350,8 @@ const Dashboard = ({ user, onLogout }) => {
                               {categoryIcons[t.category] || '⚙️'} {t.category || 'Other'}
                             </span>
                           </td>
-                          <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: t.amount < 0 ? COLORS.green : COLORS.stone900 }}>
-                            {fmtAmt(t.amount)}
+                          <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                            <Money amount={t.amount} size={13} animate={false} />
                           </td>
                         </tr>
                       ))}

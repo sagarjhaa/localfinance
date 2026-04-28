@@ -94,6 +94,13 @@ func (p *Pipeline) ProcessDocument(ctx context.Context, req Request) {
 	var rawText string
 	var parseErr error
 
+	// Kick off docling extraction in parallel for comparison. Best-effort:
+	// if docling isn't installed or fails, this is a no-op. Output lands in
+	// ~/Library/Application Support/LocalFinance/parse-debug/.
+	if ext == ".pdf" {
+		dumpDoclingComparison(req.FilePath, req.DocumentID)
+	}
+
 	// Text-first dispatch. Most bank statements are digital PDFs with
 	// embedded text, and the text path is 3-5x faster than vision on the
 	// same model. Fall back to vision (rendered page images) only when

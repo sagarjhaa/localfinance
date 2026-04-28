@@ -254,7 +254,10 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 		chat := v1.Group("/chat")
 		{
 			chat.POST("/", chatHandler.HandleFinancialQuery)
-			chat.GET("/history/:userId", chatHandler.GetChatHistory)
+			// Chat history lives at /api/v1/conversations/* (per-conversation
+			// messages with proper persistence). The legacy /chat/history/:userId
+			// endpoint was a stub that always returned []; deleted along with
+			// its handler.
 		}
 
 		insightsGrp := v1.Group("/insights")

@@ -44,3 +44,4 @@ sensitive_*
 *.safetensors
 *.bin
 *.onnx
+.claude/worktrees/

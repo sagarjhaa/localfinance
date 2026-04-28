@@ -1154,9 +1154,16 @@ func dumpParseDebug(kind, text, model, sourceLabel string) {
 	if label == "" {
 		label = sanitizeFilename(model)
 	}
-	name := fmt.Sprintf("%s-%s-llm-input.txt", time.Now().Format("20060102-150405"), label)
+	ext := "txt"
+	commentOpen, commentClose := "# ", ""
+	if looksLikeMarkdown(text) {
+		ext = "md"
+		commentOpen, commentClose = "<!-- ", " -->"
+	}
+	name := fmt.Sprintf("%s-%s-llm-input.%s", time.Now().Format("20060102-150405"), label, ext)
 	path := filepath.Join(dir, name)
-	header := fmt.Sprintf("# parse-debug\n# kind=%s model=%s source=%s len=%d at=%s\n# ---\n", kind, model, sourceLabel, len(text), time.Now().Format(time.RFC3339))
+	header := fmt.Sprintf("%sparse-debug kind=%s model=%s source=%s len=%d at=%s%s\n\n",
+		commentOpen, kind, model, sourceLabel, len(text), time.Now().Format(time.RFC3339), commentClose)
 	_ = os.WriteFile(path, []byte(header+text), 0o644)
 	log.Printf("[ai.parse] dumped input to %s", path)
 }

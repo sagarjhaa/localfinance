@@ -93,12 +93,15 @@ func (h *MonthReviewHandler) Periods(c *gin.Context) {
 	var rows []struct {
 		Period string
 	}
-	// to_char works on Postgres; the embedded postgres we ship is real
-	// Postgres so this is portable across our dev + .app paths.
+	// transactions has no user_id column — it belongs to an account, which
+	// belongs to a user. Join through accounts to scope by user.
+	// to_char is Postgres-specific; the embedded Postgres we ship is real
+	// Postgres so this is portable across dev + .app paths.
 	err := h.db.Raw(`
-		SELECT DISTINCT to_char(date, 'YYYY-MM') AS period
-		FROM transactions
-		WHERE user_id = ?
+		SELECT DISTINCT to_char(t.date, 'YYYY-MM') AS period
+		FROM transactions t
+		JOIN accounts a ON a.id = t.account_id
+		WHERE a.user_id = ?
 		ORDER BY period DESC
 	`, userID).Scan(&rows).Error
 	if err != nil {

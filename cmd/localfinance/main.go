@@ -13,11 +13,12 @@ import (
 	"time"
 
 	"github.com/sagarjhaa/localfinance/internal/ai"
-	"github.com/sagarjhaa/localfinance/internal/api"
-	"github.com/sagarjhaa/localfinance/internal/data/database"
-	"github.com/sagarjhaa/localfinance/internal/postgres"
 	sophiaconfig "github.com/sagarjhaa/localfinance/internal/ai/config"
+	"github.com/sagarjhaa/localfinance/internal/api"
 	"github.com/sagarjhaa/localfinance/internal/data/config"
+	"github.com/sagarjhaa/localfinance/internal/data/database"
+	"github.com/sagarjhaa/localfinance/internal/ollama"
+	"github.com/sagarjhaa/localfinance/internal/postgres"
 )
 
 // initLogging tees slog output to a file under the data dir AND stderr so the
@@ -162,6 +163,16 @@ func main() {
 			setupMode = true
 		} else {
 			slog.Info("ollama probe ok", "model", aiCfg.AI.ModelName, "host", aiCfg.AI.OllamaHost)
+			// Pre-warm the chat model and (if different) the parse model so the
+			// first real request doesn't pay the 10-15s cold-start tax. Async —
+			// don't block startup.
+			ai.WarmupAsync(aiCfg.AI.OllamaHost, aiCfg.AI.ModelName)
+			if installed := ollama.InstalledModels(aiCfg.AI.OllamaHost); len(installed) > 0 {
+				if parseModel := ai.SelectFastestSweetSpotModel(installed); parseModel != "" && parseModel != aiCfg.AI.ModelName {
+					slog.Info("warming parse model", "model", parseModel)
+					ai.WarmupAsync(aiCfg.AI.OllamaHost, parseModel)
+				}
+			}
 		}
 	}
 

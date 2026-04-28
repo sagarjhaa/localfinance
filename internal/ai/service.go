@@ -31,6 +31,11 @@ type OllamaRequest struct {
 	Temperature float32                `json:"temperature,omitempty"`
 	MaxTokens   int                    `json:"max_tokens,omitempty"`
 	Options     map[string]interface{} `json:"options,omitempty"`
+	// KeepAlive controls how long Ollama holds the model in VRAM after this
+	// request. Format: Go duration ("30m", "1h") or seconds as int. Empty
+	// = Ollama's default (5m). Set this on parse calls so back-to-back
+	// uploads don't pay the cold-start tax.
+	KeepAlive string `json:"keep_alive,omitempty"`
 	// Images holds base64-encoded PNG/JPEG bytes (no data: prefix) for
 	// multimodal/vision models. Ollama's /api/generate accepts this alongside
 	// the prompt — a PDF parse path renders pages to PNGs and sends them here.
@@ -808,9 +813,21 @@ func (s *Service) queryOllamaWithOptions(prompt string, temperature float32, mod
 // queryOllamaWithOptionsCtx is the cancellable variant. Used by the parse
 // path so a timed-out parse actually stops Ollama instead of leaving a
 // zombie generation grinding on the GPU.
+//
+// If options contains "keep_alive", it's lifted out into the top-level
+// KeepAlive field (Ollama expects it there, not inside options).
 func (s *Service) queryOllamaWithOptionsCtx(ctx context.Context, prompt string, temperature float32, model string, options map[string]interface{}) (string, error) {
 	if temperature == 0 {
 		temperature = s.config.Temperature
+	}
+	keepAlive := ""
+	if options != nil {
+		if v, ok := options["keep_alive"]; ok {
+			if s, ok := v.(string); ok {
+				keepAlive = s
+			}
+			delete(options, "keep_alive")
+		}
 	}
 	return s.postGenerate(ctx, OllamaRequest{
 		Model:       model,
@@ -818,6 +835,7 @@ func (s *Service) queryOllamaWithOptionsCtx(ctx context.Context, prompt string, 
 		Stream:      false,
 		Temperature: temperature,
 		Options:     options,
+		KeepAlive:   keepAlive,
 	})
 }
 
@@ -1029,7 +1047,8 @@ Statement:
 	// exchange for ~3x faster parse on a 4B model.
 	t0 := time.Now()
 	response, err := s.queryOllamaWithOptionsCtx(ctx, prompt, 0.1, userModel, map[string]interface{}{
-		"num_ctx": 8192,
+		"num_ctx":    8192,
+		"keep_alive": WarmupKeepAlive,
 	})
 	log.Printf("[ai.parse] ollama call took %s (resp=%d chars, err=%v)", time.Since(t0).Round(time.Millisecond), len(response), err)
 	if err != nil {
@@ -1349,6 +1368,7 @@ Start your response exactly with "<JSON>[" and end with "]</JSON>".`
 		Temperature: 0.1,
 		Images:      images,
 		Options:     map[string]interface{}{"num_ctx": 8192},
+		KeepAlive:   WarmupKeepAlive,
 	}
 	jsonBody, err := json.Marshal(reqBody)
 	if err != nil {

@@ -1107,93 +1107,108 @@ Statement:
 }
 
 // extractTransactionSection trims statement text down to just the transaction
-// activity, dropping legal boilerplate, payment summaries, rewards summaries,
-// and terms. Recognizes a few common formats:
-//   - Bank statement style: "MM/DD  Description  Amount" (Wells Fargo, Chase)
-//   - Capital One credit card: "Trans Date / Post Date / Description / Amount"
-//     with dates like "Apr 16" / "Mar 24"
-//   - Generic: any line beginning with MM/DD or "Mon DD"
+// activity, dropping legal boilerplate, payment summaries, and terms. The
+// approach is bank-agnostic: regardless of issuer template, a transaction
+// line has a money amount, and a legal paragraph doesn't. We find the
+// largest dense cluster of money-bearing lines and keep that, plus a small
+// header window for column labels.
 //
-// Stops at common section-end markers ("Total Transactions", "Fees Charged",
-// "Interest Charged", "Important Information About") so we don't ship the
-// LLM 8k chars of legalese.
+// Why density (not regex per bank): banks rotate statement templates often
+// enough that hardcoded "Trans Date" / "Total Transactions" markers rot.
+// Money amounts are the universal signal — every transaction has one, no
+// legal paragraph does.
 func extractTransactionSection(text string, maxLen int) string {
 	lines := strings.Split(text, "\n")
-
-	// Date-prefix patterns that mark a transaction line.
-	mmddPattern := regexp.MustCompile(`^\s*\d{1,2}/\d{1,2}(/\d{2,4})?\s{2,}\S`)
-	monDayPattern := regexp.MustCompile(`^\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b`)
-	// Header that introduces the activity table on credit card statements.
-	headerPattern := regexp.MustCompile(`(?i)\b(trans\s*date|transactions?|account\s+activity|posted\s+transactions)\b`)
-	// Footer markers — once we hit one, the transaction list is over.
-	endMarkers := []string{
-		"total transactions for this period",
-		"total fees charged",
-		"total interest charged",
-		"fees charged",
-		"interest charged",
-		"important information about",
-		"how we calculate",
-		"your annual percentage rate",
-		"rewards summary",
-		"end of statement",
+	if len(lines) == 0 {
+		return text
 	}
 
-	isTxnLine := func(line string) bool {
-		return mmddPattern.MatchString(line) || monDayPattern.MatchString(line)
+	// A "money line" contains a currency amount: $X.XX, X.XX, or 1,234.56,
+	// optionally negative or parenthesized. Two-decimal places is the tell —
+	// account numbers and dates don't have it.
+	moneyPattern := regexp.MustCompile(`(?:\$|-|\()?\s*\d{1,3}(?:,\d{3})*\.\d{2}\b`)
+
+	moneyLine := make([]bool, len(lines))
+	for i, ln := range lines {
+		if moneyPattern.MatchString(ln) {
+			moneyLine[i] = true
+		}
 	}
-	isEndMarker := func(line string) bool {
-		l := strings.ToLower(strings.TrimSpace(line))
-		for _, m := range endMarkers {
-			if strings.HasPrefix(l, m) {
-				return true
+
+	// Cluster money lines: a cluster is a run where consecutive money lines
+	// are within `gap` lines of each other (transactions sometimes wrap onto
+	// a continuation line).
+	const gap = 3
+	type cluster struct{ start, end, count int }
+	var clusters []cluster
+	i := 0
+	for i < len(lines) {
+		if !moneyLine[i] {
+			i++
+			continue
+		}
+		c := cluster{start: i, end: i, count: 1}
+		j := i + 1
+		for j < len(lines) {
+			// look ahead up to `gap` lines for the next money line
+			next := -1
+			for k := j; k < len(lines) && k <= j+gap; k++ {
+				if moneyLine[k] {
+					next = k
+					break
+				}
 			}
-		}
-		return false
-	}
-
-	// First pass: find the activity-table header (e.g. "Trans Date  Post Date
-	// Description  Amount"). If we find one, we'll start a few lines after it.
-	startIdx := -1
-	for i, line := range lines {
-		if headerPattern.MatchString(line) && strings.Contains(strings.ToLower(line), "date") {
-			startIdx = i
-			break
-		}
-	}
-
-	// Second pass: if no header, fall back to the first line that looks like
-	// a transaction.
-	if startIdx == -1 {
-		for i, line := range lines {
-			if isTxnLine(line) {
-				startIdx = i
+			if next == -1 {
 				break
 			}
+			c.end = next
+			c.count++
+			j = next + 1
 		}
+		clusters = append(clusters, c)
+		i = j
 	}
 
-	if startIdx == -1 {
-		// Nothing recognizable — truncate from start.
+	if len(clusters) == 0 {
+		// No money amounts at all — likely a bad extract. Send the head.
 		if len(text) > maxLen {
 			return text[:maxLen]
 		}
 		return text
 	}
 
-	var result strings.Builder
-	for i := startIdx; i < len(lines); i++ {
-		line := lines[i]
-		if isEndMarker(line) {
-			break
+	// Pick the cluster with the most money lines. The transaction table
+	// dominates account summaries (~3-5 amounts) and rewards summaries
+	// (~5-10 amounts) by line count.
+	best := clusters[0]
+	for _, c := range clusters[1:] {
+		if c.count > best.count {
+			best = c
 		}
+	}
+
+	// Include a small header window before the cluster — column labels,
+	// "Account Activity" etc. help the LLM disambiguate columns.
+	const headerWindow = 4
+	start := best.start - headerWindow
+	if start < 0 {
+		start = 0
+	}
+	// Include a small tail in case the last txn wraps.
+	end := best.end + 2
+	if end >= len(lines) {
+		end = len(lines) - 1
+	}
+
+	var result strings.Builder
+	for k := start; k <= end; k++ {
+		line := lines[k]
 		if result.Len()+len(line)+1 > maxLen {
 			break
 		}
 		result.WriteString(line)
 		result.WriteString("\n")
 	}
-
 	return result.String()
 }
 

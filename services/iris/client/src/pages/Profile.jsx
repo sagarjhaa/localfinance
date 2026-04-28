@@ -47,8 +47,11 @@ const Profile = ({ user, setUser, onLogout }) => {
       // Two requests: User table owns first_name/last_name; the preferences
       // table only owns chat_model. Profile's "display name" field has no
       // home server-side yet, so it's a no-op until we add it.
+      // Server's UpdateUser binds against models.User which marks Email as
+      // required — include the existing email so validation passes.
       await Promise.all([
         proxyAPI.thesaurus.put(`/api/v1/users/${user.id}`, {
+          email: user.email,
           first_name: firstName,
           last_name: lastName,
         }),

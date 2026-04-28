@@ -11,14 +11,19 @@ import (
 	"github.com/sagarjhaa/statementmd"
 )
 
-// dumpStatementMarkdown converts the uploaded file to markdown via the
-// statementmd library and writes it to ~/Library/Application Support/
-// LocalFinance/parse-debug/. Best-effort and async — never blocks the
-// active parse path.
-//
-// Right now this is a side-by-side artifact for inspection. Once we're
-// happy with quality we can flip parseText to use this output directly
-// instead of (or alongside) the pdftotext text path.
+// statementMarkdown converts a file to markdown via statementmd with a
+// 30s budget. Synchronous — used by the active parse path.
+func statementMarkdown(filePath string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return statementmd.ConvertContext(ctx, filePath)
+}
+
+// dumpStatementMarkdown writes the same markdown to parse-debug/ for
+// after-the-fact inspection. Best-effort and async — never blocks the
+// active parse path. Useful even though the active path now uses the
+// markdown directly, because we still want the file on disk so users
+// can compare what the LLM saw vs what it produced.
 func dumpStatementMarkdown(filePath, documentID string) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

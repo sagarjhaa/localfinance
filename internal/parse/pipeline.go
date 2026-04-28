@@ -524,12 +524,25 @@ Transactions:
 	log.Printf("AI categorized %d/%d transactions", updated, len(txns))
 }
 
-// extractTextForAI returns the file's raw text suitable for AI parsing.
+// extractTextForAI returns the file's content as markdown (for supported
+// formats) or raw text. Markdown is preferred because LLMs parse structured
+// tables more reliably than column-aligned plaintext — and statementmd's
+// per-page processing avoids the "money cluster" heuristic picking the
+// account-summary table over the activity table on small statements.
+//
+// Falls back to ExtractPDFText (pdftotext layout output) on PDFs if
+// statementmd fails for any reason.
 func extractTextForAI(filePath, ext string) (string, error) {
 	switch ext {
-	case ".pdf":
-		return ExtractPDFText(filePath)
-	case ".csv", ".txt", ".tsv":
+	case ".pdf", ".csv", ".tsv", ".txt":
+		md, err := statementMarkdown(filePath)
+		if err == nil && strings.TrimSpace(md) != "" {
+			return md, nil
+		}
+		log.Printf("[parse] statementmd failed for %s (%v); falling back to pdftotext", filepath.Base(filePath), err)
+		if ext == ".pdf" {
+			return ExtractPDFText(filePath)
+		}
 		b, err := os.ReadFile(filePath)
 		if err != nil {
 			return "", fmt.Errorf("read %s: %w", ext, err)

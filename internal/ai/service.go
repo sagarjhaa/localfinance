@@ -1004,7 +1004,15 @@ func (s *Service) ParseTransactions(ctx context.Context, text string, userModel 
 	// up to ~60k chars (covers a 10-page statement comfortably; larger PDFs
 	// get truncated rather than dropping transactions silently).
 	rawLen := len(text)
-	text = extractTransactionSection(text, 60000)
+	// If the input already looks like markdown (statementmd output), skip
+	// our money-cluster trim — statementmd already isolated the activity
+	// table per page, and re-trimming risks picking the wrong cluster
+	// (e.g. the account summary on page 1 of a small CC statement).
+	if !looksLikeMarkdown(text) {
+		text = extractTransactionSection(text, 60000)
+	} else if len(text) > 60000 {
+		text = text[:60000]
+	}
 	log.Printf("[ai.parse] extracted section: %d chars (from %d raw), model=%s", len(text), rawLen, userModel)
 	dumpParseDebug("text", text, userModel)
 
@@ -1106,6 +1114,14 @@ Statement:
 	}
 
 	return transactions, nil
+}
+
+// looksLikeMarkdown returns true if text appears to be markdown produced
+// by statementmd (presence of a markdown table or fenced code block).
+// Used to skip our money-cluster trim, which would compete with
+// statementmd's already-done structural isolation.
+func looksLikeMarkdown(text string) bool {
+	return strings.Contains(text, "\n| ") || strings.Contains(text, "\n```\n")
 }
 
 // dumpParseDebug writes the text we're about to send to Ollama into

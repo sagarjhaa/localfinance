@@ -68,6 +68,7 @@ func (i Insight) ToFinancialInsight() models.FinancialInsight {
 		CreatedAt:   i.CreatedAt,
 		Key:         i.Key,
 		RuleID:      i.RuleID,
+		EvidenceIDs: i.EvidenceIDs,
 	}
 }
 

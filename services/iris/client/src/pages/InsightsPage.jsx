@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { insightsAPI } from '../api/client';
 import { FONTS, COLORS, APP } from '../theme';
 import { useIsNarrow, useIsMedium } from '../hooks/useMediaQuery';
+import EvidenceList from '../components/EvidenceList';
 
 const PRIORITY_COLORS = {
   high:   { bg: '#fee2e2', fg: '#991b1b' },
@@ -153,6 +154,7 @@ const InsightsPage = ({ user, onLogout }) => {
                             → {ins.action_item}
                           </p>
                         )}
+                        <EvidenceList ids={Array.isArray(ins.evidence_ids) ? ins.evidence_ids : []} label="Which transactions?" />
                       </div>
                       <button
                         onClick={() => dismiss(ins)}

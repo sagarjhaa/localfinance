@@ -212,6 +212,7 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 				transactions.GET("/account/:accountId", transactionHandler.GetTransactionsByAccount)
 				transactions.GET("/category/:category", transactionHandler.GetTransactionsByCategory)
 				transactions.POST("/search", transactionHandler.SearchTransactions)
+				transactions.POST("/lookup", transactionHandler.LookupTransactions)
 				transactions.GET("/summary", transactionHandler.GetSpendingSummary)
 			}
 

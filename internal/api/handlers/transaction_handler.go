@@ -454,3 +454,77 @@ func (h *TransactionHandler) SubmitFeedback(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "recorded"})
 }
+
+// EvidenceTransaction is the condensed shape returned by the lookup
+// endpoint. Slimmer than the full Transaction so the UI can show a
+// dense table without scrolling — date, account label, description,
+// amount, category. Account name is preferred over raw account_id so
+// users see "Capital One Savor" instead of a UUID.
+type EvidenceTransaction struct {
+	ID          string    `json:"id"`
+	Date        time.Time `json:"date"`
+	Description string    `json:"description"`
+	Amount      float64   `json:"amount"`
+	Category    string    `json:"category"`
+	Account     string    `json:"account"`
+}
+
+// LookupTransactions resolves a list of transaction IDs to a condensed
+// view (date, description, amount, category, account name). Used by
+// insight cards and chat answers to show provenance — "which
+// transactions support this finding."
+//
+// Body: {"ids": ["uuid", "uuid", ...]}
+// Returns: {"transactions": [EvidenceTransaction, ...]} in date-asc
+// order so the UI shows oldest → newest.
+func (h *TransactionHandler) LookupTransactions(c *gin.Context) {
+	var req struct {
+		IDs []string `json:"ids" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if len(req.IDs) == 0 {
+		c.JSON(http.StatusOK, gin.H{"transactions": []EvidenceTransaction{}})
+		return
+	}
+	// Cap at 200 to keep the response bounded — even noisiest insights
+	// rarely cite more than ~30 transactions.
+	if len(req.IDs) > 200 {
+		req.IDs = req.IDs[:200]
+	}
+	type row struct {
+		ID          string
+		Date        time.Time
+		Description string
+		Amount      float64
+		Category    string
+		Account     string
+	}
+	var rows []row
+	err := h.db.Raw(`
+		SELECT t.id, t.date, t.description, t.amount, t.category,
+		       COALESCE(NULLIF(a.name, ''), a.institution, '') AS account
+		FROM transactions t
+		LEFT JOIN accounts a ON a.id = t.account_id
+		WHERE t.id IN ?
+		ORDER BY t.date ASC
+	`, req.IDs).Scan(&rows).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	out := make([]EvidenceTransaction, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, EvidenceTransaction{
+			ID:          r.ID,
+			Date:        r.Date,
+			Description: r.Description,
+			Amount:      r.Amount,
+			Category:    r.Category,
+			Account:     r.Account,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"transactions": out})
+}

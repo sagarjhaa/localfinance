@@ -67,6 +67,11 @@ type FinancialInsight struct {
 	// The UI uses these to call the dismiss endpoint.
 	Key    string `json:"key,omitempty"`
 	RuleID string `json:"rule_id,omitempty"`
+	// EvidenceIDs are the transaction IDs the rule actually looked at when
+	// emitting this insight. Surfaced to the UI so users can see *which*
+	// transactions support a finding (date, merchant, amount, card).
+	// Resolved client-side via POST /api/v1/transactions/lookup.
+	EvidenceIDs []string `json:"evidence_ids,omitempty"`
 }
 
 type CategoryResult struct {

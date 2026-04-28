@@ -140,6 +140,14 @@ export const monthReviewAPI = {
     apiClient.get('/api/v1/month-review/periods', { params: { user_id: userId } }),
 };
 
+export const transactionAPI = {
+  // Resolve transaction IDs to a condensed view (date, description,
+  // amount, category, account name). Used by insight cards + chat
+  // answers to show provenance.
+  lookup: (ids) =>
+    apiClient.post('/api/v1/transactions/lookup', { ids }),
+};
+
 // Health check — unversioned, served at root
 export const healthAPI = {
   check: () => apiClient.get('/health'),

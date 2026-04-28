@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { monthReviewAPI } from '../api/client';
 import { FONTS, COLORS, APP } from '../theme';
 import { useIsNarrow, useIsMedium } from '../hooks/useMediaQuery';
+import EvidenceList from '../components/EvidenceList';
 
 // "2026-04" -> "April 2026". Falls back to the raw string if parsing fails.
 function formatPeriod(period) {
@@ -187,6 +188,7 @@ const MonthReviewPage = ({ user, onLogout }) => {
                     <p style={{ margin: 0, color: COLORS.stone700, lineHeight: 1.6 }}>
                       {body}
                     </p>
+                    <EvidenceList ids={Array.isArray(ins.evidence_ids) ? ins.evidence_ids : []} label="Which transactions?" />
                   </section>
                 );
               })}

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { proxyAPI } from '../api/client';
 import { FONTS, COLORS, APP } from '../theme';
 import { useIsNarrow, useIsMedium } from '../hooks/useMediaQuery';
+import EvidenceList from '../components/EvidenceList';
 
 const Chat = ({ user, onLogout }) => {
   const isNarrow = useIsNarrow();
@@ -225,6 +226,12 @@ const Chat = ({ user, onLogout }) => {
                 </div>
               ))}
             </div>
+          )}
+          {Array.isArray(msg.sources) && msg.sources.length > 0 && (
+            <EvidenceList
+              ids={msg.sources.map(s => s.id).filter(Boolean)}
+              label="Which transactions?"
+            />
           )}
           <div style={{ fontSize: 11, color: COLORS.stone500, marginTop: 6 }}>{formatTime(msg.timestamp)}</div>
         </div>

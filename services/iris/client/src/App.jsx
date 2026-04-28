@@ -11,9 +11,10 @@ import MonthReviewPage from './pages/MonthReviewPage';
 import InstallOllama from './pages/setup/InstallOllama';
 import PullModel from './pages/setup/PullModel';
 import { ToastProvider } from './components/Toast';
+import { ThemeProvider, ThemeToggle } from './components/ThemeContext';
 
 
-function App() {
+function AppInner() {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [setupStep, setSetupStep] = useState(null); // 'install_ollama' | 'pull_model' | 'ready'
@@ -130,7 +131,16 @@ function App() {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Router>
+      <ThemeToggle />
     </ToastProvider>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider>
+      <AppInner />
+    </ThemeProvider>
   );
 }
 

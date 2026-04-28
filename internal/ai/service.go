@@ -999,6 +999,18 @@ func (s *Service) extractCategory(response string) string {
 
 // ParseTransactions uses the LLM to extract transactions from raw statement text
 func (s *Service) ParseTransactions(ctx context.Context, text string, userModel string) ([]map[string]interface{}, error) {
+	return s.parseTransactionsWithSource(ctx, text, userModel, "")
+}
+
+// ParseTransactionsWithSource is ParseTransactions plus a sourceLabel used
+// when dumping the LLM input to parse-debug/. The label is typically the
+// original uploaded filename (without prefix or extension) so users can
+// identify which file each dump corresponds to.
+func (s *Service) ParseTransactionsWithSource(ctx context.Context, text string, userModel string, sourceLabel string) ([]map[string]interface{}, error) {
+	return s.parseTransactionsWithSource(ctx, text, userModel, sourceLabel)
+}
+
+func (s *Service) parseTransactionsWithSource(ctx context.Context, text string, userModel string, sourceLabel string) ([]map[string]interface{}, error) {
 	// Extract the transaction section — skip headers/summaries at the top.
 	// Look for the first line starting with a date pattern (MM/DD), then keep
 	// up to ~60k chars (covers a 10-page statement comfortably; larger PDFs
@@ -1014,7 +1026,7 @@ func (s *Service) ParseTransactions(ctx context.Context, text string, userModel 
 		text = text[:60000]
 	}
 	log.Printf("[ai.parse] extracted section: %d chars (from %d raw), model=%s", len(text), rawLen, userModel)
-	dumpParseDebug("text", text, userModel)
+	dumpParseDebug("text", text, userModel, sourceLabel)
 
 	prompt := fmt.Sprintf(`Extract transactions as JSON.
 Fields: date (YYYY-MM-DD), description (Clean Name), amount (Positive=Charge, Negative=Payment), category (Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Card Payment, Health, Cash, EMI, Education, Other).
@@ -1129,7 +1141,7 @@ func looksLikeMarkdown(text string) bool {
 // what the LLM actually sees. Always-on (small writes, only during parse).
 // Each parse drops one timestamped file with the kind (text|vision), model,
 // and the trimmed prompt input.
-func dumpParseDebug(kind, text, model string) {
+func dumpParseDebug(kind, text, model, sourceLabel string) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return
@@ -1138,9 +1150,13 @@ func dumpParseDebug(kind, text, model string) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return
 	}
-	name := fmt.Sprintf("%s-%s-%s.txt", time.Now().Format("20060102-150405"), kind, sanitizeFilename(model))
+	label := sourceLabel
+	if label == "" {
+		label = sanitizeFilename(model)
+	}
+	name := fmt.Sprintf("%s-%s-llm-input.txt", time.Now().Format("20060102-150405"), label)
 	path := filepath.Join(dir, name)
-	header := fmt.Sprintf("# parse-debug\n# kind=%s model=%s len=%d at=%s\n# ---\n", kind, model, len(text), time.Now().Format(time.RFC3339))
+	header := fmt.Sprintf("# parse-debug\n# kind=%s model=%s source=%s len=%d at=%s\n# ---\n", kind, model, sourceLabel, len(text), time.Now().Format(time.RFC3339))
 	_ = os.WriteFile(path, []byte(header+text), 0o644)
 	log.Printf("[ai.parse] dumped input to %s", path)
 }

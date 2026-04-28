@@ -230,8 +230,9 @@ func (p *Pipeline) parseText(userID, text, fileSource string) ([]Transaction, st
 	if userID != "" {
 		userModel = p.AI.GetUserModelPreference(userID)
 	}
+	sourceLabel := originalFilename(fileSource)
 	parsed, err := withParseTimeout("text", func(ctx context.Context) ([]map[string]interface{}, error) {
-		return p.AI.ParseTransactions(ctx, text, userModel)
+		return p.AI.ParseTransactionsWithSource(ctx, text, userModel, sourceLabel)
 	})
 	if err != nil {
 		return nil, "", err

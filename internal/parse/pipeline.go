@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -179,6 +180,47 @@ func (p *Pipeline) ProcessDocument(ctx context.Context, req Request) {
 	_ = stat
 }
 
+// parseTimeout returns the wall-clock budget for a parse call. Text parses
+// default to 30s; vision (much slower) defaults to 60s. Both can be
+// overridden via env so power users with bigger models get headroom.
+func parseTimeout(kind string) time.Duration {
+	envKey := "PARSE_TIMEOUT_SEC"
+	def := 30
+	if kind == "vision" {
+		envKey = "VISION_PARSE_TIMEOUT_SEC"
+		def = 60
+	}
+	if v := os.Getenv(envKey); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return time.Duration(n) * time.Second
+		}
+	}
+	return time.Duration(def) * time.Second
+}
+
+// runWithTimeout wraps a synchronous parse call in a goroutine + select so
+// a slow LLM doesn't pin the upload pipeline forever. If the timeout fires,
+// the goroutine keeps running (we can't cancel the underlying http.Post
+// without ctx-aware AI calls), but the user sees the failure immediately.
+func runWithTimeout[T any](timeout time.Duration, fn func() (T, error)) (T, error) {
+	type result struct {
+		val T
+		err error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		v, e := fn()
+		ch <- result{v, e}
+	}()
+	select {
+	case r := <-ch:
+		return r.val, r.err
+	case <-time.After(timeout):
+		var zero T
+		return zero, fmt.Errorf("parse timed out after %s — try a smaller statement, switch to a faster model in Profile, or set PARSE_TIMEOUT_SEC", timeout)
+	}
+}
+
 func (p *Pipeline) parseText(userID, text, fileSource string) ([]Transaction, string, error) {
 	if strings.TrimSpace(text) == "" {
 		return nil, "", fmt.Errorf("empty text — nothing to parse")
@@ -187,7 +229,9 @@ func (p *Pipeline) parseText(userID, text, fileSource string) ([]Transaction, st
 	if userID != "" {
 		userModel = p.AI.GetUserModelPreference(userID)
 	}
-	parsed, err := p.AI.ParseTransactions(text, userModel)
+	parsed, err := runWithTimeout(parseTimeout("text"), func() ([]map[string]interface{}, error) {
+		return p.AI.ParseTransactions(text, userModel)
+	})
 	if err != nil {
 		return nil, "", err
 	}
@@ -199,7 +243,9 @@ func (p *Pipeline) parseImages(userID string, images []string, fileSource string
 	if userID != "" {
 		userModel = p.AI.GetUserModelPreference(userID)
 	}
-	parsed, err := p.AI.ParseTransactionsFromImages(images, userModel)
+	parsed, err := runWithTimeout(parseTimeout("vision"), func() ([]map[string]interface{}, error) {
+		return p.AI.ParseTransactionsFromImages(images, userModel)
+	})
 	if err != nil {
 		return nil, "", err
 	}

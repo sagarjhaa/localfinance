@@ -1028,6 +1028,8 @@ func (s *Service) parseTransactionsWithSource(ctx context.Context, text string, 
 	log.Printf("[ai.parse] extracted section: %d chars (from %d raw), model=%s", len(text), rawLen, userModel)
 	dumpParseDebug("text", text, userModel, sourceLabel)
 
+	year := time.Now().Year()
+	prevYear := year - 1
 	prompt := fmt.Sprintf(`Extract transactions as JSON.
 Fields: date (YYYY-MM-DD), description (Clean Name), amount (Positive=Charge, Negative=Payment), category (Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Card Payment, Health, Cash, EMI, Education, Other).
 
@@ -1036,27 +1038,27 @@ STRICT RULES:
 2. The date must be the one listed on the transaction line. Do not use the statement's overall date.
 3. If a transaction doesn't fit a category, use "Other". NEVER create new categories.
 4. No raw codes/cities/states in description.
-5. If year unknown, use 2026.
+5. If year unknown, infer it from the statement period. If still unclear, use %d. Statements that span a year boundary should use %d for early-year months and %d for late-year months.
 6. On a credit card statement, payments to the card itself (descriptions like "AUTOMATIC PAYMENT - THANK YOU", "PAYMENT RECEIVED", "ONLINE PAYMENT - THANK YOU") are NOT income. They are the user paying down their card balance. Use category "Card Payment" for these. Only use "Income" for genuine refunds, paychecks, dividends, or reimbursements.
 7. Output ONLY the JSON array inside <JSON> tags.
 
-Examples:
+Examples (current year is %d):
 Input: 03/12 AMZN Mktp US*Amzn.com/bill WA $22.50
-Output: {"date": "2026-03-12", "description": "Amazon", "amount": 22.50, "category": "Shopping"}
+Output: {"date": "%d-03-12", "description": "Amazon", "amount": 22.50, "category": "Shopping"}
 
 Input: 02/18 SAFEWAY #1196 SUNNYVALE CA 28.33
-Output: {"date": "2026-02-18", "description": "Safeway", "amount": 28.33, "category": "Food"}
+Output: {"date": "%d-02-18", "description": "Safeway", "amount": 28.33, "category": "Food"}
 
 Input: 03/12 AUTOMATIC PAYMENT - THANK YOU -1323.73
-Output: {"date": "2026-03-12", "description": "Card Payment", "amount": -1323.73, "category": "Card Payment"}
+Output: {"date": "%d-03-12", "description": "Card Payment", "amount": -1323.73, "category": "Card Payment"}
 
 Input: 03/15 REFUND AMAZON.COM ORDER #123-456 -42.99
-Output: {"date": "2026-03-15", "description": "Amazon Refund", "amount": -42.99, "category": "Income"}
+Output: {"date": "%d-03-15", "description": "Amazon Refund", "amount": -42.99, "category": "Income"}
 
 Start your response exactly with "<JSON>[" and end with "]</JSON>".
 
 Statement:
-%s`, text)
+%s`, year, year, prevYear, year, year, year, year, year, text)
 
 	// Right-size the context. Larger num_ctx means larger memory allocation
 	// at inference start — even when the prompt is small. 8192 fits a
@@ -1373,7 +1375,9 @@ func (s *Service) ParseTransactionsFromImages(ctx context.Context, images []stri
 		return nil, fmt.Errorf("no images provided")
 	}
 
-	prompt := `Extract transactions from the statement images you are looking at, as JSON.
+	year := time.Now().Year()
+	prevYear := year - 1
+	prompt := fmt.Sprintf(`Extract transactions from the statement images you are looking at, as JSON.
 Fields: date (YYYY-MM-DD), description (Clean Name), amount (Positive=Charge, Negative=Payment), category (Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Card Payment, Health, Cash, EMI, Education, Other).
 
 STRICT RULES:
@@ -1381,24 +1385,24 @@ STRICT RULES:
 2. The date must be the one listed on the transaction line. Do not use the statement's overall date.
 3. If a transaction doesn't fit a category, use "Other". NEVER create new categories.
 4. No raw codes/cities/states in description.
-5. If year unknown, use 2026.
+5. If year unknown, infer from the statement period. If still unclear, use %d. Statements that span a year boundary should use %d for early-year months and %d for late-year months.
 6. On a credit card statement, payments to the card itself (descriptions like "AUTOMATIC PAYMENT - THANK YOU", "PAYMENT RECEIVED", "ONLINE PAYMENT - THANK YOU") are NOT income. They are the user paying down their card balance. Use category "Card Payment" for these. Only use "Income" for genuine refunds, paychecks, dividends, or reimbursements.
 7. Output ONLY the JSON array inside <JSON> tags.
 
-Examples:
+Examples (current year is %d):
 Input row: 03/12 AMZN Mktp US*Amzn.com/bill WA $22.50
-Output: {"date": "2026-03-12", "description": "Amazon", "amount": 22.50, "category": "Shopping"}
+Output: {"date": "%d-03-12", "description": "Amazon", "amount": 22.50, "category": "Shopping"}
 
 Input row: 02/18 SAFEWAY #1196 SUNNYVALE CA 28.33
-Output: {"date": "2026-02-18", "description": "Safeway", "amount": 28.33, "category": "Food"}
+Output: {"date": "%d-02-18", "description": "Safeway", "amount": 28.33, "category": "Food"}
 
 Input row: 03/12 AUTOMATIC PAYMENT - THANK YOU -1323.73
-Output: {"date": "2026-03-12", "description": "Card Payment", "amount": -1323.73, "category": "Card Payment"}
+Output: {"date": "%d-03-12", "description": "Card Payment", "amount": -1323.73, "category": "Card Payment"}
 
 Input row: 03/15 REFUND AMAZON.COM ORDER #123-456 -42.99
-Output: {"date": "2026-03-15", "description": "Amazon Refund", "amount": -42.99, "category": "Income"}
+Output: {"date": "%d-03-15", "description": "Amazon Refund", "amount": -42.99, "category": "Income"}
 
-Start your response exactly with "<JSON>[" and end with "]</JSON>".`
+Start your response exactly with "<JSON>[" and end with "]</JSON>".`, year, year, prevYear, year, year, year, year, year)
 
 	reqBody := OllamaRequest{
 		Model:       userModel,

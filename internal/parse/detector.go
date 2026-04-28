@@ -98,47 +98,40 @@ func detectAccountType(lower string) string {
 	return "checking"
 }
 
-// Known institutions with their variations
-var institutions = []struct {
-	name     string
-	patterns []string
-}{
-	{"American Express", []string{"american express", "americanexpress", "amex"}},
-	{"HDFC Bank", []string{"hdfc bank", "hdfcbank"}},
-	{"State Bank of India", []string{"state bank of india", "sbi ", " sbi"}},
-	{"ICICI Bank", []string{"icici bank", "icicibank"}},
-	{"Axis Bank", []string{"axis bank", "axisbank"}},
-	{"Kotak Mahindra", []string{"kotak mahindra", "kotak bank"}},
-	{"Yes Bank", []string{"yes bank"}},
-	{"IndusInd Bank", []string{"indusind bank"}},
-	{"Punjab National Bank", []string{"punjab national bank", "pnb "}},
-	{"Bank of Baroda", []string{"bank of baroda", "bob "}},
-	{"Canara Bank", []string{"canara bank"}},
-	{"Union Bank", []string{"union bank"}},
-	{"IDBI Bank", []string{"idbi bank"}},
-	{"Federal Bank", []string{"federal bank"}},
-	{"RBL Bank", []string{"rbl bank", "ratnakar bank"}},
-	{"Chase", []string{"chase bank", "jpmorgan chase", "jpmorganchase"}},
-	{"Citibank", []string{"citibank", "citi bank"}},
-	{"Bank of America", []string{"bank of america"}},
-	{"Wells Fargo", []string{"wells fargo"}},
-	{"Capital One", []string{"capital one"}},
-	{"Discover", []string{"discover card", "discover financial"}},
-	{"Barclays", []string{"barclays"}},
-	{"HSBC", []string{"hsbc"}},
-	{"Standard Chartered", []string{"standard chartered"}},
-	{"DBS Bank", []string{"dbs bank"}},
-}
+// institutionRE matches a typical issuer self-identification like
+// "Capital One Bank", "JPMorgan Chase Bank, N.A.", "Wells Fargo Card",
+// "State Bank of India", "American Express Card Services".
+//
+// Pattern: 1-4 capitalized words, then a financial-services keyword
+// (Bank/Card/Credit/etc.), optionally followed by " of <Country>" so
+// "Bank of India" / "Bank of America" stay intact.
+//
+// Bank-agnostic by construction — any new issuer with this shape gets
+// picked up without code changes.
+var institutionRE = regexp.MustCompile(`(?m)\b((?:[A-Z][A-Za-z'&\-\.]{1,20}\s+){1,4})(Bank|Card|Credit|Financial|Services|Bancorp|N\.A\.)(\s+of\s+[A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)?)?\b`)
 
-func detectInstitution(lower, original string) string {
-	for _, inst := range institutions {
-		for _, pattern := range inst.patterns {
-			if strings.Contains(lower, pattern) {
-				return inst.name
-			}
+// onlyHeaderLines is a tiny char budget. The institution self-ID always
+// appears in the first page header of a statement; scanning the whole
+// document risks matching merchant strings like "AMZN MARKETPLACE
+// SERVICES" inside the activity table.
+const headerScanLimit = 2000
+
+func detectInstitution(_, original string) string {
+	head := original
+	if len(head) > headerScanLimit {
+		head = head[:headerScanLimit]
+	}
+	// Iterate all matches and pick the longest — handles cases like
+	// "State Bank of India" where a shorter "State Bank" match also
+	// exists earlier in the string.
+	best := ""
+	for _, m := range institutionRE.FindAllStringSubmatch(head, -1) {
+		full := strings.Join(strings.Fields(strings.TrimSpace(m[1])+" "+m[2]+m[3]), " ")
+		if len(full) > len(best) {
+			best = full
 		}
 	}
-	return ""
+	return best
 }
 
 // Account number patterns

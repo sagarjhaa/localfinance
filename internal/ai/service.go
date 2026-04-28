@@ -9,6 +9,8 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -986,6 +988,7 @@ func (s *Service) ParseTransactions(ctx context.Context, text string, userModel 
 	rawLen := len(text)
 	text = extractTransactionSection(text, 60000)
 	log.Printf("[ai.parse] extracted section: %d chars (from %d raw), model=%s", len(text), rawLen, userModel)
+	dumpParseDebug("text", text, userModel)
 
 	prompt := fmt.Sprintf(`Extract transactions as JSON.
 Fields: date (YYYY-MM-DD), description (Clean Name), amount (Positive=Charge, Negative=Payment), category (Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Card Payment, Health, Cash, EMI, Education, Other).
@@ -1084,6 +1087,36 @@ Statement:
 	}
 
 	return transactions, nil
+}
+
+// dumpParseDebug writes the text we're about to send to Ollama into
+// ~/Library/Application Support/LocalFinance/parse-debug/ so you can inspect
+// what the LLM actually sees. Always-on (small writes, only during parse).
+// Each parse drops one timestamped file with the kind (text|vision), model,
+// and the trimmed prompt input.
+func dumpParseDebug(kind, text, model string) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	dir := filepath.Join(home, "Library", "Application Support", "LocalFinance", "parse-debug")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return
+	}
+	name := fmt.Sprintf("%s-%s-%s.txt", time.Now().Format("20060102-150405"), kind, sanitizeFilename(model))
+	path := filepath.Join(dir, name)
+	header := fmt.Sprintf("# parse-debug\n# kind=%s model=%s len=%d at=%s\n# ---\n", kind, model, len(text), time.Now().Format(time.RFC3339))
+	_ = os.WriteFile(path, []byte(header+text), 0o644)
+	log.Printf("[ai.parse] dumped input to %s", path)
+}
+
+func sanitizeFilename(s string) string {
+	s = strings.ReplaceAll(s, "/", "_")
+	s = strings.ReplaceAll(s, ":", "_")
+	if s == "" {
+		s = "unknown"
+	}
+	return s
 }
 
 // extractTransactionSection trims statement text down to just the transaction

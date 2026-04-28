@@ -83,7 +83,7 @@ const Settings = ({ user, onLogout }) => {
     try {
       await proxyAPI.thesaurus.put('/api/v1/preferences', { chat_model: selectedModel });
       setSavedModel(selectedModel);
-      setModelMessage('Model saved successfully');
+      setModelMessage('Saved.');
       setTimeout(() => setModelMessage(''), 3000);
     } catch (err) {
       setModelMessage('Failed to save model');
@@ -185,15 +185,19 @@ const Settings = ({ user, onLogout }) => {
         <nav>
           <a href="/dashboard" style={S.navItem}>
             <span style={{ fontSize: 20 }}>&#128196;</span>
-            <span style={{ fontSize: 14 }}>Statement Upload</span>
+            <span style={{ fontSize: 14 }}>Dashboard</span>
           </a>
-          <a href="/dashboard" style={S.navItem}>
-            <span style={{ fontSize: 20 }}>&#128274;</span>
-            <span style={{ fontSize: 14 }}>The Vault</span>
+          <a href="/insights" style={S.navItem}>
+            <span style={{ fontSize: 20 }}>&#128161;</span>
+            <span style={{ fontSize: 14 }}>Insights</span>
+          </a>
+          <a href="/month-review" style={S.navItem}>
+            <span style={{ fontSize: 20 }}>&#128197;</span>
+            <span style={{ fontSize: 14 }}>This Month</span>
           </a>
           <a href="/chat" style={S.navItem}>
             <span style={{ fontSize: 20 }}>&#128172;</span>
-            <span style={{ fontSize: 14 }}>Ollama Chat</span>
+            <span style={{ fontSize: 14 }}>Chat</span>
           </a>
           <a href="/settings" style={S.navActive}>
             <span style={{ fontSize: 20 }}>&#9881;</span>
@@ -208,7 +212,7 @@ const Settings = ({ user, onLogout }) => {
             <p style={{ fontSize: 12, fontWeight: 700, margin: 0 }}>
               {user?.first_name || user?.username} {user?.last_name || ''}
             </p>
-            <button onClick={onLogout} style={S.logoutBtn}>Sign Out</button>
+            <button onClick={onLogout} style={S.logoutBtn}>Sign out.</button>
           </div>
         </div>
       </aside>
@@ -218,7 +222,7 @@ const Settings = ({ user, onLogout }) => {
         <header style={S.topBar}>
           <div>
             <h2 style={S.pageTitle}>Settings</h2>
-            <p style={S.pageSubtitle}>Merchant Rules</p>
+            <p style={S.pageSubtitle}>How I sort what comes in.</p>
           </div>
         </header>
 
@@ -226,10 +230,10 @@ const Settings = ({ user, onLogout }) => {
           {/* Chat Model Section */}
           <div style={{ marginBottom: 40 }}>
             <h2 style={{ fontFamily: FONTS.headline, fontSize: 20, fontWeight: 700, marginBottom: 16 }}>
-              Chat Model
+              Which brain to use.
             </h2>
             <p style={{ fontFamily: FONTS.body, fontSize: 13, color: COLORS.stone500, marginBottom: 16 }}>
-              Select which AI model to use for chat. Smaller models are faster, larger models give better answers.
+              Smaller is quicker. Larger thinks harder.
             </p>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
               <select
@@ -254,7 +258,7 @@ const Settings = ({ user, onLogout }) => {
                   </option>
                 ))}
                 {models.length === 0 && (
-                  <option value={selectedModel}>{selectedModel} (loading...)</option>
+                  <option value={selectedModel}>{selectedModel}</option>
                 )}
               </select>
               <button
@@ -272,7 +276,7 @@ const Settings = ({ user, onLogout }) => {
                   cursor: selectedModel !== savedModel ? 'pointer' : 'default',
                 }}
               >
-                {modelSaving ? 'Saving...' : 'Save'}
+                {modelSaving ? 'Saving.' : 'Save.'}
               </button>
             </div>
             {modelMessage && (

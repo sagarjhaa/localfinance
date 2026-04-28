@@ -226,7 +226,8 @@ const Register = ({ onLogin }) => {
       setAuthData(token, user);
       onLogin(user);
     } catch (err) {
-      setError(err.message || 'Registration failed. Please try again.');
+      if (err?.message) console.error('[register] failed:', err.message);
+      setError("Couldn't create that account. Try again?");
     } finally {
       setIsLoading(false);
     }
@@ -244,7 +245,7 @@ const Register = ({ onLogin }) => {
         </header>
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <h2 style={styles.title}>Create Your Edge Account</h2>
+          <h2 style={styles.title}>Make yourself at home.</h2>
 
           <form onSubmit={handleSubmit} style={styles.form}>
             {error && <div style={styles.error}>{error}</div>}
@@ -283,7 +284,7 @@ const Register = ({ onLogin }) => {
             </div>
 
             <div style={styles.fieldGroup}>
-              <label style={styles.label}>Node Identifier</label>
+              <label style={styles.label}>Email</label>
               <input
                 name="email"
                 type="email"
@@ -299,11 +300,11 @@ const Register = ({ onLogin }) => {
             </div>
 
             <div style={styles.fieldGroup}>
-              <label style={styles.label}>Security Protocol</label>
+              <label style={styles.label}>Password</label>
               <input
                 name="password"
                 type="password"
-                placeholder="Secure Passphrase"
+                placeholder="Pick something solid."
                 required
                 minLength={6}
                 value={formData.password}
@@ -327,13 +328,13 @@ const Register = ({ onLogin }) => {
                 onMouseUp={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
               >
-                {isLoading ? 'Registering...' : 'Register Node'}
+                {isLoading ? 'Setting things up.' : 'Create account.'}
                 {!isLoading && <span style={{ fontSize: 18 }}>&#8594;</span>}
               </button>
 
               <p style={styles.signInLink}>
-                Already have an account?{' '}
-                <Link to="/login" style={styles.signInAnchor}>Sign In</Link>
+                Been here before?{' '}
+                <Link to="/login" style={styles.signInAnchor}>Sign in.</Link>
               </p>
             </div>
           </form>
@@ -343,7 +344,7 @@ const Register = ({ onLogin }) => {
           <div style={styles.footerMeta}>
             <div style={styles.footerLabel}>
               <span style={styles.statusDot} />
-              Network Status: Optimal
+              All quiet. All local.
             </div>
             <div style={{ ...styles.footerLabel, gap: 0 }}>
               v4.2.0-Editorial

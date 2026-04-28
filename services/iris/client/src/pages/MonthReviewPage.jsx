@@ -64,7 +64,7 @@ const MonthReviewPage = ({ user, onLogout }) => {
         <nav>
           <div onClick={() => window.location.href = '/dashboard'} style={S.navItem}>
             <span style={{ fontSize: 20 }}>&#128196;</span>
-            <span style={{ fontSize: 14 }}>Statement Upload</span>
+            <span style={{ fontSize: 14 }}>Dashboard</span>
           </div>
           <div onClick={() => window.location.href = '/insights'} style={S.navItem}>
             <span style={{ fontSize: 20 }}>&#128161;</span>
@@ -72,11 +72,11 @@ const MonthReviewPage = ({ user, onLogout }) => {
           </div>
           <div onClick={() => window.location.href = '/month-review'} style={S.navActive}>
             <span style={{ fontSize: 20 }}>&#128197;</span>
-            <span style={{ fontSize: 14, fontWeight: 700 }}>Month in Review</span>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>This Month</span>
           </div>
           <div onClick={() => window.location.href = '/chat'} style={S.navItem}>
             <span style={{ fontSize: 20 }}>&#128172;</span>
-            <span style={{ fontSize: 14 }}>Ollama Chat</span>
+            <span style={{ fontSize: 14 }}>Chat</span>
           </div>
         </nav>
         <div style={S.sidebarFooter}>
@@ -95,14 +95,14 @@ const MonthReviewPage = ({ user, onLogout }) => {
 
       <main style={S.main}>
         <header style={S.topBar}>
-          <h2 style={{ fontFamily: FONTS.headline, fontSize: 20, margin: 0 }}>Month in Review</h2>
+          <h2 style={{ fontFamily: FONTS.headline, fontSize: 20, margin: 0 }}>This Month</h2>
         </header>
 
         <div style={S.content}>
           <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
             <div>
               <p style={{ fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: COLORS.stone500, fontWeight: 700, margin: 0 }}>
-                Review · {period}
+                MONTH IN REVIEW
               </p>
               <h2 style={S.pageTitle}>{formatPeriod(period)}</h2>
             </div>
@@ -111,12 +111,12 @@ const MonthReviewPage = ({ user, onLogout }) => {
               disabled={regenerating || loading}
               style={{ ...S.regenerateBtn, opacity: (regenerating || loading) ? 0.5 : 1 }}
             >
-              {regenerating ? 'Regenerating…' : 'Regenerate'}
+              {regenerating ? 'Reading again.' : 'Read it again from scratch.'}
             </button>
           </header>
 
-          {error && <div style={S.error}>{error}</div>}
-          {loading && <div style={S.empty}>Loading review…</div>}
+          {error && <div style={S.error}>Something went sideways. Try again?</div>}
+          {loading && <div style={S.empty}>Pulling the month together.</div>}
 
           {!loading && !error && review && (
             <>
@@ -129,7 +129,7 @@ const MonthReviewPage = ({ user, onLogout }) => {
               )}
 
               {insights.length === 0 && (
-                <div style={S.empty}>No insights for this period yet.</div>
+                <div style={{ ...S.empty, fontFamily: FONTS.headline, fontStyle: 'italic' }}>Nothing notable to flag — your spending looks steady.</div>
               )}
 
               {insights.map((ins, i) => {

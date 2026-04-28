@@ -146,7 +146,7 @@ const Login = ({ onLogin }) => {
       <main style={s.panel}>
         <div style={{ textAlign: 'center', marginBottom: 0 }}>
           <h1 style={s.title}>{APP.name} Sign In</h1>
-          <p style={s.subtitle}>Seamless access to your financial world.</p>
+          <p style={s.subtitle}>Welcome back.</p>
         </div>
 
         {error && <div style={{ ...s.error, marginTop: 32 }}>{error}</div>}
@@ -186,8 +186,8 @@ const Login = ({ onLogin }) => {
               <Link to="/register" style={s.link}
                 onMouseOver={e => { e.target.style.color = COLORS.primary; e.target.style.borderColor = COLORS.primary; }}
                 onMouseOut={e => { e.target.style.color = '#8C8C8C'; e.target.style.borderColor = 'transparent'; }}
-              >Create Account</Link>
-              <span style={{ ...s.link, cursor: 'default' }}>System Status</span>
+              >New here?</Link>
+              <span style={{ ...s.link, cursor: 'default' }}>Status.</span>
             </div>
           </div>
         </form>

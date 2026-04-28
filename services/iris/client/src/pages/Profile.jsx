@@ -46,11 +46,11 @@ const Profile = ({ user, onLogout }) => {
         first_name: firstName,
         last_name: lastName,
       });
-      setMessage('Preferences saved');
+      setMessage('Saved.');
       setMessageType('success');
       setTimeout(() => setMessage(''), 3000);
     } catch (err) {
-      setMessage('Failed to save preferences');
+      setMessage("Couldn't save that. Try again?");
       setMessageType('error');
     } finally {
       setSaving(false);
@@ -61,17 +61,17 @@ const Profile = ({ user, onLogout }) => {
     setPwMessage('');
 
     if (!currentPassword || !newPassword || !confirmNewPassword) {
-      setPwMessage('All password fields are required');
+      setPwMessage('Fill in all three fields.');
       setPwMessageType('error');
       return;
     }
     if (newPassword !== confirmNewPassword) {
-      setPwMessage('New passwords do not match');
+      setPwMessage("Those don't match.");
       setPwMessageType('error');
       return;
     }
     if (newPassword.length < 8) {
-      setPwMessage('New password must be at least 8 characters');
+      setPwMessage('Eight characters or more, please.');
       setPwMessageType('error');
       return;
     }
@@ -82,14 +82,15 @@ const Profile = ({ user, onLogout }) => {
         current_password: currentPassword,
         new_password: newPassword,
       });
-      setPwMessage('Password updated');
+      setPwMessage('Saved.');
       setPwMessageType('success');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
       setTimeout(() => setPwMessage(''), 3000);
     } catch (err) {
-      setPwMessage(err.message || 'Failed to update password');
+      if (err?.message) console.error('[profile] password change failed:', err.message);
+      setPwMessage("Couldn't save that. Try again?");
       setPwMessageType('error');
     } finally {
       setPwSaving(false);
@@ -110,14 +111,7 @@ const Profile = ({ user, onLogout }) => {
             style={S.navItem}
           >
             <span style={{ fontSize: 20 }}>&#128196;</span>
-            <span style={{ fontSize: 14 }}>Statement Upload</span>
-          </div>
-          <div
-            onClick={() => window.location.href = '/dashboard'}
-            style={S.navItem}
-          >
-            <span style={{ fontSize: 20 }}>&#128274;</span>
-            <span style={{ fontSize: 14 }}>The Vault</span>
+            <span style={{ fontSize: 14 }}>Dashboard</span>
           </div>
           <div
             onClick={() => window.location.href = '/insights'}
@@ -131,14 +125,14 @@ const Profile = ({ user, onLogout }) => {
             style={S.navItem}
           >
             <span style={{ fontSize: 20 }}>&#128197;</span>
-            <span style={{ fontSize: 14 }}>Month in Review</span>
+            <span style={{ fontSize: 14 }}>This Month</span>
           </div>
           <div
             onClick={() => window.location.href = '/chat'}
             style={S.navItem}
           >
             <span style={{ fontSize: 20 }}>&#128172;</span>
-            <span style={{ fontSize: 14 }}>Ollama Chat</span>
+            <span style={{ fontSize: 14 }}>Chat</span>
           </div>
         </nav>
         <div style={S.sidebarFooter}>
@@ -166,7 +160,7 @@ const Profile = ({ user, onLogout }) => {
         <div style={S.content}>
           <header style={{ marginBottom: 48 }}>
             <h2 style={S.pageTitle}>Your Profile</h2>
-            <p style={{ color: COLORS.stone500, maxWidth: 480 }}>Manage your account details and AI preferences.</p>
+            <p style={{ color: COLORS.stone500, maxWidth: 480 }}>Your details and what I should call you.</p>
           </header>
 
           <div style={S.formCard}>
@@ -239,7 +233,7 @@ const Profile = ({ user, onLogout }) => {
                   ...(saving ? { opacity: 0.6, cursor: 'default' } : {}),
                 }}
               >
-                {saving ? 'Saving...' : 'Save Changes'}
+                {saving ? 'Saving.' : 'Save.'}
               </button>
               {message && (
                 <span style={{
@@ -255,7 +249,7 @@ const Profile = ({ user, onLogout }) => {
 
             {/* Change Password */}
             <div style={{ ...S.section, borderTop: `1px solid ${COLORS.stone100}`, marginTop: 32, paddingTop: 32 }}>
-              <h3 style={S.sectionTitle}>Change Password</h3>
+              <h3 style={S.sectionTitle}>Set a new lock.</h3>
 
               <div style={S.fieldGroup}>
                 <label style={S.label}>Current Password</label>
@@ -302,7 +296,7 @@ const Profile = ({ user, onLogout }) => {
                     ...(pwSaving ? { opacity: 0.6, cursor: 'default' } : {}),
                   }}
                 >
-                  {pwSaving ? 'Updating...' : 'Update Password'}
+                  {pwSaving ? 'Saving.' : 'Save.'}
                 </button>
                 {pwMessage && (
                   <span style={{

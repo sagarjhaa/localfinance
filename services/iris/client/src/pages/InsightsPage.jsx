@@ -62,7 +62,7 @@ const InsightsPage = ({ user, onLogout }) => {
         <nav>
           <div onClick={() => window.location.href = '/dashboard'} style={S.navItem}>
             <span style={{ fontSize: 20 }}>&#128196;</span>
-            <span style={{ fontSize: 14 }}>Statement Upload</span>
+            <span style={{ fontSize: 14 }}>Dashboard</span>
           </div>
           <div onClick={() => window.location.href = '/insights'} style={S.navActive}>
             <span style={{ fontSize: 20 }}>&#128161;</span>
@@ -70,11 +70,11 @@ const InsightsPage = ({ user, onLogout }) => {
           </div>
           <div onClick={() => window.location.href = '/month-review'} style={S.navItem}>
             <span style={{ fontSize: 20 }}>&#128197;</span>
-            <span style={{ fontSize: 14 }}>Month in Review</span>
+            <span style={{ fontSize: 14 }}>This Month</span>
           </div>
           <div onClick={() => window.location.href = '/chat'} style={S.navItem}>
             <span style={{ fontSize: 20 }}>&#128172;</span>
-            <span style={{ fontSize: 14 }}>Ollama Chat</span>
+            <span style={{ fontSize: 14 }}>Chat</span>
           </div>
         </nav>
         <div style={S.sidebarFooter}>
@@ -98,14 +98,13 @@ const InsightsPage = ({ user, onLogout }) => {
 
         <div style={S.content}>
           <header style={{ marginBottom: 32 }}>
-            <h2 style={S.pageTitle}>Financial Insights</h2>
+            <h2 style={S.pageTitle}>What stood out.</h2>
             <p style={{ color: COLORS.stone500, maxWidth: 540 }}>
-              AI-generated observations about your spending. Dismiss anything that
-              isn't useful — Sophia will learn to leave those alone.
+              Five rules quietly watched your last 90 days. Here's what they noticed.
             </p>
           </header>
 
-          {error && <div style={S.error}>{error}</div>}
+          {error && <div style={S.error}>Something went sideways. Try again?</div>}
 
           {narrative?.overall && (
             <div style={S.narrativeBox}>
@@ -115,7 +114,7 @@ const InsightsPage = ({ user, onLogout }) => {
             </div>
           )}
 
-          {loading && <div style={S.empty}>Loading insights…</div>}
+          {loading && <div style={S.empty}>Reading your last 90 days.</div>}
 
           {!loading && insights.length === 0 && !error && (
             <div style={S.empty}>
@@ -156,7 +155,7 @@ const InsightsPage = ({ user, onLogout }) => {
                         disabled={!!dismissing[id]}
                         style={{ ...S.dismissBtn, opacity: dismissing[id] ? 0.5 : 1 }}
                       >
-                        {dismissing[id] ? 'Dismissing…' : 'Dismiss'}
+                        {dismissing[id] ? 'Got it.' : 'Dismiss'}
                       </button>
                     </div>
                   </li>

@@ -41,7 +41,8 @@ const Dashboard = ({ user, onLogout }) => {
           }
         } else if (res.data.status === 'error') {
           setProcessing(false);
-          setError(res.data.error_message || 'Processing failed');
+          if (res.data.error_message) console.error('[upload] processing error:', res.data.error_message);
+          setError("I couldn't read this one. Try a CSV export from your bank, or another statement.");
         }
       } catch (e) { /* keep polling */ }
     };
@@ -97,8 +98,11 @@ const Dashboard = ({ user, onLogout }) => {
       if (res.data.document_id) {
         setDocumentId(res.data.document_id);
         setProcessing(true);
-      } else { setError('No document ID returned'); }
-    } catch (err) { setError(err.message || 'Upload failed'); }
+      } else { setError("I couldn't read this one. Try a CSV export from your bank, or another statement."); }
+    } catch (err) {
+      if (err?.message) console.error('[upload] failed:', err.message);
+      setError("I couldn't read this one. Try a CSV export from your bank, or another statement.");
+    }
     finally { setUploading(false); }
   };
 
@@ -140,6 +144,19 @@ const Dashboard = ({ user, onLogout }) => {
     return entries[0][0];
   })();
 
+  // Pick a month name for the hero title — most recent transaction's month, or current month.
+  const heroMonthName = (() => {
+    let candidate = null;
+    for (const t of allTransactions) {
+      if (!t?.date) continue;
+      const d = new Date(t.date);
+      if (isNaN(d.getTime())) continue;
+      if (!candidate || d > candidate) candidate = d;
+    }
+    const d = candidate || new Date();
+    return d.toLocaleDateString('en-US', { month: 'long' });
+  })();
+
   return (
     <div style={S.page}>
       {/* Sidebar */}
@@ -154,14 +171,7 @@ const Dashboard = ({ user, onLogout }) => {
             style={S.navActive}
           >
             <span style={{ fontSize: 20 }}>&#128196;</span>
-            <span style={{ fontSize: 14, fontWeight: 700 }}>Statement Upload</span>
-          </div>
-          <div
-            onClick={() => window.location.href = '/dashboard'}
-            style={S.navItem}
-          >
-            <span style={{ fontSize: 20 }}>&#128274;</span>
-            <span style={{ fontSize: 14 }}>The Vault</span>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>Dashboard</span>
           </div>
           <div
             onClick={() => window.location.href = '/insights'}
@@ -175,14 +185,14 @@ const Dashboard = ({ user, onLogout }) => {
             style={S.navItem}
           >
             <span style={{ fontSize: 20 }}>&#128197;</span>
-            <span style={{ fontSize: 14 }}>Month in Review</span>
+            <span style={{ fontSize: 14 }}>This Month</span>
           </div>
           <div
             onClick={() => window.location.href = '/chat'}
             style={S.navItem}
           >
             <span style={{ fontSize: 20 }}>&#128172;</span>
-            <span style={{ fontSize: 14 }}>Ollama Chat</span>
+            <span style={{ fontSize: 14 }}>Chat</span>
           </div>
         </nav>
         <div style={S.sidebarFooter}>
@@ -216,8 +226,8 @@ const Dashboard = ({ user, onLogout }) => {
         <div style={S.content}>
           {/* Title */}
           <header style={{ marginBottom: 48 }}>
-            <h2 style={S.pageTitle}>Statement Ingestion Zone</h2>
-            <p style={{ color: '#737373', maxWidth: 480 }}>Upload your financial records for immediate neural processing and institutional-grade ledgering.</p>
+            <h2 style={S.pageTitle}>This is what {heroMonthName} looked like.</h2>
+            <p style={{ color: '#737373', maxWidth: 480 }}>Hand me your statement and I'll show you where it went.</p>
           </header>
 
           {error && <div style={S.error}>{error}</div>}
@@ -228,7 +238,7 @@ const Dashboard = ({ user, onLogout }) => {
               <div style={S.ticker}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={S.pulseDot} />
-                  <span style={S.tickerLabel}>Real-time Processing</span>
+                  <span style={S.tickerLabel}>Looking through every page</span>
                 </div>
                 {currentTicker && (<>
                   <div style={{ width: 1, height: 16, background: '#e0e0e0' }} />
@@ -236,13 +246,13 @@ const Dashboard = ({ user, onLogout }) => {
                     <div style={S.tickerIcon}>{categoryIcons[currentTicker.category] || '⚙️'}</div>
                     <div>
                       <p style={{ fontSize: 12, fontWeight: 700, margin: 0 }}>{currentTicker.description}</p>
-                      <p style={{ fontSize: 10, color: COLORS.stone500, margin: 0 }}>{currentTicker.category || 'Processing...'}</p>
+                      <p style={{ fontSize: 10, color: COLORS.stone500, margin: 0 }}>{currentTicker.category || 'Sorting'}</p>
                     </div>
                     <span style={{ fontFamily: FONTS.headline, fontSize: 14, fontWeight: 500, marginLeft: 16 }}>{fmtAmt(currentTicker.amount)}</span>
                   </div>
                 </>)}
                 {!currentTicker && isActive && (
-                  <span style={{ fontSize: 12, color: COLORS.stone500, marginLeft: 16 }}>Waiting for Logos to parse...</span>
+                  <span style={{ fontSize: 12, color: COLORS.stone500, marginLeft: 16 }}>Looking through every page.</span>
                 )}
               </div>
             </div>
@@ -260,11 +270,11 @@ const Dashboard = ({ user, onLogout }) => {
                     ? <div style={{ width: 36, height: 36, border: '3px solid #e5e5e5', borderTop: `3px solid ${COLORS.primary}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
                     : <span style={{ fontSize: 36 }}>&#9729;</span>}
                 </div>
-                <h3 style={S.dropTitle}>{isActive ? 'Processing Statement...' : 'Drop PDF or CSV Statements'}</h3>
+                <h3 style={S.dropTitle}>{isActive ? 'Reading the small print so you don’t have to.' : 'Drop a PDF or CSV here.'}</h3>
                 <p style={{ color: '#737373', textAlign: 'center', maxWidth: 380 }}>
-                  {isActive ? 'Logos is extracting and classifying your transactions.' : 'Drag and drop institutional records here for immediate ingestion and neural classification.'}
+                  {isActive ? 'Looking through every page. This usually takes a minute.' : 'Or browse for one.'}
                 </p>
-                {!isActive && <button onClick={handleBrowse} style={S.browseBtn}>Browse Files</button>}
+                {!isActive && <button onClick={handleBrowse} style={S.browseBtn}>Or browse for one.</button>}
               </div>
             </div>
           </section>
@@ -274,10 +284,10 @@ const Dashboard = ({ user, onLogout }) => {
             <section style={{ marginTop: 80 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
                 <div>
-                  <h3 style={S.ledgerTitle}>Processed Ledger</h3>
-                  <p style={{ fontSize: 14, color: COLORS.stone500, marginTop: 4 }}>Institutional records post-enrichment</p>
+                  <h3 style={S.ledgerTitle}>Found {allTransactions.length} transactions.</h3>
+                  <p style={{ fontSize: 14, color: COLORS.stone500, marginTop: 4 }}>Sorted and saved.</p>
                 </div>
-                <button onClick={reset} style={S.exportBtn}>+ New Upload</button>
+                <button onClick={reset} style={S.exportBtn}>+ Add another</button>
               </div>
 
               {/* Upload-success CTA: link to month-in-review for the inferred period */}
@@ -294,8 +304,8 @@ const Dashboard = ({ user, onLogout }) => {
                 >
                   <span style={{ fontSize: 16 }}>&#128161;</span>
                   {inferredPeriod
-                    ? `View Month in Review →`
-                    : `View Insights →`}
+                    ? `Read this month's review →`
+                    : `See what stood out →`}
                 </a>
               )}
             </section>
@@ -307,10 +317,10 @@ const Dashboard = ({ user, onLogout }) => {
               <div style={{ background: COLORS.white, borderRadius: 12, border: '1px solid ' + COLORS.stone200, overflow: 'hidden' }}>
                 <div style={{ padding: '16px 20px', borderBottom: '1px solid ' + COLORS.stone200, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <h3 style={{ fontFamily: FONTS.headline, fontSize: 16, fontWeight: 700, margin: 0 }}>Parsed Transactions</h3>
-                    <p style={{ fontFamily: FONTS.body, fontSize: 11, color: COLORS.stone500, margin: '4px 0 0 0' }}>{allTransactions.length} transactions extracted by the local AI model</p>
+                    <h3 style={{ fontFamily: FONTS.headline, fontSize: 16, fontWeight: 700, margin: 0 }}>What's in this statement</h3>
+                    <p style={{ fontFamily: FONTS.body, fontSize: 11, color: COLORS.stone500, margin: '4px 0 0 0' }}>{allTransactions.length} transactions, read locally and kept here.</p>
                   </div>
-                  <span style={{ fontSize: 10, fontWeight: 600, color: COLORS.green, background: COLORS.stone100, padding: '4px 8px', borderRadius: 4 }}>PERSISTED</span>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: COLORS.green, background: COLORS.stone100, padding: '4px 8px', borderRadius: 4 }}>SAVED</span>
                 </div>
                 <div style={{ maxHeight: 500, overflowY: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONTS.body, fontSize: 12 }}>

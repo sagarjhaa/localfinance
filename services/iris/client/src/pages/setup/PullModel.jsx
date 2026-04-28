@@ -91,7 +91,7 @@ export default function PullModel() {
     setPulling(true);
     setError('');
     setProgress(0);
-    setStatusText('Connecting...');
+    setStatusText('Connecting.');
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     try {
@@ -156,7 +156,7 @@ export default function PullModel() {
       <div style={s.page}>
         <div style={s.panel}>
           <div style={s.brand}>LocalFinance</div>
-          <p style={s.body}>Loading recommendation...</p>
+          <p style={s.body}>Picking the right model.</p>
         </div>
       </div>
     );
@@ -166,16 +166,16 @@ export default function PullModel() {
     <div style={s.page}>
       <div style={s.panel}>
         <div style={s.brand}>LocalFinance</div>
-        <h1 style={s.title}>Download Model</h1>
+        <h1 style={s.title}>Get the brain.</h1>
         <p style={s.body}>
-          We'll download <strong>{model}</strong> (~{recommended.size_gb} GB).
-          This takes 3-10 minutes depending on your connection.
+          We'll grab <strong>{model}</strong> (~{recommended.size_gb} GB).
+          Coffee-break length on a fast connection.
         </p>
         <p style={s.reason}>{recommended.reason}</p>
 
         {!pulling && !done && (
           <button style={s.button} onClick={() => startPull(model)}>
-            Download Model
+            Get the brain.
           </button>
         )}
 
@@ -185,7 +185,7 @@ export default function PullModel() {
               <div style={{ ...s.progressInner, width: `${Math.round(progress * 100)}%` }} />
             </div>
             <div style={s.status}>
-              {done ? 'Download complete ✓' : statusText || 'Working...'}
+              {done ? 'Ready.' : statusText || 'Pulling.'}
               {progress > 0 && progress < 1 && ` — ${Math.round(progress * 100)}%`}
             </div>
           </>
@@ -195,20 +195,20 @@ export default function PullModel() {
 
         {!pulling && !done && (
           <button style={s.link} onClick={() => setShowAlts((v) => !v)}>
-            {showAlts ? 'Hide other models' : 'Choose different model'}
+            {showAlts ? 'Never mind.' : 'Pick a different one.'}
           </button>
         )}
 
         {showAlts && !pulling && !done && (
           <div style={s.altList}>
             {installedModels.length === 0 && (
-              <div style={s.reason}>No other models installed yet.</div>
+              <div style={s.reason}>Nothing else here yet.</div>
             )}
             {installedModels.map((m) => (
               <div key={m} style={s.altRow}>
                 <span>{m}</span>
                 <button style={s.altPull} onClick={() => { setModel(m); startPull(m); }}>
-                  Pull
+                  Use this.
                 </button>
               </div>
             ))}
@@ -217,7 +217,7 @@ export default function PullModel() {
               <div key={m} style={s.altRow}>
                 <span>{m}</span>
                 <button style={s.altPull} onClick={() => { setModel(m); startPull(m); }}>
-                  Pull
+                  Get this one.
                 </button>
               </div>
             ))}

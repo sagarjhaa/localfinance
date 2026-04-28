@@ -109,8 +109,8 @@ const Chat = ({ user, onLogout }) => {
       const errMsg = {
         role: 'assistant',
         content:
-          "I couldn't process that right now. Please check that Ollama is running on the Jetson." +
-          (errCorrelationId ? `\n\nCorrelation ID: ${errCorrelationId}` : ''),
+          "I couldn't get to that one. Make sure Ollama is awake and try again." +
+          (errCorrelationId ? `\n\nReference: ${errCorrelationId}` : ''),
         error: true,
         timestamp: new Date(),
       };
@@ -144,10 +144,10 @@ const Chat = ({ user, onLogout }) => {
 
   const statusLabel =
     ollamaStatus === 'active'
-      ? `Ollama ${modelName || 'AI'} Active`
+      ? `Ready · ${modelName || 'AI'}`
       : ollamaStatus === 'offline'
-      ? 'Ollama Offline'
-      : 'Checking Ollama...';
+      ? 'Ollama is asleep.'
+      : 'Looking for Ollama.';
 
   const hasMessages = messages.length > 0;
 
@@ -159,8 +159,8 @@ const Chat = ({ user, onLogout }) => {
           type="text"
           placeholder={
             placement === 'top' && !hasMessages
-              ? 'Ask about your finances...'
-              : 'Follow-up question...'
+              ? 'Ask me anything about your money.'
+              : 'And another?'
           }
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -180,7 +180,7 @@ const Chat = ({ user, onLogout }) => {
               ? { color: COLORS.stone900 }
               : { color: COLORS.stone300, cursor: 'default' }),
           }}
-          aria-label="Send message"
+          aria-label="Ask"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="22" y1="2" x2="11" y2="13" />
@@ -242,14 +242,7 @@ const Chat = ({ user, onLogout }) => {
             style={S.navItem}
           >
             <span style={{ fontSize: 20 }}>&#128196;</span>
-            <span style={{ fontSize: 14 }}>Statement Upload</span>
-          </div>
-          <div
-            onClick={() => window.location.href = '/dashboard'}
-            style={S.navItem}
-          >
-            <span style={{ fontSize: 20 }}>&#128274;</span>
-            <span style={{ fontSize: 14 }}>The Vault</span>
+            <span style={{ fontSize: 14 }}>Dashboard</span>
           </div>
           <div
             onClick={() => window.location.href = '/insights'}
@@ -263,14 +256,14 @@ const Chat = ({ user, onLogout }) => {
             style={S.navItem}
           >
             <span style={{ fontSize: 20 }}>&#128197;</span>
-            <span style={{ fontSize: 14 }}>Month in Review</span>
+            <span style={{ fontSize: 14 }}>This Month</span>
           </div>
           <div
             onClick={() => window.location.href = '/chat'}
             style={S.navActive}
           >
             <span style={{ fontSize: 20 }}>&#128172;</span>
-            <span style={{ fontSize: 14, fontWeight: 700 }}>Ollama Chat</span>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>Chat</span>
           </div>
           <div
             onClick={startNewChat}
@@ -287,13 +280,13 @@ const Chat = ({ user, onLogout }) => {
             }}
           >
             <span style={{ fontSize: 14 }}>+</span>
-            <span>New Chat</span>
+            <span>Start fresh.</span>
           </div>
         </nav>
         {conversations.length > 0 && (
           <div style={{ padding: '8px 0', borderTop: '1px solid #e5e5e5', maxHeight: 300, overflowY: 'auto' }}>
             <div style={{ padding: '4px 24px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: COLORS.stone500, letterSpacing: 1 }}>
-              Recent Chats
+              Earlier
             </div>
             {conversations.map((conv) => (
               <div
@@ -312,7 +305,7 @@ const Chat = ({ user, onLogout }) => {
                   textOverflow: 'ellipsis',
                 }}
               >
-                {conv.title || 'New Chat'}
+                {conv.title || 'Untitled'}
                 <div style={{ fontSize: 10, color: COLORS.stone500, marginTop: 2 }}>
                   {new Date(conv.updated_at).toLocaleDateString()}
                 </div>
@@ -339,11 +332,11 @@ const Chat = ({ user, onLogout }) => {
         {/* Top header */}
         <header style={S.topBar}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
-            <h2 style={{ fontFamily: FONTS.headline, fontSize: 20, margin: 0, fontWeight: 700 }}>Ollama Chat</h2>
+            <h2 style={{ fontFamily: FONTS.headline, fontSize: 20, margin: 0, fontWeight: 700 }}>Chat</h2>
             <div style={{ height: 16, width: 1, background: '#e0e0e0' }} />
             <nav style={{ display: 'flex', gap: 24 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, borderBottom: `2px solid ${COLORS.primary}`, paddingBottom: 4 }}>Analysis</span>
-              <span style={{ fontSize: 14, color: COLORS.stone500, cursor: 'pointer' }}>Archive</span>
+              <span style={{ fontSize: 14, fontWeight: 700, borderBottom: `2px solid ${COLORS.primary}`, paddingBottom: 4 }}>Now</span>
+              <span style={{ fontSize: 14, color: COLORS.stone500, cursor: 'pointer' }}>Earlier</span>
             </nav>
           </div>
         </header>
@@ -359,10 +352,9 @@ const Chat = ({ user, onLogout }) => {
               {!hasMessages && (
                 <div style={S.emptyState}>
                   <div style={S.emptyIcon}><span>&#10022;</span></div>
-                  <h2 style={S.emptyTitle}>Ask me anything</h2>
+                  <h2 style={S.emptyTitle}>Ask me anything about your money.</h2>
                   <p style={S.emptyDesc}>
-                    Query your transaction history, get spending insights, or ask
-                    for category breakdowns. All processing stays on your device.
+                    Ask me about a category, a merchant, or a month. I'll pull from your real transactions.
                   </p>
                 </div>
               )}
@@ -372,7 +364,7 @@ const Chat = ({ user, onLogout }) => {
               {loading && (
                 <div style={S.loadingRow}>
                   <div style={S.aiAvatar}><span role="img" aria-label="AI">&#10022;</span></div>
-                  <div style={S.loadingBubble}>Querying Local LLM ({modelName || 'AI'})...</div>
+                  <div style={S.loadingBubble}>Thinking.</div>
                 </div>
               )}
             </div>

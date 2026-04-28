@@ -73,15 +73,15 @@ export default function InstallOllama() {
         <div style={s.brand}>LocalFinance</div>
         <h1 style={s.title}>Install Ollama</h1>
         <p style={s.body}>
-          LocalFinance needs Ollama to run AI on your Mac. It's free and open-source.
+          LocalFinance needs Ollama. It's free, runs on your Mac, and never phones home.
         </p>
         <button style={s.button} onClick={() => window.open(DOWNLOAD_URL, '_blank')}>
-          Download Ollama
+          Get Ollama.
         </button>
         <div style={{ ...s.status, ...(installed ? s.statusGood : {}) }}>
           {installed
-            ? `Ollama detected ${version ? `(v${version}) ` : ''}✓`
-            : 'Waiting for Ollama...'}
+            ? `Found it. ${version ? `(v${version}) ` : ''}✓`
+            : 'Looking for Ollama.'}
         </div>
       </div>
     </div>

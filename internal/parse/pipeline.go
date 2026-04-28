@@ -185,10 +185,10 @@ func (p *Pipeline) ProcessDocument(ctx context.Context, req Request) {
 // overridden via env so power users with bigger models get headroom.
 func parseTimeout(kind string) time.Duration {
 	envKey := "PARSE_TIMEOUT_SEC"
-	def := 30
+	def := 60
 	if kind == "vision" {
 		envKey = "VISION_PARSE_TIMEOUT_SEC"
-		def = 60
+		def = 120
 	}
 	if v := os.Getenv(envKey); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {

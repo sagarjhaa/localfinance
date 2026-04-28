@@ -1106,34 +1106,87 @@ Statement:
 	return transactions, nil
 }
 
-// extractTransactionSection finds the transaction lines in statement text, skipping headers
+// extractTransactionSection trims statement text down to just the transaction
+// activity, dropping legal boilerplate, payment summaries, rewards summaries,
+// and terms. Recognizes a few common formats:
+//   - Bank statement style: "MM/DD  Description  Amount" (Wells Fargo, Chase)
+//   - Capital One credit card: "Trans Date / Post Date / Description / Amount"
+//     with dates like "Apr 16" / "Mar 24"
+//   - Generic: any line beginning with MM/DD or "Mon DD"
+//
+// Stops at common section-end markers ("Total Transactions", "Fees Charged",
+// "Interest Charged", "Important Information About") so we don't ship the
+// LLM 8k chars of legalese.
 func extractTransactionSection(text string, maxLen int) string {
 	lines := strings.Split(text, "\n")
-	// Match transaction lines: date + spaces + description + amount
-	// This avoids matching standalone dates in headers like "04/06/26"
-	txnPattern := regexp.MustCompile(`^\s*\d{2}/\d{2}\s{2,}\S`)
 
-	// Find the first line that looks like a transaction (date + description on same line)
+	// Date-prefix patterns that mark a transaction line.
+	mmddPattern := regexp.MustCompile(`^\s*\d{1,2}/\d{1,2}(/\d{2,4})?\s{2,}\S`)
+	monDayPattern := regexp.MustCompile(`^\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b`)
+	// Header that introduces the activity table on credit card statements.
+	headerPattern := regexp.MustCompile(`(?i)\b(trans\s*date|transactions?|account\s+activity|posted\s+transactions)\b`)
+	// Footer markers — once we hit one, the transaction list is over.
+	endMarkers := []string{
+		"total transactions for this period",
+		"total fees charged",
+		"total interest charged",
+		"fees charged",
+		"interest charged",
+		"important information about",
+		"how we calculate",
+		"your annual percentage rate",
+		"rewards summary",
+		"end of statement",
+	}
+
+	isTxnLine := func(line string) bool {
+		return mmddPattern.MatchString(line) || monDayPattern.MatchString(line)
+	}
+	isEndMarker := func(line string) bool {
+		l := strings.ToLower(strings.TrimSpace(line))
+		for _, m := range endMarkers {
+			if strings.HasPrefix(l, m) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// First pass: find the activity-table header (e.g. "Trans Date  Post Date
+	// Description  Amount"). If we find one, we'll start a few lines after it.
 	startIdx := -1
 	for i, line := range lines {
-		if txnPattern.MatchString(line) {
+		if headerPattern.MatchString(line) && strings.Contains(strings.ToLower(line), "date") {
 			startIdx = i
 			break
 		}
 	}
 
+	// Second pass: if no header, fall back to the first line that looks like
+	// a transaction.
 	if startIdx == -1 {
-		// No date patterns found — just truncate from start
+		for i, line := range lines {
+			if isTxnLine(line) {
+				startIdx = i
+				break
+			}
+		}
+	}
+
+	if startIdx == -1 {
+		// Nothing recognizable — truncate from start.
 		if len(text) > maxLen {
 			return text[:maxLen]
 		}
 		return text
 	}
 
-	// Build text from the transaction section
 	var result strings.Builder
 	for i := startIdx; i < len(lines); i++ {
 		line := lines[i]
+		if isEndMarker(line) {
+			break
+		}
 		if result.Len()+len(line)+1 > maxLen {
 			break
 		}

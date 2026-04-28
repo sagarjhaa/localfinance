@@ -16,6 +16,7 @@ import (
 // Rule IDs are stable string constants. They are part of the Insight.Key digest, so
 // changing them invalidates dismissals — treat as a wire format.
 const (
+	RuleMonthSummary         = "month_summary"          // always-on overview: total, top category, top merchant
 	RuleCategoryShift        = "category_shift"         // category spend ±20% vs prior 90d baseline
 	RuleNewRecurringMerchant = "new_recurring_merchant" // merchant with ≥2 charges in last 30d that wasn't in prior 60d
 	RuleDayOfWeekCluster     = "day_of_week_cluster"    // category spend concentrated on one DOW > 50%

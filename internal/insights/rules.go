@@ -71,12 +71,140 @@ func normalizeMerchant(desc string) string {
 // engine output is deterministic for tests.
 func AllRules() []Rule {
 	return []Rule{
+		// MonthSummary first so it's pinned at the top of the UI feed.
+		// It always emits one insight when there's at least one txn in
+		// the window — guarantees the user sees something for any month.
+		detectMonthSummary,
 		detectCategoryShift,
 		detectNewRecurringMerchant,
 		detectDayOfWeekCluster,
 		detectPriceEscalation,
 		detectAnomalyCluster,
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Rule 0: detectMonthSummary
+//
+// Always-on overview. Scans the entire window (whatever filterByWindow gave
+// us — typically one calendar month). Emits one low-priority insight with:
+//   - transaction count
+//   - total spend (expenses only, signed amounts ignored)
+//   - top category by spend
+//   - top merchant by spend
+//
+// Returns nothing if the window has zero transactions — there's literally
+// nothing to summarize. Otherwise it always emits exactly one insight, so
+// month-in-review is never empty for any month with data.
+// ---------------------------------------------------------------------------
+
+func detectMonthSummary(ctx RuleContext) []Insight {
+	expenses := make([]models.TransactionRef, 0, len(ctx.Transactions))
+	for _, t := range ctx.Transactions {
+		if isExpense(t) {
+			expenses = append(expenses, t)
+		}
+	}
+	if len(expenses) == 0 {
+		return nil
+	}
+
+	var totalSpend float64
+	byCategory := make(map[string]float64)
+	byMerchant := make(map[string]float64)
+	merchantIDs := make(map[string][]string)
+	categoryIDs := make(map[string][]string)
+	allIDs := make([]string, 0, len(expenses))
+	earliest, latest := time.Time{}, time.Time{}
+	for _, t := range expenses {
+		amt := absAmount(t)
+		totalSpend += amt
+		cat := strings.TrimSpace(t.Category)
+		if cat == "" {
+			cat = "Other"
+		}
+		byCategory[cat] += amt
+		categoryIDs[cat] = append(categoryIDs[cat], t.ID)
+		merch := normalizeMerchant(t.Description)
+		if merch != "" {
+			byMerchant[merch] += amt
+			merchantIDs[merch] = append(merchantIDs[merch], t.ID)
+		}
+		if d, ok := parseTxDate(t.Date); ok {
+			if earliest.IsZero() || d.Before(earliest) {
+				earliest = d
+			}
+			if latest.IsZero() || d.After(latest) {
+				latest = d
+			}
+		}
+		if t.ID != "" {
+			allIDs = append(allIDs, t.ID)
+		}
+	}
+
+	topCategory, topCategorySpend := topByValue(byCategory)
+	topMerchant, topMerchantSpend := topByValue(byMerchant)
+	// Display merchant name in title case rather than the lowercased
+	// normalized form. We don't know the canonical capitalization without
+	// scanning the original descriptions, so do a best-effort: take the
+	// first transaction whose normalized description matches.
+	displayMerchant := topMerchant
+	for _, t := range expenses {
+		if normalizeMerchant(t.Description) == topMerchant {
+			displayMerchant = strings.TrimSpace(t.Description)
+			break
+		}
+	}
+
+	// Quantize period for stable Key. Use the window the engine was given,
+	// not earliest/latest from data, so re-runs on the same period produce
+	// the same key even if a new transaction lands later in the window.
+	periodStart, periodEnd := earliest, latest
+	key := MakeKey(RuleMonthSummary, periodStart, periodEnd)
+
+	return []Insight{{
+		Key:         key,
+		RuleID:      RuleMonthSummary,
+		Title:       "Month at a glance",
+		Description: "", // template narrator fills this from Numbers/Strings
+		Priority:    PriorityLow,
+		EvidenceIDs: allIDs,
+		Numbers: map[string]float64{
+			"txn_count":          float64(len(expenses)),
+			"total_spend":        totalSpend,
+			"top_category_spend": topCategorySpend,
+			"top_merchant_spend": topMerchantSpend,
+		},
+		Strings: map[string]string{
+			"top_category": topCategory,
+			"top_merchant": displayMerchant,
+		},
+		CreatedAt: ctx.Now,
+	}}
+}
+
+// topByValue returns the key with the highest value, plus that value.
+// Empty map returns ("", 0). Ties broken alphabetically for determinism.
+func topByValue(m map[string]float64) (string, float64) {
+	bestKey := ""
+	bestVal := math.Inf(-1)
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		v := m[k]
+		if v > bestVal {
+			bestKey = k
+			bestVal = v
+		}
+	}
+	if math.IsInf(bestVal, -1) {
+		return "", 0
+	}
+	return bestKey, bestVal
 }
 
 // ---------------------------------------------------------------------------

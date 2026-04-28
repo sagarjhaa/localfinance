@@ -104,6 +104,20 @@ func renderOverall(insights []Insight, period Period) string {
 // that rule's Numbers/Strings map (see rules.go).
 func renderInsight(ins Insight) string {
 	switch ins.RuleID {
+	case RuleMonthSummary:
+		count := int(ins.Numbers["txn_count"])
+		total := ins.Numbers["total_spend"]
+		topCat := ins.Strings["top_category"]
+		topCatSpend := ins.Numbers["top_category_spend"]
+		topMer := ins.Strings["top_merchant"]
+		topMerSpend := ins.Numbers["top_merchant_spend"]
+		// All four parts (count, total, top category, top merchant) are
+		// always present when this rule fires, so a single template covers
+		// every case.
+		return fmt.Sprintf(
+			"You logged %d transactions totaling $%.2f. Top category was %s ($%.2f); top merchant was %s ($%.2f).",
+			count, total, topCat, topCatSpend, topMer, topMerSpend,
+		)
 	case RuleCategoryShift:
 		cat := ins.Strings["category"]
 		dir := ins.Strings["direction"]

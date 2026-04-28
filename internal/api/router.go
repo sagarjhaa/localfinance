@@ -206,6 +206,7 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 				transactions.GET("/:id", transactionHandler.GetTransaction)
 				transactions.PUT("/:id", transactionHandler.UpdateTransaction)
 				transactions.DELETE("/:id", transactionHandler.DeleteTransaction)
+				transactions.POST("/:id/feedback", transactionHandler.SubmitFeedback)
 				transactions.GET("/", transactionHandler.ListTransactions)
 				transactions.GET("/account/:accountId", transactionHandler.GetTransactionsByAccount)
 				transactions.GET("/category/:category", transactionHandler.GetTransactionsByCategory)

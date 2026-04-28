@@ -4,6 +4,7 @@ import { FONTS, COLORS, APP } from '../theme';
 import { useIsNarrow, useIsMedium } from '../hooks/useMediaQuery';
 import Money from '../components/Money';
 import EyebrowHeading from '../components/EyebrowHeading';
+import { useToast } from '../components/Toast';
 
 const categoryIcons = {
   Food: '🍽️', Transport: '✈️', Shopping: '🛍️', Entertainment: '🎬',
@@ -24,6 +25,9 @@ const Dashboard = ({ user, onLogout }) => {
   const [currentTicker, setCurrentTicker] = useState(null);
   const [revealing, setRevealing] = useState(false);
   const [error, setError] = useState('');
+  const [feedback, setFeedback] = useState({}); // { [txId]: 'up' | 'down' }
+  const [expandedFeedback, setExpandedFeedback] = useState(null); // tx id of the open thumbs-down menu
+  const { toast } = useToast();
   // The Static-vs-AI dual parse view was removed once Logos started routing every
   // upload through Sophia/Ollama — the "static" column was always identical to
   // the saved transactions, just labeled differently.
@@ -117,6 +121,49 @@ const Dashboard = ({ user, onLogout }) => {
     setDocumentId(null); setError(''); setProcessing(false); setRevealing(false);
     if (pollRef.current) clearInterval(pollRef.current);
     if (revealRef.current) clearTimeout(revealRef.current);
+  };
+
+  // Feedback actions
+  const submitFeedback = async (txId, body) => {
+    try {
+      await proxyAPI.thesaurus.post(`/api/v1/transactions/${txId}/feedback`, body);
+      return true;
+    } catch (err) {
+      toast("Couldn't save that feedback. Try again?", 'error');
+      return false;
+    }
+  };
+  const onThumbUp = async (txId) => {
+    if (feedback[txId] === 'up') return; // no-op if already up
+    if (await submitFeedback(txId, { signal: 'up' })) {
+      setFeedback({ ...feedback, [txId]: 'up' });
+      setExpandedFeedback(null);
+      toast('Noted. Thanks.', 'success');
+    }
+  };
+  const onThumbDown = (txId) => {
+    setExpandedFeedback(expandedFeedback === txId ? null : txId);
+  };
+  const onCorrectCategory = async (txId, newCat) => {
+    if (await submitFeedback(txId, { signal: 'down', reason: 'wrong_category', corrected_category: newCat })) {
+      setFeedback({ ...feedback, [txId]: 'down' });
+      setExpandedFeedback(null);
+      // Reflect new category locally without refetching
+      setAllTransactions(prev => prev.map(t => (t.id === txId ? { ...t, category: newCat } : t)));
+      setVisibleTransactions(prev => prev.map(t => (t.id === txId ? { ...t, category: newCat } : t)));
+      toast('Category fixed.', 'success');
+    }
+  };
+  const onDeleteTransaction = async (txId) => {
+    try {
+      await proxyAPI.thesaurus.delete(`/api/v1/transactions/${txId}`);
+      setAllTransactions(prev => prev.filter(t => t.id !== txId));
+      setVisibleTransactions(prev => prev.filter(t => t.id !== txId));
+      setExpandedFeedback(null);
+      toast('Removed.', 'success');
+    } catch (err) {
+      toast("Couldn't remove that one.", 'error');
+    }
   };
 
   const fmtAmt = (a) => {
@@ -336,23 +383,65 @@ const Dashboard = ({ user, onLogout }) => {
                         <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600, color: COLORS.stone500, fontSize: 10, textTransform: 'uppercase' }}>Description</th>
                         <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600, color: COLORS.stone500, fontSize: 10, textTransform: 'uppercase' }}>Category</th>
                         <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 600, color: COLORS.stone500, fontSize: 10, textTransform: 'uppercase' }}>Amount</th>
+                        <th style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 600, color: COLORS.stone500, fontSize: 10, textTransform: 'uppercase', width: 80 }}>Right?</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {allTransactions.map((t, i) => (
-                        <tr key={i} style={{ borderBottom: '1px solid ' + COLORS.stone100 }}>
-                          <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', color: COLORS.stone500 }}>{t.date ? new Date(t.date).toLocaleDateString() : ''}</td>
-                          <td style={{ padding: '8px 12px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</td>
-                          <td style={{ padding: '8px 12px' }}>
-                            <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: COLORS.stone100, color: COLORS.stone700 }}>
-                              {categoryIcons[t.category] || '⚙️'} {t.category || 'Other'}
-                            </span>
-                          </td>
-                          <td style={{ padding: '8px 12px', textAlign: 'right' }}>
-                            <Money amount={t.amount} size={13} animate={false} />
-                          </td>
-                        </tr>
-                      ))}
+                      {allTransactions.map((t, i) => {
+                        const fb = feedback[t.id] || t.user_signal || '';
+                        const expanded = expandedFeedback === t.id;
+                        return (
+                          <React.Fragment key={t.id || i}>
+                            <tr style={{ borderBottom: expanded ? 'none' : '1px solid ' + COLORS.stone100 }}>
+                              <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', color: COLORS.stone500 }}>{t.date ? new Date(t.date).toLocaleDateString() : ''}</td>
+                              <td style={{ padding: '8px 12px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</td>
+                              <td style={{ padding: '8px 12px' }}>
+                                <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: COLORS.stone100, color: COLORS.stone700 }}>
+                                  {categoryIcons[t.category] || '⚙️'} {t.category || 'Other'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                                <Money amount={t.amount} size={13} animate={false} />
+                              </td>
+                              <td style={{ padding: '8px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                <button
+                                  onClick={() => onThumbUp(t.id)}
+                                  title="Looks right"
+                                  style={{ ...S.thumbBtn, color: fb === 'up' ? COLORS.moss : COLORS.ash, opacity: fb === 'up' ? 1 : 0.6 }}
+                                >👍</button>
+                                <button
+                                  onClick={() => onThumbDown(t.id)}
+                                  title="Something's off"
+                                  style={{ ...S.thumbBtn, color: fb === 'down' ? COLORS.ember : COLORS.ash, opacity: fb === 'down' ? 1 : 0.6 }}
+                                >👎</button>
+                              </td>
+                            </tr>
+                            {expanded && (
+                              <tr style={{ borderBottom: '1px solid ' + COLORS.stone100, background: COLORS.emberBg }}>
+                                <td colSpan={5} style={{ padding: '12px 16px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: 12, color: COLORS.ash }}>What's wrong?</span>
+                                    <select
+                                      defaultValue=""
+                                      onChange={(e) => e.target.value && onCorrectCategory(t.id, e.target.value)}
+                                      style={S.fbSelect}
+                                    >
+                                      <option value="" disabled>Fix category…</option>
+                                      {Object.keys(categoryIcons).map(cat => (
+                                        <option key={cat} value={cat}>{cat}</option>
+                                      ))}
+                                    </select>
+                                    <button onClick={() => onDeleteTransaction(t.id)} style={S.fbDeleteBtn}>
+                                      Not my transaction — remove
+                                    </button>
+                                    <button onClick={() => setExpandedFeedback(null)} style={S.fbCancelBtn}>Cancel</button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -403,6 +492,10 @@ const styles = (isNarrow, isMedium) => ({
   uploadIcon: { width: 56, height: 56, borderRadius: '50%', background: '#fff', boxShadow: '0 10px 30px rgba(0,0,0,0.1), inset 0 0 0 1px rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
   dropTitle: { fontFamily: FONTS.headline, fontSize: 18, fontWeight: 500, margin: 0, marginBottom: 12, textAlign: 'center', color: COLORS.stone700 },
   browseBtn: { marginTop: 16, padding: '10px 24px', background: COLORS.primary, color: COLORS.white, fontSize: 13, fontWeight: 600, border: 'none', borderRadius: 8, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' },
+  thumbBtn: { background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 4px', marginLeft: 4 },
+  fbSelect: { fontFamily: FONTS.body, fontSize: 12, padding: '6px 10px', borderRadius: 6, border: `1px solid ${COLORS.rule}`, background: COLORS.surface, color: COLORS.ink, cursor: 'pointer' },
+  fbDeleteBtn: { fontFamily: FONTS.body, fontSize: 12, padding: '6px 12px', borderRadius: 6, border: `1px solid ${COLORS.ember}`, background: 'transparent', color: COLORS.ember, cursor: 'pointer' },
+  fbCancelBtn: { fontFamily: FONTS.body, fontSize: 12, padding: '6px 12px', borderRadius: 6, border: 'none', background: 'transparent', color: COLORS.ash, cursor: 'pointer', marginLeft: 'auto' },
   ledgerTitle: { fontFamily: FONTS.headline, fontSize: 28, fontWeight: 500 },
   exportBtn: { padding: '10px 24px', background: COLORS.primary, color: COLORS.white, fontSize: 14, fontWeight: 700, border: 'none', borderRadius: 8, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', gap: 8 },
   tableContainer: { background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(24px)', borderRadius: 24, border: `1px solid ${COLORS.stone100}`, overflow: 'hidden' },

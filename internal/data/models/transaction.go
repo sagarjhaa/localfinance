@@ -19,6 +19,13 @@ type Transaction struct {
 	Reference   string         `json:"reference"`
 	DocumentID  string         `gorm:"index" json:"document_id,omitempty"`
 	Notes       string         `json:"notes"`
+	// User feedback. Set via POST /api/v1/transactions/:id/feedback. Used
+	// downstream by chat + the parse pipeline to lean on user-corrected
+	// categories instead of LLM guesses.
+	UserSignal           string `json:"user_signal,omitempty"`            // "" | "up" | "down"
+	UserCorrectedCategory string `json:"user_corrected_category,omitempty"`
+	UserFeedbackReason    string `json:"user_feedback_reason,omitempty"`   // "wrong_category" | "wrong_amount" | "not_mine" | "other"
+	UserFeedbackNote      string `json:"user_feedback_note,omitempty"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`

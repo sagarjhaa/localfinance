@@ -408,3 +408,49 @@ func (h *TransactionHandler) getTransactionsWithFilter(filter models.Transaction
 
 	return transactions, nil
 }
+// SubmitFeedback records the user's thumb up/down on a transaction. On
+// "down" the body may also include corrected_category, reason, and a
+// free-form note — those become the source of truth for chat and future
+// parses.
+//
+// POST /api/v1/transactions/:id/feedback
+// body: { signal: "up" | "down", reason?: "...", corrected_category?: "...", note?: "..." }
+func (h *TransactionHandler) SubmitFeedback(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid transaction id"})
+		return
+	}
+	var req struct {
+		Signal              string `json:"signal" binding:"required"`
+		Reason              string `json:"reason,omitempty"`
+		CorrectedCategory   string `json:"corrected_category,omitempty"`
+		Note                string `json:"note,omitempty"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.Signal != "up" && req.Signal != "down" && req.Signal != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "signal must be 'up', 'down', or empty"})
+		return
+	}
+
+	updates := map[string]interface{}{
+		"user_signal":             req.Signal,
+		"user_feedback_reason":    req.Reason,
+		"user_corrected_category": req.CorrectedCategory,
+		"user_feedback_note":      req.Note,
+	}
+	// If user gave a corrected category, also update the live Category so
+	// reads everywhere (chat, insights, dashboard) reflect the user's
+	// intent without us having to teach every consumer about the override.
+	if req.CorrectedCategory != "" {
+		updates["category"] = req.CorrectedCategory
+	}
+	if err := h.db.Model(&models.Transaction{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to record feedback"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "recorded"})
+}

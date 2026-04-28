@@ -10,7 +10,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/lib/pq v1.10.9
-	github.com/sagarjhaa/statementmd v0.0.0-00010101000000-000000000000
+	github.com/sagarjhaa/statementmd v0.1.0
 	golang.org/x/crypto v0.50.0
 	golang.org/x/sys v0.43.0
 	gorm.io/driver/postgres v1.6.0
@@ -61,11 +61,3 @@ require (
 	modernc.org/memory v1.5.0 // indirect
 	modernc.org/sqlite v1.23.1 // indirect
 )
-
-// statementmd lives in a sibling repo. Until it's published to GitHub
-// the replace directive points at a local checkout. For a fresh clone,
-// either:
-//   1. clone https://github.com/sagarjhaa/statementmd as a sibling dir
-//      and keep the replace line, or
-//   2. drop the replace line once statementmd is tagged on GitHub.
-replace github.com/sagarjhaa/statementmd => ../statementmd

@@ -220,7 +220,6 @@ MIT — see [LICENSE](LICENSE).
 
 ```
 git clone https://github.com/sagarjhaa/localfinance
-git clone https://github.com/sagarjhaa/statementmd   # sibling dir; required by go.mod replace
 cd localfinance
 make build         # → dist/localfinance (Go binary with embedded React UI)
 make installer-run # → builds + opens dist/LocalFinance.app

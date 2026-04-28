@@ -32,6 +32,11 @@ help:
 	@echo ""
 	@echo "Clean:"
 	@echo "  make clean             Remove dist/"
+	@echo ""
+	@echo "Test data (embedded Postgres must be running, i.e. .app or make dev):"
+	@echo "  make reset-data        Wipe transactions/accounts/documents (keeps users)"
+	@echo "  make reset-uploads     reset-data + clear /tmp/localfinance/uploads"
+	@echo "  make reset-hard        Full nuke including users — re-register required"
 
 # ─── Run ──────────────────────────────────────────────
 .PHONY: dev
@@ -94,3 +99,14 @@ installer-run: installer
 
 dmg:
 	@bash installer/dmg.sh
+
+# ─── Test data ────────────────────────────────────────
+.PHONY: reset-data reset-uploads reset-hard
+reset-data:
+	@bash scripts/reset-data.sh
+
+reset-uploads:
+	@bash scripts/reset-data.sh --uploads
+
+reset-hard:
+	@bash scripts/reset-data.sh --hard --uploads

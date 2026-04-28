@@ -34,6 +34,18 @@ func parseTxDate(s string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
+// isInternalMovement returns true for category labels that represent a
+// transfer between the user's own accounts (paying off a credit card,
+// moving cash from checking to savings). These shouldn't count as
+// spending — they don't reduce net wealth, they reshape it.
+func isInternalMovement(category string) bool {
+	switch strings.ToLower(strings.TrimSpace(category)) {
+	case "card payment", "transfer":
+		return true
+	}
+	return false
+}
+
 // isExpense returns true for transactions that count as outgoing money. We treat
 // missing Type as expense (legacy data) but explicit "income"/"credit" as income.
 func isExpense(t models.TransactionRef) bool {
@@ -101,9 +113,17 @@ func AllRules() []Rule {
 func detectMonthSummary(ctx RuleContext) []Insight {
 	expenses := make([]models.TransactionRef, 0, len(ctx.Transactions))
 	for _, t := range ctx.Transactions {
-		if isExpense(t) {
-			expenses = append(expenses, t)
+		if !isExpense(t) {
+			continue
 		}
+		// Card Payment and Transfer aren't real spending — they move money
+		// between the user's own accounts (paying off a card, moving cash).
+		// Including them in totals double-counts and surfaces meaningless
+		// "merchants" like "AUTOPAY PAYMENT" at the top.
+		if isInternalMovement(t.Category) {
+			continue
+		}
+		expenses = append(expenses, t)
 	}
 	if len(expenses) == 0 {
 		return nil

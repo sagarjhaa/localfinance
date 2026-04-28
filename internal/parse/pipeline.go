@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -290,10 +291,23 @@ func convertParsedTransactions(raw []map[string]interface{}, fileSource string) 
 		if strings.TrimSpace(t.Description) == "" && t.Amount == 0 {
 			continue
 		}
+		// Post-LLM correction: any description that looks like a credit-card
+		// paydown is forced to category "Card Payment", regardless of what
+		// the model returned. The LLM occasionally puts these in EMI / Income
+		// / Transfer despite the prompt rule, which then pollutes summaries.
+		// Cheap deterministic guard.
+		if cardPaymentRE.MatchString(t.Description) {
+			t.Category = "Card Payment"
+		}
 		txns = append(txns, t)
 	}
 	return txns
 }
+
+// cardPaymentRE matches the universal phrasings every issuer uses for
+// "user paid down their card balance" — these aren't merchant purchases
+// or income, they're balance transfers.
+var cardPaymentRE = regexp.MustCompile(`(?i)\b(automatic|autopay|auto[\s-]?pay|online|mobile|electronic)\s+payment\b|\bpayment\s+(received|thank)\b|\bpayment\s*-?\s*thank\b`)
 
 func parseDate(s string) time.Time {
 	s = strings.TrimSpace(s)

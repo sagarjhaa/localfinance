@@ -983,7 +983,9 @@ func (s *Service) ParseTransactions(ctx context.Context, text string, userModel 
 	// Look for the first line starting with a date pattern (MM/DD), then keep
 	// up to ~60k chars (covers a 10-page statement comfortably; larger PDFs
 	// get truncated rather than dropping transactions silently).
+	rawLen := len(text)
 	text = extractTransactionSection(text, 60000)
+	log.Printf("[ai.parse] extracted section: %d chars (from %d raw), model=%s", len(text), rawLen, userModel)
 
 	prompt := fmt.Sprintf(`Extract transactions as JSON.
 Fields: date (YYYY-MM-DD), description (Clean Name), amount (Positive=Charge, Negative=Payment), category (Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Card Payment, Health, Cash, EMI, Education, Other).
@@ -1022,9 +1024,11 @@ Statement:
 	// extractTransactionSection caps text at 60000 chars upstream; if a
 	// statement spills past 8192 tokens we accept slight quality loss in
 	// exchange for ~3x faster parse on a 4B model.
+	t0 := time.Now()
 	response, err := s.queryOllamaWithOptionsCtx(ctx, prompt, 0.1, userModel, map[string]interface{}{
 		"num_ctx": 8192,
 	})
+	log.Printf("[ai.parse] ollama call took %s (resp=%d chars, err=%v)", time.Since(t0).Round(time.Millisecond), len(response), err)
 	if err != nil {
 		return nil, err
 	}

@@ -217,14 +217,7 @@ const Dashboard = ({ user, onLogout }) => {
       <main style={S.main}>
         {/* Top header */}
         <header style={S.topBar}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
-            <h2 style={{ fontFamily: FONTS.headline, fontSize: 20, margin: 0 }}>Dashboard</h2>
-            <nav style={{ display: 'flex', gap: 24 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, borderBottom: `2px solid ${COLORS.primary}`, paddingBottom: 4 }}>Overview</span>
-              <span style={{ fontSize: 14, color: COLORS.stone500 }}>Analytics</span>
-              <span style={{ fontSize: 14, color: COLORS.stone500 }}>Reports</span>
-            </nav>
-          </div>
+          <h2 style={{ fontFamily: FONTS.headline, fontSize: 20, margin: 0 }}>Dashboard</h2>
         </header>
 
         <div style={S.content}>
@@ -274,10 +267,14 @@ const Dashboard = ({ user, onLogout }) => {
                     ? <div style={{ width: 36, height: 36, border: '3px solid #e5e5e5', borderTop: `3px solid ${COLORS.primary}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
                     : <span style={{ fontSize: 36 }}>&#9729;</span>}
                 </div>
-                <h3 style={S.dropTitle}>{isActive ? 'Reading the small print so you don’t have to.' : 'Drop a PDF or CSV here.'}</h3>
-                <p style={{ color: '#737373', textAlign: 'center', maxWidth: 380 }}>
-                  {isActive ? 'Looking through every page. This usually takes a minute.' : 'Or browse for one.'}
-                </p>
+                <h3 style={S.dropTitle}>
+                  {isActive ? 'Reading the small print so you don’t have to.' : 'Drop a PDF or CSV here.'}
+                </h3>
+                {isActive && (
+                  <p style={{ color: '#737373', textAlign: 'center', maxWidth: 380 }}>
+                    Looking through every page. This usually takes a minute.
+                  </p>
+                )}
                 {!isActive && <button onClick={handleBrowse} style={S.browseBtn}>Or browse for one.</button>}
               </div>
             </div>
@@ -395,12 +392,12 @@ const styles = (isNarrow, isMedium) => ({
   pulseDot: { width: 8, height: 8, borderRadius: '50%', background: '#22c55e', animation: 'pulse 2s infinite' },
   tickerLabel: { fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 700, color: COLORS.stone500 },
   tickerIcon: { width: 32, height: 32, borderRadius: 8, background: COLORS.stone100, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 },
-  uploadSection: { background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(24px)', border: '1px solid #fff', boxShadow: '0 24px 60px -12px rgba(0,0,0,0.12), inset 0 1px 1px rgba(255,255,255,0.8)', borderRadius: 24, overflow: 'hidden', marginBottom: 0 },
-  dropZone: { border: '2px dashed #e0e0e0', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '96px 48px', background: 'rgba(255,255,255,0.4)', cursor: 'pointer', transition: 'all 0.3s' },
+  uploadSection: { background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(24px)', border: '1px solid #fff', boxShadow: '0 24px 60px -12px rgba(0,0,0,0.12), inset 0 1px 1px rgba(255,255,255,0.8)', borderRadius: 24, overflow: 'hidden', marginBottom: 0, maxWidth: 720, marginLeft: 'auto', marginRight: 'auto' },
+  dropZone: { border: '2px dashed #e0e0e0', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '56px 32px', background: 'rgba(255,255,255,0.4)', cursor: 'pointer', transition: 'all 0.3s' },
   dropZoneActive: { borderColor: COLORS.primary, background: 'rgba(245,245,245,0.6)' },
-  uploadIcon: { width: 80, height: 80, borderRadius: '50%', background: '#fff', boxShadow: '0 10px 30px rgba(0,0,0,0.1), inset 0 0 0 1px rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 32 },
-  dropTitle: { fontFamily: FONTS.headline, fontSize: 28, marginBottom: 16 },
-  browseBtn: { marginTop: 40, padding: '12px 32px', background: COLORS.primary, color: COLORS.white, fontSize: 14, fontWeight: 700, border: 'none', borderRadius: 8, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' },
+  uploadIcon: { width: 56, height: 56, borderRadius: '50%', background: '#fff', boxShadow: '0 10px 30px rgba(0,0,0,0.1), inset 0 0 0 1px rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  dropTitle: { fontFamily: FONTS.headline, fontSize: 18, fontWeight: 500, margin: 0, marginBottom: 12, textAlign: 'center', color: COLORS.stone700 },
+  browseBtn: { marginTop: 16, padding: '10px 24px', background: COLORS.primary, color: COLORS.white, fontSize: 13, fontWeight: 600, border: 'none', borderRadius: 8, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' },
   ledgerTitle: { fontFamily: FONTS.headline, fontSize: 28, fontWeight: 500 },
   exportBtn: { padding: '10px 24px', background: COLORS.primary, color: COLORS.white, fontSize: 14, fontWeight: 700, border: 'none', borderRadius: 8, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', gap: 8 },
   tableContainer: { background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(24px)', borderRadius: 24, border: `1px solid ${COLORS.stone100}`, overflow: 'hidden' },

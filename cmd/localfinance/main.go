@@ -41,7 +41,22 @@ func initLogging() {
 	slog.SetDefault(slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: slog.LevelInfo})))
 }
 
+// ensureBrewInPath prepends Homebrew's bin dirs to PATH so child processes
+// (pdftoppm, pdftotext, etc.) can be found when the .app is launched via
+// Finder. macOS launchd starts processes with a minimal PATH that omits
+// /opt/homebrew/bin and /usr/local/bin, which is where brew puts binaries.
+func ensureBrewInPath() {
+	current := os.Getenv("PATH")
+	for _, p := range []string{"/opt/homebrew/bin", "/usr/local/bin"} {
+		if !strings.Contains(current, p) {
+			current = p + string(os.PathListSeparator) + current
+		}
+	}
+	_ = os.Setenv("PATH", current)
+}
+
 func main() {
+	ensureBrewInPath()
 	initLogging()
 	// If DB_HOST is unset, run an embedded Postgres for the .app build path.
 	// If DB_HOST is set, connect to a host Postgres (dev/Docker).

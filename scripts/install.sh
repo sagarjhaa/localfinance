@@ -53,6 +53,8 @@ ensure_dep() {
 }
 ensure_dep go go
 ensure_dep node node
+# poppler provides pdftoppm + pdftotext used by the parse pipeline.
+ensure_dep pdftoppm poppler
 
 # Ollama install
 if command -v ollama >/dev/null 2>&1; then

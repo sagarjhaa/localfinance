@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { insightsAPI } from '../api/client';
 import { FONTS, COLORS, APP } from '../theme';
+import { useIsNarrow, useIsMedium } from '../hooks/useMediaQuery';
 
 const PRIORITY_COLORS = {
   high:   { bg: '#fee2e2', fg: '#991b1b' },
@@ -9,6 +10,9 @@ const PRIORITY_COLORS = {
 };
 
 const InsightsPage = ({ user, onLogout }) => {
+  const isNarrow = useIsNarrow();
+  const isMedium = useIsMedium();
+  const S = styles(isNarrow, isMedium);
   const [insights, setInsights] = useState([]);
   const [narrative, setNarrative] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -55,11 +59,11 @@ const InsightsPage = ({ user, onLogout }) => {
   return (
     <div style={S.page}>
       <aside style={S.sidebar}>
-        <div style={{ padding: '0 32px', marginBottom: 16 }}>
+        <div style={isNarrow ? { padding: 0, marginBottom: 0, marginRight: 8 } : { padding: '0 32px', marginBottom: 16 }}>
           <h1 style={S.sidebarLogo}>{APP.name}</h1>
-          <p style={S.sidebarTier}>{APP.tagline}</p>
+          {!isNarrow && <p style={S.sidebarTier}>{APP.tagline}</p>}
         </div>
-        <nav>
+        <nav style={isNarrow ? { display: 'flex', flexDirection: 'row', gap: 4, alignItems: 'center' } : {}}>
           <div onClick={() => window.location.href = '/dashboard'} style={S.navItem}>
             <span style={{ fontSize: 20 }}>&#128196;</span>
             <span style={{ fontSize: 14 }}>Dashboard</span>
@@ -169,25 +173,33 @@ const InsightsPage = ({ user, onLogout }) => {
   );
 };
 
-const S = {
-  page: { display: 'flex', minHeight: '100vh', fontFamily: FONTS.body, color: COLORS.primary, background: COLORS.white },
-  sidebar: { width: 256, height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 40, background: COLORS.white, borderRight: `1px solid ${COLORS.stone100}`, display: 'flex', flexDirection: 'column', paddingTop: 32, paddingBottom: 32 },
-  sidebarLogo: { fontFamily: FONTS.headline, fontSize: 20, fontWeight: 700, margin: 0 },
+const styles = (isNarrow, isMedium) => ({
+  page: { display: 'flex', flexDirection: isNarrow ? 'column' : 'row', minHeight: '100vh', fontFamily: FONTS.body, color: COLORS.primary, background: COLORS.white },
+  sidebar: isNarrow
+    ? { width: '100%', position: 'sticky', top: 0, zIndex: 40, background: COLORS.white, borderBottom: `1px solid ${COLORS.stone100}`, display: 'flex', flexDirection: 'row', alignItems: 'center', padding: '12px 16px', gap: 16, overflowX: 'auto' }
+    : { width: isMedium ? 200 : 256, height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 40, background: COLORS.white, borderRight: `1px solid ${COLORS.stone100}`, display: 'flex', flexDirection: 'column', paddingTop: 32, paddingBottom: 32 },
+  sidebarLogo: { fontFamily: FONTS.headline, fontSize: isNarrow ? 16 : 20, fontWeight: 700, margin: 0 },
   sidebarTier: { fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: COLORS.stone500, fontWeight: 700, marginTop: 4 },
-  navActive: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: COLORS.primary, fontWeight: 700, background: COLORS.stone50, borderRight: `4px solid ${COLORS.primary}`, cursor: 'pointer' },
-  navItem: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: COLORS.stone500, cursor: 'pointer' },
-  sidebarFooter: { marginTop: 'auto', padding: '24px 32px', borderTop: `1px solid ${COLORS.stone100}` },
-  avatar: { width: 40, height: 40, borderRadius: '50%', background: COLORS.stone100, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, textTransform: 'uppercase' },
-  main: { flex: 1, marginLeft: 256, minHeight: '100vh', background: COLORS.white },
-  topBar: { position: 'sticky', top: 0, zIndex: 30, background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${COLORS.stone100}`, padding: '16px 48px' },
-  content: { maxWidth: 880, margin: '0 auto', padding: '64px 48px 80px' },
-  pageTitle: { fontFamily: FONTS.headline, fontSize: 40, fontWeight: 500, letterSpacing: '-0.02em', marginBottom: 8 },
+  navActive: isNarrow
+    ? { display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', color: COLORS.primary, fontWeight: 700, background: COLORS.stone50, borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap' }
+    : { display: 'flex', alignItems: 'center', gap: 16, padding: isMedium ? '12px 20px' : '12px 32px', color: COLORS.primary, fontWeight: 700, background: COLORS.stone50, borderRight: `4px solid ${COLORS.primary}`, cursor: 'pointer' },
+  navItem: isNarrow
+    ? { display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', color: COLORS.stone500, cursor: 'pointer', whiteSpace: 'nowrap' }
+    : { display: 'flex', alignItems: 'center', gap: 16, padding: isMedium ? '12px 20px' : '12px 32px', color: COLORS.stone500, cursor: 'pointer' },
+  sidebarFooter: isNarrow
+    ? { marginLeft: 'auto', padding: 0 }
+    : { marginTop: 'auto', padding: isMedium ? '24px 20px' : '24px 32px', borderTop: `1px solid ${COLORS.stone100}` },
+  avatar: { width: isNarrow ? 32 : 40, height: isNarrow ? 32 : 40, borderRadius: '50%', background: COLORS.stone100, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, textTransform: 'uppercase' },
+  main: { flex: 1, marginLeft: isNarrow ? 0 : (isMedium ? 200 : 256), minHeight: '100vh', background: COLORS.white },
+  topBar: { position: 'sticky', top: 0, zIndex: 30, background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${COLORS.stone100}`, padding: isNarrow ? '12px 20px' : (isMedium ? '16px 32px' : '16px 48px') },
+  content: { maxWidth: 'clamp(320px, 80vw, 880px)', margin: '0 auto', padding: isNarrow ? '32px 20px 48px' : (isMedium ? '48px 32px 64px' : '64px 48px 80px') },
+  pageTitle: { fontFamily: FONTS.headline, fontSize: isNarrow ? 28 : (isMedium ? 34 : 40), fontWeight: 500, letterSpacing: '-0.02em', marginBottom: 8 },
   narrativeBox: { padding: '20px 24px', borderRadius: 16, background: COLORS.stone50, border: `1px solid ${COLORS.stone100}`, marginBottom: 24 },
   card: { padding: 20, borderRadius: 12, border: `1px solid ${COLORS.stone200}`, background: COLORS.white },
   badge: { fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, padding: '2px 8px', borderRadius: 999 },
   dismissBtn: { padding: '6px 14px', background: COLORS.white, border: `1px solid ${COLORS.stone300}`, color: COLORS.stone700, fontSize: 12, fontWeight: 600, borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap' },
   empty: { padding: 40, textAlign: 'center', color: COLORS.stone500, border: `1px dashed ${COLORS.stone200}`, borderRadius: 12 },
   error: { padding: '12px 20px', background: COLORS.errorBg, border: '1px solid #fe8983', color: '#752121', borderRadius: 12, fontSize: 14, marginBottom: 24 },
-};
+});
 
 export default InsightsPage;

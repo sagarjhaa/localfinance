@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { authAPI, setAuthData } from '../api/client';
 import { FONTS, COLORS, APP } from '../theme';
+import { useIsNarrow } from '../hooks/useMediaQuery';
 
-const s = {
+const buildStyles = (isNarrow) => ({
   page: {
     minHeight: '100vh',
     background: '#ffffff',
@@ -41,23 +42,23 @@ const s = {
     fontSize: 12, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#a0a0a0',
   },
   panel: {
-    position: 'relative', zIndex: 10, width: '100%', maxWidth: 800, minHeight: 500,
+    position: 'relative', zIndex: 10, width: isNarrow ? '90%' : '100%', maxWidth: 800, minHeight: isNarrow ? 420 : 500,
     background: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(32px)',
     WebkitBackdropFilter: 'blur(32px)',
     borderTop: '1px solid rgba(255, 255, 255, 1)', borderLeft: '1px solid rgba(255, 255, 255, 1)',
     boxShadow: '0px 32px 100px rgba(0, 0, 0, 0.08)',
     borderRadius: 24, display: 'flex', flexDirection: 'column',
-    alignItems: 'center', justifyContent: 'center', padding: '80px',
+    alignItems: 'center', justifyContent: 'center', padding: isNarrow ? '40px 28px' : '80px',
   },
   title: {
-    fontFamily: FONTS.headline, fontSize: 56, lineHeight: 1.1,
+    fontFamily: FONTS.headline, fontSize: isNarrow ? 36 : 56, lineHeight: 1.1,
     color: COLORS.primary, fontWeight: 400, letterSpacing: '-0.02em', textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16, color: '#8C8C8C', marginTop: 12, letterSpacing: '0.04em',
+    fontSize: isNarrow ? 14 : 16, color: '#8C8C8C', marginTop: 12, letterSpacing: '0.04em',
     fontWeight: 300, textAlign: 'center',
   },
-  form: { width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 48, marginTop: 64 },
+  form: { width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: isNarrow ? 32 : 48, marginTop: isNarrow ? 36 : 64 },
   input: {
     width: '100%', background: 'transparent', border: 'none',
     borderBottom: '1px solid #D1D1D1', padding: '16px 0',
@@ -98,7 +99,7 @@ const s = {
   footerText: {
     fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#a0a0a0', fontWeight: 500,
   },
-};
+});
 
 // Default credentials seeded by Thesaurus on first boot (single-user app).
 // Pre-filled here so the user can sign in immediately on a fresh install,
@@ -107,6 +108,8 @@ const DEFAULT_EMAIL = 'local@localfinance.app';
 const DEFAULT_PASSWORD = 'localfinance';
 
 const Login = ({ onLogin }) => {
+  const isNarrow = useIsNarrow();
+  const s = buildStyles(isNarrow);
   const [formData, setFormData] = useState({ email: DEFAULT_EMAIL, password: DEFAULT_PASSWORD });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');

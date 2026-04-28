@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { uploadAPI, documentAPI, proxyAPI } from '../api/client';
 import { FONTS, COLORS, APP } from '../theme';
+import { useIsNarrow, useIsMedium } from '../hooks/useMediaQuery';
 
 const categoryIcons = {
   Food: '🍽️', Transport: '✈️', Shopping: '🛍️', Entertainment: '🎬',
@@ -9,6 +10,9 @@ const categoryIcons = {
 };
 
 const Dashboard = ({ user, onLogout }) => {
+  const isNarrow = useIsNarrow();
+  const isMedium = useIsMedium();
+  const S = styles(isNarrow, isMedium);
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -161,11 +165,11 @@ const Dashboard = ({ user, onLogout }) => {
     <div style={S.page}>
       {/* Sidebar */}
       <aside style={S.sidebar}>
-        <div style={{ padding: '0 32px', marginBottom: 16 }}>
+        <div style={isNarrow ? { padding: 0, marginBottom: 0, marginRight: 8 } : { padding: '0 32px', marginBottom: 16 }}>
           <h1 style={S.sidebarLogo}>{APP.name}</h1>
-          <p style={S.sidebarTier}>{APP.tagline}</p>
+          {!isNarrow && <p style={S.sidebarTier}>{APP.tagline}</p>}
         </div>
-        <nav>
+        <nav style={isNarrow ? { display: 'flex', flexDirection: 'row', gap: 4, alignItems: 'center' } : {}}>
           <div
             onClick={() => window.location.href = '/dashboard'}
             style={S.navActive}
@@ -322,8 +326,8 @@ const Dashboard = ({ user, onLogout }) => {
                   </div>
                   <span style={{ fontSize: 10, fontWeight: 600, color: COLORS.green, background: COLORS.stone100, padding: '4px 8px', borderRadius: 4 }}>SAVED</span>
                 </div>
-                <div style={{ maxHeight: 500, overflowY: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONTS.body, fontSize: 12 }}>
+                <div style={{ maxHeight: 500, overflowY: 'auto', overflowX: isNarrow ? 'auto' : 'visible' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONTS.body, fontSize: 12, minWidth: isNarrow ? 600 : 'auto' }}>
                     <thead>
                       <tr style={{ background: COLORS.stone50 }}>
                         <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600, color: COLORS.stone500, fontSize: 10, textTransform: 'uppercase' }}>Date</th>
@@ -365,19 +369,27 @@ const Dashboard = ({ user, onLogout }) => {
   );
 };
 
-const S = {
-  page: { display: 'flex', minHeight: '100vh', fontFamily: FONTS.body, color: COLORS.primary, background: COLORS.white },
-  sidebar: { width: 256, height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 40, background: COLORS.white, borderRight: `1px solid ${COLORS.stone100}`, display: 'flex', flexDirection: 'column', paddingTop: 32, paddingBottom: 32 },
-  sidebarLogo: { fontFamily: FONTS.headline, fontSize: 20, fontWeight: 700, margin: 0 },
+const styles = (isNarrow, isMedium) => ({
+  page: { display: 'flex', flexDirection: isNarrow ? 'column' : 'row', minHeight: '100vh', fontFamily: FONTS.body, color: COLORS.primary, background: COLORS.white },
+  sidebar: isNarrow
+    ? { width: '100%', position: 'sticky', top: 0, zIndex: 40, background: COLORS.white, borderBottom: `1px solid ${COLORS.stone100}`, display: 'flex', flexDirection: 'row', alignItems: 'center', padding: '12px 16px', gap: 16, overflowX: 'auto' }
+    : { width: isMedium ? 200 : 256, height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 40, background: COLORS.white, borderRight: `1px solid ${COLORS.stone100}`, display: 'flex', flexDirection: 'column', paddingTop: 32, paddingBottom: 32 },
+  sidebarLogo: { fontFamily: FONTS.headline, fontSize: isNarrow ? 16 : 20, fontWeight: 700, margin: 0 },
   sidebarTier: { fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: COLORS.stone500, fontWeight: 700, marginTop: 4 },
-  navActive: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: COLORS.primary, fontWeight: 700, background: COLORS.stone50, borderRight: `4px solid ${COLORS.primary}`, textDecoration: 'none' },
-  navItem: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: COLORS.stone500, textDecoration: 'none' },
-  sidebarFooter: { marginTop: 'auto', padding: '24px 32px', borderTop: `1px solid ${COLORS.stone100}`, display: 'flex', alignItems: 'center', gap: 12 },
-  avatar: { width: 40, height: 40, borderRadius: '50%', background: COLORS.stone100, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, textTransform: 'uppercase' },
-  main: { flex: 1, marginLeft: 256, minHeight: '100vh', background: COLORS.white },
-  topBar: { position: 'sticky', top: 0, zIndex: 30, background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${COLORS.stone100}`, padding: '16px 48px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  content: { maxWidth: 1024, margin: '0 auto', padding: '96px 48px 80px' },
-  pageTitle: { fontFamily: FONTS.headline, fontSize: 48, fontWeight: 500, letterSpacing: '-0.02em', marginBottom: 8 },
+  navActive: isNarrow
+    ? { display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', color: COLORS.primary, fontWeight: 700, background: COLORS.stone50, borderRadius: 8, textDecoration: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }
+    : { display: 'flex', alignItems: 'center', gap: 16, padding: isMedium ? '12px 20px' : '12px 32px', color: COLORS.primary, fontWeight: 700, background: COLORS.stone50, borderRight: `4px solid ${COLORS.primary}`, textDecoration: 'none' },
+  navItem: isNarrow
+    ? { display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', color: COLORS.stone500, textDecoration: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }
+    : { display: 'flex', alignItems: 'center', gap: 16, padding: isMedium ? '12px 20px' : '12px 32px', color: COLORS.stone500, textDecoration: 'none' },
+  sidebarFooter: isNarrow
+    ? { marginLeft: 'auto', padding: 0, display: 'flex', alignItems: 'center', gap: 12 }
+    : { marginTop: 'auto', padding: isMedium ? '24px 20px' : '24px 32px', borderTop: `1px solid ${COLORS.stone100}`, display: 'flex', alignItems: 'center', gap: 12 },
+  avatar: { width: isNarrow ? 32 : 40, height: isNarrow ? 32 : 40, borderRadius: '50%', background: COLORS.stone100, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, textTransform: 'uppercase' },
+  main: { flex: 1, marginLeft: isNarrow ? 0 : (isMedium ? 200 : 256), minHeight: '100vh', background: COLORS.white },
+  topBar: { position: 'sticky', top: 0, zIndex: 30, background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${COLORS.stone100}`, padding: isNarrow ? '12px 20px' : (isMedium ? '16px 32px' : '16px 48px'), display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  content: { maxWidth: 'clamp(320px, 92vw, 1024px)', margin: '0 auto', padding: isNarrow ? '32px 20px 48px' : (isMedium ? '64px 32px 64px' : '96px 48px 80px') },
+  pageTitle: { fontFamily: FONTS.headline, fontSize: isNarrow ? 32 : (isMedium ? 40 : 48), fontWeight: 500, letterSpacing: '-0.02em', marginBottom: 8 },
   error: { padding: '12px 20px', background: COLORS.errorBg, border: '1px solid #fe8983', color: '#752121', borderRadius: 12, fontSize: 14, marginBottom: 24 },
   ticker: { display: 'inline-flex', alignItems: 'center', gap: 24, padding: '16px 32px', background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(24px)', border: '1px solid #fff', boxShadow: '0 24px 60px -12px rgba(0,0,0,0.12), inset 0 1px 1px rgba(255,255,255,0.8)', borderRadius: 999 },
   pulseDot: { width: 8, height: 8, borderRadius: '50%', background: '#22c55e', animation: 'pulse 2s infinite' },
@@ -401,6 +413,6 @@ const S = {
   tdStatus: { padding: '16px 32px', borderBottom: `1px solid ${COLORS.stone100}` },
   verifiedBadge: { display: 'inline-block', padding: '4px 8px', background: COLORS.greenBg, color: '#15803d', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', borderRadius: 999 },
   tableFooter: { padding: '24px 32px', background: 'rgba(250,250,250,0.3)', borderTop: `1px solid ${COLORS.stone100}` },
-};
+});
 
 export default Dashboard;

@@ -1,8 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { proxyAPI } from '../api/client';
 import { FONTS, COLORS, APP } from '../theme';
+import { useIsNarrow, useIsMedium } from '../hooks/useMediaQuery';
 
 const Chat = ({ user, onLogout }) => {
+  const isNarrow = useIsNarrow();
+  const isMedium = useIsMedium();
+  const S = styles(isNarrow, isMedium);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -232,11 +236,11 @@ const Chat = ({ user, onLogout }) => {
     <div style={S.page}>
       {/* Sidebar - same as Dashboard */}
       <aside style={S.sidebar}>
-        <div style={{ padding: '0 32px', marginBottom: 16 }}>
+        <div style={isNarrow ? { padding: 0, marginBottom: 0, marginRight: 8 } : { padding: '0 32px', marginBottom: 16 }}>
           <h1 style={S.sidebarLogo}>{APP.name}</h1>
-          <p style={S.sidebarTier}>{APP.tagline}</p>
+          {!isNarrow && <p style={S.sidebarTier}>{APP.tagline}</p>}
         </div>
-        <nav>
+        <nav style={isNarrow ? { display: 'flex', flexDirection: 'row', gap: 4, alignItems: 'center' } : {}}>
           <div
             onClick={() => window.location.href = '/dashboard'}
             style={S.navItem}
@@ -283,7 +287,7 @@ const Chat = ({ user, onLogout }) => {
             <span>Start fresh.</span>
           </div>
         </nav>
-        {conversations.length > 0 && (
+        {!isNarrow && conversations.length > 0 && (
           <div style={{ padding: '8px 0', borderTop: '1px solid #e5e5e5', maxHeight: 300, overflowY: 'auto' }}>
             <div style={{ padding: '4px 24px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: COLORS.stone500, letterSpacing: 1 }}>
               Earlier
@@ -384,24 +388,32 @@ const Chat = ({ user, onLogout }) => {
   );
 };
 
-const S = {
+const styles = (isNarrow, isMedium) => ({
   // Layout (matches Dashboard)
-  page: { display: 'flex', minHeight: '100vh', fontFamily: FONTS.body, color: COLORS.primary, background: COLORS.white },
-  sidebar: { width: 256, height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 40, background: COLORS.white, borderRight: `1px solid ${COLORS.stone100}`, display: 'flex', flexDirection: 'column', paddingTop: 32, paddingBottom: 32 },
-  sidebarLogo: { fontFamily: FONTS.headline, fontSize: 20, fontWeight: 700, margin: 0 },
+  page: { display: 'flex', flexDirection: isNarrow ? 'column' : 'row', minHeight: '100vh', fontFamily: FONTS.body, color: COLORS.primary, background: COLORS.white },
+  sidebar: isNarrow
+    ? { width: '100%', position: 'sticky', top: 0, zIndex: 40, background: COLORS.white, borderBottom: `1px solid ${COLORS.stone100}`, display: 'flex', flexDirection: 'row', alignItems: 'center', padding: '12px 16px', gap: 16, overflowX: 'auto' }
+    : { width: isMedium ? 200 : 256, height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 40, background: COLORS.white, borderRight: `1px solid ${COLORS.stone100}`, display: 'flex', flexDirection: 'column', paddingTop: 32, paddingBottom: 32 },
+  sidebarLogo: { fontFamily: FONTS.headline, fontSize: isNarrow ? 16 : 20, fontWeight: 700, margin: 0 },
   sidebarTier: { fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: COLORS.stone500, fontWeight: 700, marginTop: 4 },
-  navActive: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: COLORS.primary, fontWeight: 700, background: COLORS.stone50, borderRight: `4px solid ${COLORS.primary}`, textDecoration: 'none' },
-  navItem: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: COLORS.stone500, textDecoration: 'none' },
-  sidebarFooter: { marginTop: 'auto', padding: '24px 32px', borderTop: `1px solid ${COLORS.stone100}`, display: 'flex', alignItems: 'center', gap: 12 },
-  avatarCircle: { width: 40, height: 40, borderRadius: '50%', background: COLORS.stone100, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, textTransform: 'uppercase', flexShrink: 0 },
+  navActive: isNarrow
+    ? { display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', color: COLORS.primary, fontWeight: 700, background: COLORS.stone50, borderRadius: 8, textDecoration: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }
+    : { display: 'flex', alignItems: 'center', gap: 16, padding: isMedium ? '12px 20px' : '12px 32px', color: COLORS.primary, fontWeight: 700, background: COLORS.stone50, borderRight: `4px solid ${COLORS.primary}`, textDecoration: 'none' },
+  navItem: isNarrow
+    ? { display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', color: COLORS.stone500, textDecoration: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }
+    : { display: 'flex', alignItems: 'center', gap: 16, padding: isMedium ? '12px 20px' : '12px 32px', color: COLORS.stone500, textDecoration: 'none' },
+  sidebarFooter: isNarrow
+    ? { marginLeft: 'auto', padding: 0, display: 'flex', alignItems: 'center', gap: 12 }
+    : { marginTop: 'auto', padding: isMedium ? '24px 20px' : '24px 32px', borderTop: `1px solid ${COLORS.stone100}`, display: 'flex', alignItems: 'center', gap: 12 },
+  avatarCircle: { width: isNarrow ? 32 : 40, height: isNarrow ? 32 : 40, borderRadius: '50%', background: COLORS.stone100, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, textTransform: 'uppercase', flexShrink: 0 },
   logoutBtn: { background: 'none', border: 'none', padding: 0, margin: '2px 0 0 0', fontSize: 10, color: COLORS.stone500, cursor: 'pointer', textDecoration: 'underline', fontFamily: FONTS.body },
-  main: { flex: 1, marginLeft: 256, minHeight: '100vh', background: 'radial-gradient(circle at 50% 50%, #ffffff 0%, #f2f4f4 100%)' },
-  topBar: { position: 'sticky', top: 0, zIndex: 30, background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${COLORS.stone100}`, padding: '16px 48px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  main: { flex: 1, marginLeft: isNarrow ? 0 : (isMedium ? 200 : 256), minHeight: '100vh', background: 'radial-gradient(circle at 50% 50%, #ffffff 0%, #f2f4f4 100%)' },
+  topBar: { position: 'sticky', top: 0, zIndex: 30, background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${COLORS.stone100}`, padding: isNarrow ? '12px 20px' : (isMedium ? '16px 32px' : '16px 48px'), display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
 
   // Chat area
-  chatArea: { display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 48px', minHeight: 'calc(100vh - 64px)' },
+  chatArea: { display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isNarrow ? '16px 16px' : (isMedium ? '24px 32px' : '32px 48px'), minHeight: 'calc(100vh - 64px)' },
   glassPanel: {
-    width: '100%', maxWidth: 800, height: 'calc(100vh - 128px)', maxHeight: 820,
+    width: '100%', maxWidth: isNarrow ? '100%' : 800, height: isNarrow ? 'auto' : 'calc(100vh - 128px)', minHeight: isNarrow ? 'calc(100vh - 140px)' : undefined, maxHeight: 820,
     background: 'rgba(255,255,255,0.45)', backdropFilter: 'blur(32px)', WebkitBackdropFilter: 'blur(32px)',
     border: '1px solid rgba(255,255,255,0.9)', boxShadow: '0px 24px 80px rgba(0,0,0,0.08)',
     borderRadius: 16, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative',
@@ -432,6 +444,6 @@ const S = {
   statusBar: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 28px 14px 28px', flexShrink: 0 },
   statusDot: (color) => ({ width: 7, height: 7, borderRadius: '50%', background: color, boxShadow: color === COLORS.green ? `0 0 6px ${color}` : 'none', flexShrink: 0 }),
   statusText: { fontSize: 10, fontFamily: FONTS.body, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: COLORS.stone500 },
-};
+});
 
 export default Chat;

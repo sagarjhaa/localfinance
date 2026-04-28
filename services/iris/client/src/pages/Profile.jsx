@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { FONTS, COLORS, APP } from '../theme';
 import { proxyAPI, authAPI } from '../api/client';
+import { useIsNarrow, useIsMedium } from '../hooks/useMediaQuery';
 
 const Profile = ({ user, onLogout }) => {
+  const isNarrow = useIsNarrow();
+  const isMedium = useIsMedium();
+  const S = styles(isNarrow, isMedium);
   const [firstName, setFirstName] = useState(user?.first_name || '');
   const [lastName, setLastName] = useState(user?.last_name || '');
   const [displayName, setDisplayName] = useState('');
@@ -101,11 +105,11 @@ const Profile = ({ user, onLogout }) => {
     <div style={S.page}>
       {/* Sidebar */}
       <aside style={S.sidebar}>
-        <div style={{ padding: '0 32px', marginBottom: 16 }}>
+        <div style={isNarrow ? { padding: 0, marginBottom: 0, marginRight: 8 } : { padding: '0 32px', marginBottom: 16 }}>
           <h1 style={S.sidebarLogo}>{APP.name}</h1>
-          <p style={S.sidebarTier}>{APP.tagline}</p>
+          {!isNarrow && <p style={S.sidebarTier}>{APP.tagline}</p>}
         </div>
-        <nav>
+        <nav style={isNarrow ? { display: 'flex', flexDirection: 'row', gap: 4, alignItems: 'center' } : {}}>
           <div
             onClick={() => window.location.href = '/dashboard'}
             style={S.navItem}
@@ -327,24 +331,30 @@ const Profile = ({ user, onLogout }) => {
   );
 };
 
-const S = {
-  page: { display: 'flex', minHeight: '100vh', fontFamily: FONTS.body, color: COLORS.primary, background: COLORS.white },
-  sidebar: { width: 256, height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 40, background: COLORS.white, borderRight: `1px solid ${COLORS.stone100}`, display: 'flex', flexDirection: 'column', paddingTop: 32, paddingBottom: 32 },
-  sidebarLogo: { fontFamily: FONTS.headline, fontSize: 20, fontWeight: 700, margin: 0 },
+const styles = (isNarrow, isMedium) => ({
+  page: { display: 'flex', flexDirection: isNarrow ? 'column' : 'row', minHeight: '100vh', fontFamily: FONTS.body, color: COLORS.primary, background: COLORS.white },
+  sidebar: isNarrow
+    ? { width: '100%', position: 'sticky', top: 0, zIndex: 40, background: COLORS.white, borderBottom: `1px solid ${COLORS.stone100}`, display: 'flex', flexDirection: 'row', alignItems: 'center', padding: '12px 16px', gap: 16, overflowX: 'auto' }
+    : { width: isMedium ? 200 : 256, height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 40, background: COLORS.white, borderRight: `1px solid ${COLORS.stone100}`, display: 'flex', flexDirection: 'column', paddingTop: 32, paddingBottom: 32 },
+  sidebarLogo: { fontFamily: FONTS.headline, fontSize: isNarrow ? 16 : 20, fontWeight: 700, margin: 0 },
   sidebarTier: { fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: COLORS.stone500, fontWeight: 700, marginTop: 4 },
-  navItem: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 32px', color: COLORS.stone500, textDecoration: 'none', cursor: 'pointer' },
-  sidebarFooter: { marginTop: 'auto', padding: '24px 32px', borderTop: `1px solid ${COLORS.stone100}`, display: 'flex', alignItems: 'center', gap: 12 },
-  avatarCircle: { width: 40, height: 40, borderRadius: '50%', background: COLORS.stone100, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, textTransform: 'uppercase', flexShrink: 0 },
-  main: { flex: 1, marginLeft: 256, minHeight: '100vh', background: COLORS.white },
-  topBar: { position: 'sticky', top: 0, zIndex: 30, background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${COLORS.stone100}`, padding: '16px 48px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  content: { maxWidth: 640, margin: '0 auto', padding: '96px 48px 80px' },
-  pageTitle: { fontFamily: FONTS.headline, fontSize: 48, fontWeight: 500, letterSpacing: '-0.02em', marginBottom: 8 },
+  navItem: isNarrow
+    ? { display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', color: COLORS.stone500, textDecoration: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }
+    : { display: 'flex', alignItems: 'center', gap: 16, padding: isMedium ? '12px 20px' : '12px 32px', color: COLORS.stone500, textDecoration: 'none', cursor: 'pointer' },
+  sidebarFooter: isNarrow
+    ? { marginLeft: 'auto', padding: 0, display: 'flex', alignItems: 'center', gap: 12 }
+    : { marginTop: 'auto', padding: isMedium ? '24px 20px' : '24px 32px', borderTop: `1px solid ${COLORS.stone100}`, display: 'flex', alignItems: 'center', gap: 12 },
+  avatarCircle: { width: isNarrow ? 32 : 40, height: isNarrow ? 32 : 40, borderRadius: '50%', background: COLORS.stone100, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, textTransform: 'uppercase', flexShrink: 0 },
+  main: { flex: 1, marginLeft: isNarrow ? 0 : (isMedium ? 200 : 256), minHeight: '100vh', background: COLORS.white },
+  topBar: { position: 'sticky', top: 0, zIndex: 30, background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${COLORS.stone100}`, padding: isNarrow ? '12px 20px' : (isMedium ? '16px 32px' : '16px 48px'), display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  content: { maxWidth: 'clamp(320px, 80vw, 640px)', margin: '0 auto', padding: isNarrow ? '32px 20px 48px' : (isMedium ? '64px 32px 64px' : '96px 48px 80px') },
+  pageTitle: { fontFamily: FONTS.headline, fontSize: isNarrow ? 32 : (isMedium ? 40 : 48), fontWeight: 500, letterSpacing: '-0.02em', marginBottom: 8 },
   formCard: {
     background: 'rgba(255,255,255,0.7)',
     backdropFilter: 'blur(24px)',
     border: `1px solid ${COLORS.stone100}`,
     borderRadius: 24,
-    padding: '40px 40px 32px',
+    padding: isNarrow ? '24px 20px 24px' : (isMedium ? '32px 32px 28px' : '40px 40px 32px'),
   },
   section: { marginBottom: 32 },
   sectionTitle: {
@@ -423,6 +433,6 @@ const S = {
     textDecoration: 'underline',
     fontWeight: 500,
   },
-};
+});
 
 export default Profile;

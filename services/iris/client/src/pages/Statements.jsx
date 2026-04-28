@@ -30,6 +30,7 @@ const Statements = ({ user, onLogout }) => {
   // when toggling rows so the second open is instant.
   const [txByDoc, setTxByDoc] = useState({});
   const [txLoading, setTxLoading] = useState({});
+  const [showFailed, setShowFailed] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -56,12 +57,14 @@ const Statements = ({ user, onLogout }) => {
     } finally { setTxLoading((s) => ({ ...s, [docId]: false })); }
   };
 
-  // Group documents by the YYYY-MM the statement covers. Use period_end
-  // (most recent transaction in the statement) as the bucket date — that
-  // matches the way users mentally place a statement ("April 2026").
-  // Fallback to created_at month for documents that errored out before
-  // any transactions landed.
-  const groups = groupByMonth(documents);
+  // Split successful from failed/in-flight. The main list shows only
+  // documents that produced transactions; failures get a separate
+  // collapsible section so they don't pollute the chronological view
+  // but are still discoverable for re-upload / cleanup.
+  const successful = documents.filter((d) => d.status === 'processed' && d.txn_count > 0);
+  const failed = documents.filter((d) => d.status === 'error' || (d.status === 'processed' && d.txn_count === 0));
+  const inflight = documents.filter((d) => d.status === 'processing' || d.status === 'uploaded');
+  const groups = groupByMonth(successful);
 
   return (
     <div style={S.page}>
@@ -114,10 +117,43 @@ const Statements = ({ user, onLogout }) => {
           {error && <div style={S.error}>{error}</div>}
           {loading && <div style={S.empty}>Loading…</div>}
 
-          {!loading && groups.length === 0 && (
+          {!loading && groups.length === 0 && inflight.length === 0 && failed.length === 0 && (
             <div style={S.empty}>
               No statements uploaded yet. <a href="/dashboard" style={{ color: COLORS.saffron }}>Upload one</a>.
             </div>
+          )}
+
+          {inflight.length > 0 && (
+            <section style={{ marginBottom: 24, padding: '12px 16px', background: COLORS.saffronBg, borderRadius: 12, border: `1px solid ${COLORS.rule}` }}>
+              <p style={{ margin: 0, fontSize: 13, color: COLORS.stone700 }}>
+                ⏳ {inflight.length} statement{inflight.length === 1 ? '' : 's'} still parsing in the background. The list will update when they're ready.
+              </p>
+            </section>
+          )}
+
+          {failed.length > 0 && (
+            <section style={{ marginBottom: 32 }}>
+              <button
+                type="button"
+                onClick={() => setShowFailed((s) => !s)}
+                style={{ background: 'transparent', border: 'none', color: COLORS.ember, cursor: 'pointer', fontFamily: FONTS.body, fontSize: 13, fontWeight: 700, padding: 0, marginBottom: 8 }}
+              >
+                {showFailed ? '▾' : '▸'} {failed.length} failed upload{failed.length === 1 ? '' : 's'}
+              </button>
+              {showFailed && (
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {failed.map((d) => (
+                    <li key={d.id} style={{ ...S.card, borderColor: COLORS.emberBg, padding: '10px 14px' }}>
+                      <div style={{ fontFamily: FONTS.headline, fontSize: 14, marginBottom: 2 }}>{d.original_filename || d.id}</div>
+                      <div style={{ fontSize: 11, color: COLORS.stone500 }}>uploaded {fmtDate(d.created_at)}</div>
+                      {d.error_message && (
+                        <div style={{ marginTop: 6, fontSize: 12, color: COLORS.ember }}>{d.error_message}</div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           )}
 
           {groups.map((g) => (

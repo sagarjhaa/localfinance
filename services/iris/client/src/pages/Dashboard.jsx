@@ -28,6 +28,12 @@ const Dashboard = ({ user, onLogout }) => {
   const [feedback, setFeedback] = useState({}); // { [txId]: 'up' | 'down' }
   const [expandedFeedback, setExpandedFeedback] = useState(null); // tx id of the open thumbs-down menu
   const [showCardPayments, setShowCardPayments] = useState(false);
+  // batchQueue holds in-flight or recently-finished uploads when the user
+  // selects more than one file at once. Each entry: {fileName, documentId,
+  // status: 'uploading'|'processing'|'processed'|'error', error?: string}.
+  // The single-file legacy state above (documentId/processing/etc.) handles
+  // a one-file selection so existing reveal-animation logic stays intact.
+  const [batchQueue, setBatchQueue] = useState([]);
   const { toast } = useToast();
   // The Static-vs-AI dual parse view was removed once Logos started routing every
   // upload through Sophia/Ollama — the "static" column was always identical to
@@ -89,17 +95,85 @@ const Dashboard = ({ user, onLogout }) => {
   const handleDrop = useCallback(async (e) => {
     e.preventDefault(); setIsDragging(false);
     const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) await uploadFile(files[0]);
+    if (files.length === 0) return;
+    if (files.length === 1) await uploadFile(files[0]);
+    else await uploadBatch(files);
   }, []);
 
   const handleBrowse = () => {
     const input = document.createElement('input');
     input.type = 'file'; input.accept = '.pdf,.csv,.xlsx,.xls,.txt';
+    input.multiple = true;
     input.onchange = (e) => {
-      if (e.target.files.length > 0) uploadFile(e.target.files[0]);
+      const files = Array.from(e.target.files || []);
+      if (files.length === 0) return;
+      if (files.length === 1) uploadFile(files[0]);
+      else uploadBatch(files);
     };
     input.click();
   };
+
+  // uploadBatch fires every selected file in parallel, each as its own
+  // POST /api/v1/upload. Each gets a row in batchQueue tracked by document_id.
+  // The server-side parse runs async per file so by the time the requests
+  // return we just have document_ids and "processing" status; a single
+  // shared poll loop (effect below) walks each queued doc until terminal.
+  const uploadBatch = async (files) => {
+    setError('');
+    // Seed queue rows immediately so the user sees feedback before uploads
+    // even resolve. Use temp negative IDs until the upload returns a real one.
+    const seed = files.map((f, i) => ({
+      tempId: `tmp-${Date.now()}-${i}`,
+      fileName: f.name,
+      documentId: null,
+      status: 'uploading',
+    }));
+    setBatchQueue((q) => [...seed, ...q]);
+
+    await Promise.all(files.map(async (f, i) => {
+      const tempId = seed[i].tempId;
+      try {
+        const res = await uploadAPI.single(f);
+        const docId = res.data?.document_id;
+        if (!docId) throw new Error('upload returned no document_id');
+        setBatchQueue((q) => q.map((row) =>
+          row.tempId === tempId ? { ...row, documentId: docId, status: 'processing' } : row
+        ));
+      } catch (e) {
+        setBatchQueue((q) => q.map((row) =>
+          row.tempId === tempId ? { ...row, status: 'error', error: e?.message || 'upload failed' } : row
+        ));
+      }
+    }));
+  };
+
+  // Shared poller for batch-queue rows that are still in flight. Polls
+  // every 3s while at least one row is `processing`. Stops when the
+  // queue empties of in-flight items so we don't hammer the server.
+  useEffect(() => {
+    const inflight = batchQueue.filter((r) => r.status === 'processing' && r.documentId);
+    if (inflight.length === 0) return;
+    let cancelled = false;
+    const tick = async () => {
+      for (const row of inflight) {
+        if (cancelled) return;
+        try {
+          const res = await documentAPI.getStatus(row.documentId);
+          const s = res.data?.status;
+          if (s === 'processed' || s === 'error') {
+            setBatchQueue((q) => q.map((r) =>
+              r.documentId === row.documentId
+                ? { ...r, status: s, error: res.data?.error_message }
+                : r
+            ));
+          }
+        } catch (_) { /* keep polling */ }
+      }
+    };
+    tick();
+    const id = setInterval(tick, 3000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [batchQueue]);
 
   const uploadFile = async (file) => {
     setUploading(true); setError(''); setAllTransactions([]); setVisibleTransactions([]);
@@ -335,10 +409,53 @@ const Dashboard = ({ user, onLogout }) => {
                     Looking through every page. This usually takes a minute.
                   </p>
                 )}
-                {!isActive && <button onClick={handleBrowse} style={S.browseBtn}>Or browse for one.</button>}
+                {!isActive && <button onClick={handleBrowse} style={S.browseBtn}>Or browse for them.</button>}
+                {!isActive && <p style={{ fontSize: 12, color: COLORS.stone500, marginTop: 8 }}>Drop or pick multiple files at once.</p>}
               </div>
             </div>
           </section>
+
+          {/* Batch upload queue — shown while there are items in flight or
+              recently finished. Each row reflects one selected file. */}
+          {batchQueue.length > 0 && (
+            <section style={{ marginTop: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                <h3 style={{ fontFamily: FONTS.headline, fontSize: 16, margin: 0 }}>
+                  {batchQueue.filter(r => r.status === 'processing' || r.status === 'uploading').length > 0
+                    ? `Parsing ${batchQueue.length} statement${batchQueue.length === 1 ? '' : 's'}…`
+                    : `${batchQueue.length} statement${batchQueue.length === 1 ? '' : 's'} processed`}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setBatchQueue((q) => q.filter((r) => r.status === 'uploading' || r.status === 'processing'))}
+                  style={{ background: 'transparent', border: 'none', color: COLORS.stone500, cursor: 'pointer', fontSize: 12 }}
+                >
+                  Clear finished
+                </button>
+              </div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {batchQueue.map((row) => {
+                  const palette = {
+                    uploading:  { bg: COLORS.stone100, fg: COLORS.stone700, label: 'Uploading' },
+                    processing: { bg: COLORS.saffronBg, fg: COLORS.saffron, label: 'Parsing' },
+                    processed:  { bg: COLORS.mossBg, fg: COLORS.moss, label: '✓ Done' },
+                    error:      { bg: COLORS.emberBg, fg: COLORS.ember, label: 'Failed' },
+                  }[row.status] || {};
+                  return (
+                    <li key={row.tempId || row.documentId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', border: `1px solid ${COLORS.rule}`, borderRadius: 8 }}>
+                      <span style={{ fontSize: 13, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.fileName}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 999, background: palette.bg, color: palette.fg, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                        {palette.label}
+                      </span>
+                      {row.status === 'error' && row.error && (
+                        <span title={row.error} style={{ fontSize: 11, color: COLORS.stone500, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.error}</span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
 
           {/* Processed Ledger Header */}
           {hasResults && (

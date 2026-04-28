@@ -47,7 +47,11 @@ const MonthReviewPage = ({ user, onLogout }) => {
     setError('');
     try {
       await monthReviewAPI.invalidate(period, userId);
-      await load();
+      // Re-fetch in place — don't toggle the page-level `loading` flag, so
+      // the existing review stays on screen until the new one arrives.
+      // Just swaps the review value when the GET resolves.
+      const res = await monthReviewAPI.get(period, userId);
+      setReview(res.data || null);
     } catch (e) {
       setError(e.message || 'Failed to regenerate');
     } finally {

@@ -1035,11 +1035,15 @@ Start your response exactly with "<JSON>[" and end with "]</JSON>".
 Statement:
 %s`, text)
 
-	// Use a large context window for parse — a 10-page PDF can run 30-50k
-	// chars, which is roughly 8-12k tokens. 32768 covers that with headroom.
-	// Models that can't handle this size will use whatever their max is.
+	// Right-size the context. Larger num_ctx means larger memory allocation
+	// at inference start — even when the prompt is small. 8192 fits a
+	// typical bank statement (3-5 pages, ~10-20k chars after the section
+	// extractor truncates) while keeping the time-to-first-token low.
+	// extractTransactionSection caps text at 60000 chars upstream; if a
+	// statement spills past 8192 tokens we accept slight quality loss in
+	// exchange for ~3x faster parse on a 4B model.
 	response, err := s.queryOllamaWithOptions(prompt, 0.1, userModel, map[string]interface{}{
-		"num_ctx": 32768,
+		"num_ctx": 8192,
 	})
 	if err != nil {
 		return nil, err
@@ -1255,7 +1259,7 @@ Start your response exactly with "<JSON>[" and end with "]</JSON>".`
 		Stream:      false,
 		Temperature: 0.1,
 		Images:      images,
-		Options:     map[string]interface{}{"num_ctx": 32768},
+		Options:     map[string]interface{}{"num_ctx": 8192},
 	}
 	jsonBody, err := json.Marshal(reqBody)
 	if err != nil {

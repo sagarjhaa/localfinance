@@ -93,26 +93,27 @@ func (p *Pipeline) ProcessDocument(ctx context.Context, req Request) {
 	var rawText string
 	var parseErr error
 
-	if ext == ".pdf" {
+	// Text-first dispatch. Most bank statements are digital PDFs with
+	// embedded text, and the text path is 3-5x faster than vision on the
+	// same model. Fall back to vision (rendered page images) only when
+	// text extraction yields nothing usable — typically scanned/image PDFs.
+	rawText, textErr := extractTextForAI(req.FilePath, ext)
+	if textErr == nil && strings.TrimSpace(rawText) != "" {
+		transactions, modelUsed, parseErr = p.parseText(req.UserID.String(), rawText, req.FilePath)
+	} else if ext == ".pdf" {
+		log.Printf("[%s] text extraction empty/failed (%v); trying vision fallback", req.DocumentID, textErr)
 		images, rErr := renderPDFToPNGs(req.FilePath)
-		if rErr == nil {
-			log.Printf("[%s] rendered %d page(s) for vision parse", req.DocumentID, len(images))
-			transactions, modelUsed, parseErr = p.parseImages(req.UserID.String(), images, req.FilePath)
-		} else {
-			log.Printf("[%s] PDF render failed (%v); falling back to text parse", req.DocumentID, rErr)
-			parseErr = rErr
-		}
-	}
-
-	if parseErr != nil || ext != ".pdf" {
-		var terr error
-		rawText, terr = extractTextForAI(req.FilePath, ext)
-		if terr != nil {
-			log.Printf("[%s] text extraction failed: %v", req.DocumentID, terr)
-			p.updateDocumentStatus(req.DocumentID, "error", fmt.Sprintf("Text extraction failed: %v", terr), "")
+		if rErr != nil {
+			log.Printf("[%s] PDF render failed: %v", req.DocumentID, rErr)
+			p.updateDocumentStatus(req.DocumentID, "error", fmt.Sprintf("Couldn't read this file: %v", rErr), "")
 			return
 		}
-		transactions, modelUsed, parseErr = p.parseText(req.UserID.String(), rawText, req.FilePath)
+		log.Printf("[%s] rendered %d page(s) for vision parse", req.DocumentID, len(images))
+		transactions, modelUsed, parseErr = p.parseImages(req.UserID.String(), images, req.FilePath)
+	} else {
+		log.Printf("[%s] text extraction failed: %v", req.DocumentID, textErr)
+		p.updateDocumentStatus(req.DocumentID, "error", fmt.Sprintf("Text extraction failed: %v", textErr), "")
+		return
 	}
 
 	if parseErr != nil {

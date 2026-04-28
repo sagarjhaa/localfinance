@@ -16,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/sagarjhaa/localfinance/internal/ai"
+	"github.com/sagarjhaa/localfinance/internal/ollama"
 	"github.com/sagarjhaa/localfinance/internal/api/handlers"
 	"github.com/sagarjhaa/localfinance/internal/api/middleware"
 	"github.com/sagarjhaa/localfinance/internal/api/setup"
@@ -277,6 +278,19 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 		v1.DELETE("/month-review/:period", monthReviewHandler.Delete)
 
 		// AI parsing endpoints (consumed by upload pipeline).
+		// Parse paths use the fastest sweet-spot model installed (3-14B), NOT
+		// the user's chat preference. Parse is latency-sensitive — a 26B model
+		// on a Mac takes 5-10 minutes per statement, which is unusable.
+		// Chat keeps the user's preference because chat tolerates longer
+		// inference for higher-quality answers.
+		pickParseModel := func() string {
+			installed := ollama.InstalledModels(aiSvc.GetOllamaHost())
+			if m := ai.SelectFastestSweetSpotModel(installed); m != "" {
+				return m
+			}
+			return modelName // fallback to runtime default
+		}
+
 		v1.POST("/parse", func(c *gin.Context) {
 			var req struct {
 				Text   string `json:"text" binding:"required"`
@@ -286,11 +300,8 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 				c.JSON(400, gin.H{"error": err.Error()})
 				return
 			}
-			userModel := modelName
-			if req.UserID != "" {
-				userModel = aiSvc.GetUserModelPreference(req.UserID)
-			}
-			transactions, err := aiSvc.ParseTransactions(req.Text, userModel)
+			parseModel := pickParseModel()
+			transactions, err := aiSvc.ParseTransactions(req.Text, parseModel)
 			if err != nil {
 				c.JSON(500, gin.H{"error": err.Error()})
 				return
@@ -298,7 +309,7 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 			c.JSON(200, gin.H{
 				"transactions": transactions,
 				"count":        len(transactions),
-				"model":        userModel,
+				"model":        parseModel,
 			})
 		})
 
@@ -315,11 +326,8 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 				c.JSON(400, gin.H{"error": "images array is empty"})
 				return
 			}
-			userModel := modelName
-			if req.UserID != "" {
-				userModel = aiSvc.GetUserModelPreference(req.UserID)
-			}
-			transactions, err := aiSvc.ParseTransactionsFromImages(req.Images, userModel)
+			parseModel := pickParseModel()
+			transactions, err := aiSvc.ParseTransactionsFromImages(req.Images, parseModel)
 			if err != nil {
 				c.JSON(500, gin.H{"error": err.Error()})
 				return
@@ -327,7 +335,7 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 			c.JSON(200, gin.H{
 				"transactions": transactions,
 				"count":        len(transactions),
-				"model":        userModel,
+				"model":        parseModel,
 			})
 		})
 

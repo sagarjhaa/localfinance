@@ -27,3 +27,42 @@ func HasSweetSpotModel(models []string) bool {
 	}
 	return false
 }
+
+// SelectFastestSweetSpotModel returns the smallest installed model in the
+// 3-14B parameter sweet spot — i.e. fast enough for parse latency, large
+// enough for solid PDF understanding. Falls back to the smallest model
+// overall if nothing in the sweet spot is installed. Empty string if the
+// list is empty.
+func SelectFastestSweetSpotModel(installed []string) string {
+	type cand struct {
+		name   string
+		params float64
+	}
+	var sweet []cand
+	var any []cand
+	for _, m := range installed {
+		p := extractParamCount(m)
+		if p > 0 {
+			any = append(any, cand{m, p})
+			if p >= 3 && p <= 14 {
+				sweet = append(sweet, cand{m, p})
+			}
+		}
+	}
+	pickSmallest := func(xs []cand) string {
+		if len(xs) == 0 {
+			return ""
+		}
+		best := xs[0]
+		for _, x := range xs[1:] {
+			if x.params < best.params {
+				best = x
+			}
+		}
+		return best.name
+	}
+	if s := pickSmallest(sweet); s != "" {
+		return s
+	}
+	return pickSmallest(any)
+}

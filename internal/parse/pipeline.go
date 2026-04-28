@@ -94,11 +94,12 @@ func (p *Pipeline) ProcessDocument(ctx context.Context, req Request) {
 	var rawText string
 	var parseErr error
 
-	// Kick off docling extraction in parallel for comparison. Best-effort:
-	// if docling isn't installed or fails, this is a no-op. Output lands in
-	// ~/Library/Application Support/LocalFinance/parse-debug/.
-	if ext == ".pdf" {
-		dumpDoclingComparison(req.FilePath, req.DocumentID)
+	// Run statementmd in parallel and dump the markdown output to
+	// parse-debug/ for comparison with the active text path. Output is
+	// not yet sent to the LLM — once we're confident in quality, we'll
+	// flip parseText to use it.
+	if ext == ".pdf" || ext == ".csv" || ext == ".tsv" || ext == ".txt" {
+		dumpStatementMarkdown(req.FilePath, req.DocumentID)
 	}
 
 	// Text-first dispatch. Most bank statements are digital PDFs with

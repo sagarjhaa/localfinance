@@ -10,6 +10,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/lib/pq v1.10.9
+	github.com/sagarjhaa/statementmd v0.0.0-00010101000000-000000000000
 	golang.org/x/crypto v0.50.0
 	golang.org/x/sys v0.43.0
 	gorm.io/driver/postgres v1.6.0
@@ -60,3 +61,5 @@ require (
 	modernc.org/memory v1.5.0 // indirect
 	modernc.org/sqlite v1.23.1 // indirect
 )
+
+replace github.com/sagarjhaa/statementmd => /Users/sagar/Documents/codebases/statementmd

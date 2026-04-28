@@ -85,7 +85,7 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 		mrNarrator = insights.NewLLMNarrator(aiSvc)
 	}
 	mrService := monthreview.NewService(insights.NewEngine(mrDismiss), mrNarrator, aiSvc)
-	monthReviewHandler := handlers.NewMonthReviewHandler(mrService)
+	monthReviewHandler := handlers.NewMonthReviewHandler(mrService, db)
 
 	// Parse pipeline replaces the old Logos service. Wired into the upload
 	// handler so file uploads kick off in-process AI parsing.
@@ -277,6 +277,7 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 
 		// Month-in-Review: internal generate (no auth), public get/delete.
 		v1.POST("/internal/month-review/generate", monthReviewHandler.Generate)
+		v1.GET("/month-review/periods", monthReviewHandler.Periods)
 		v1.GET("/month-review/:period", monthReviewHandler.Get)
 		v1.DELETE("/month-review/:period", monthReviewHandler.Delete)
 

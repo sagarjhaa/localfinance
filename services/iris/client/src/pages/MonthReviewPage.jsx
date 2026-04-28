@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { monthReviewAPI } from '../api/client';
 import { FONTS, COLORS, APP } from '../theme';
 import { useIsNarrow, useIsMedium } from '../hooks/useMediaQuery';
@@ -21,11 +21,29 @@ const MonthReviewPage = ({ user, onLogout }) => {
   const isMedium = useIsMedium();
   const S = styles(isNarrow, isMedium);
   const { period } = useParams();
+  const navigate = useNavigate();
   const userId = String(user?.id || '');
   const [review, setReview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [regenerating, setRegenerating] = useState(false);
+  const [periods, setPeriods] = useState([]);
+
+  // Fetch the list of months that have transactions. If the URL has no
+  // period and there's at least one available, redirect to the newest.
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    monthReviewAPI.periods(userId).then((res) => {
+      if (cancelled) return;
+      const list = Array.isArray(res.data?.periods) ? res.data.periods : [];
+      setPeriods(list);
+      if (!period && list.length > 0) {
+        navigate(`/month-review/${list[0]}`, { replace: true });
+      }
+    }).catch(() => { /* non-fatal — page still works without dropdown */ });
+    return () => { cancelled = true; };
+  }, [userId, period, navigate]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -41,6 +59,11 @@ const MonthReviewPage = ({ user, onLogout }) => {
   }, [period, userId]);
 
   useEffect(() => { if (userId && period) load(); }, [userId, period, load]);
+
+  const handlePeriodChange = (e) => {
+    const next = e.target.value;
+    if (next && next !== period) navigate(`/month-review/${next}`);
+  };
 
   const regenerate = async () => {
     setRegenerating(true);
@@ -112,7 +135,20 @@ const MonthReviewPage = ({ user, onLogout }) => {
               <p style={{ fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: COLORS.stone500, fontWeight: 700, margin: 0 }}>
                 MONTH IN REVIEW
               </p>
-              <h2 style={S.pageTitle}>{formatPeriod(period)}</h2>
+              {periods.length > 0 ? (
+                <select
+                  value={period || periods[0]}
+                  onChange={handlePeriodChange}
+                  aria-label="Select month"
+                  style={S.periodSelect}
+                >
+                  {periods.map((p) => (
+                    <option key={p} value={p}>{formatPeriod(p)}</option>
+                  ))}
+                </select>
+              ) : (
+                <h2 style={S.pageTitle}>{formatPeriod(period)}</h2>
+              )}
             </div>
             <button
               onClick={regenerate}
@@ -183,6 +219,21 @@ const styles = (isNarrow, isMedium) => ({
   topBar: { position: 'sticky', top: 0, zIndex: 30, background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${COLORS.stone100}`, padding: isNarrow ? '12px 20px' : (isMedium ? '16px 32px' : '16px 48px') },
   content: { maxWidth: 'clamp(320px, 80vw, 880px)', margin: '0 auto', padding: isNarrow ? '32px 20px 48px' : (isMedium ? '48px 32px 64px' : '64px 48px 80px') },
   pageTitle: { fontFamily: FONTS.headline, fontSize: isNarrow ? 28 : (isMedium ? 34 : 40), fontWeight: 500, letterSpacing: '-0.02em', margin: '8px 0 0 0' },
+  periodSelect: {
+    fontFamily: FONTS.headline,
+    fontSize: isNarrow ? 28 : (isMedium ? 34 : 40),
+    fontWeight: 500,
+    letterSpacing: '-0.02em',
+    margin: '8px 0 0 0',
+    padding: '0 8px 0 0',
+    background: 'transparent',
+    color: COLORS.ink,
+    border: 'none',
+    outline: 'none',
+    cursor: 'pointer',
+    appearance: 'menulist',
+    maxWidth: '100%',
+  },
   narrativeBox: { padding: '20px 24px', borderRadius: 16, background: COLORS.stone50, border: `1px solid ${COLORS.stone100}`, marginBottom: 24 },
   card: { padding: 20, borderRadius: 12, border: `1px solid ${COLORS.stone200}`, background: COLORS.white, marginBottom: 12 },
   empty: { padding: 40, textAlign: 'center', color: COLORS.stone500, border: `1px dashed ${COLORS.stone200}`, borderRadius: 12 },

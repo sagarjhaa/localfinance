@@ -46,7 +46,8 @@ func newMonthReviewTestRouter() (*gin.Engine, *monthreview.Service) {
 		Cache:        monthreview.NewMemoryCache(),
 		Clock:        func() time.Time { return time.Date(2026, 4, 30, 0, 0, 0, 0, time.UTC) },
 	}
-	h := NewMonthReviewHandler(svc)
+	// Periods endpoint isn't exercised by these tests so a nil db is fine.
+	h := NewMonthReviewHandler(svc, nil)
 	r := gin.New()
 	r.POST("/api/v1/internal/month-review/generate", h.Generate)
 	r.GET("/api/v1/month-review/:period", h.Get)

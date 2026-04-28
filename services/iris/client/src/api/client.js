@@ -134,6 +134,10 @@ export const monthReviewAPI = {
     apiClient.get(`/api/v1/month-review/${encodeURIComponent(period)}`, { params: { user_id: userId } }),
   invalidate: (period, userId) =>
     apiClient.delete(`/api/v1/month-review/${encodeURIComponent(period)}`, { params: { user_id: userId } }),
+  // Returns { periods: ["2026-04", "2026-03", ...] } sorted newest-first.
+  // Only includes months for which at least one transaction exists.
+  periods: (userId) =>
+    apiClient.get('/api/v1/month-review/periods', { params: { user_id: userId } }),
 };
 
 // Health check — unversioned, served at root

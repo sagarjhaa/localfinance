@@ -5,16 +5,19 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/sagarjhaa/localfinance/internal/monthreview"
+	"gorm.io/gorm"
 )
 
 // MonthReviewHandler exposes the per-period review endpoints.
 type MonthReviewHandler struct {
 	svc *monthreview.Service
+	db  *gorm.DB
 }
 
-// NewMonthReviewHandler wires a handler to its service.
-func NewMonthReviewHandler(svc *monthreview.Service) *MonthReviewHandler {
-	return &MonthReviewHandler{svc: svc}
+// NewMonthReviewHandler wires a handler to its service. db is used by the
+// /periods endpoint to enumerate months that have transactions.
+func NewMonthReviewHandler(svc *monthreview.Service, db *gorm.DB) *MonthReviewHandler {
+	return &MonthReviewHandler{svc: svc, db: db}
 }
 
 // GenerateRequest is the body shape for the internal POST.
@@ -75,6 +78,40 @@ func (h *MonthReviewHandler) Get(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, review)
+}
+
+// Periods returns the distinct YYYY-MM months for which the user has at
+// least one transaction, sorted newest-first. Used by the UI to populate
+// the month-review dropdown so users can only select periods that
+// actually have data.
+func (h *MonthReviewHandler) Periods(c *gin.Context) {
+	userID := userIDFromContext(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user_id not found in context"})
+		return
+	}
+	var rows []struct {
+		Period string
+	}
+	// to_char works on Postgres; the embedded postgres we ship is real
+	// Postgres so this is portable across our dev + .app paths.
+	err := h.db.Raw(`
+		SELECT DISTINCT to_char(date, 'YYYY-MM') AS period
+		FROM transactions
+		WHERE user_id = ?
+		ORDER BY period DESC
+	`, userID).Scan(&rows).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	periods := make([]string, 0, len(rows))
+	for _, r := range rows {
+		if r.Period != "" {
+			periods = append(periods, r.Period)
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"periods": periods})
 }
 
 // Delete invalidates the cache so the next GET regenerates.

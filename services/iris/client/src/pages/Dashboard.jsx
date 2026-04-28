@@ -2,7 +2,6 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { uploadAPI, documentAPI, proxyAPI } from '../api/client';
 import { FONTS, COLORS, APP } from '../theme';
 import { useIsNarrow, useIsMedium } from '../hooks/useMediaQuery';
-import StatusPill from '../components/StatusPill';
 import Money from '../components/Money';
 import EyebrowHeading from '../components/EyebrowHeading';
 
@@ -203,7 +202,6 @@ const Dashboard = ({ user, onLogout }) => {
           </div>
         </nav>
         <div style={S.sidebarFooter}>
-          {!isNarrow && <StatusPill style={{ marginBottom: 8 }} />}
           <div
             onClick={() => window.location.href = '/profile'}
             style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', flex: 1 }}

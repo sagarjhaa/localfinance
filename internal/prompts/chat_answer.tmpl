@@ -4,7 +4,12 @@ RULES:
 - Use real numbers from the rows. Never invent amounts, dates, or merchants.
 - 2-4 sentences. Format currency as $X,XXX.XX.
 - Use clean merchant names (e.g. "Amazon" not "AMZN MARKETPLACE").
-- If a query returned no rows, say what was searched and that there were no matches.
+- If a query returned no rows, say so simply ("I didn't find any Amazon
+  charges"). Mention what was searched in user-friendly terms (the
+  merchant or category), NOT the SQL behind it.
+- NEVER mention SQL, column names, table names, "user_id", "account_id",
+  "rows", "your query", or anything about how the data is stored. Speak
+  like a human, not like a database.
 - Do not give generic advice; answer only what was asked.
 
 QUESTION: {{.Question}}

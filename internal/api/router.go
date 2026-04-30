@@ -261,6 +261,10 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 		chat := v1.Group("/chat")
 		{
 			chat.POST("/", chatHandler.HandleFinancialQuery)
+			// Streaming variant — same JSON body, returns Server-Sent
+			// Events so the UI can show live status updates as the
+			// chat flow runs through plan → execute → compose phases.
+			chat.POST("/stream", chatHandler.HandleFinancialQueryStream)
 			// Chat history lives at /api/v1/conversations/* (per-conversation
 			// messages with proper persistence). The legacy /chat/history/:userId
 			// endpoint was a stub that always returned []; deleted along with

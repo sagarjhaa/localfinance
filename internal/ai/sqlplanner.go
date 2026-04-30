@@ -86,6 +86,36 @@ type chatQueryResult struct {
 	Note string                   `json:"note,omitempty"` // truncation / error notes
 }
 
+// ProgressFunc is the optional callback every step of the chat flow
+// invokes to report what it's doing. The frontend uses these to render
+// a live status line ("planning queries…", "running 2 queries…").
+// nil is acceptable — non-streaming callers pass nil and pay nothing.
+type ProgressFunc func(phase, detail string)
+
+// AnswerFinancialQueryStream is the streaming entry point. It runs the
+// same chat flow as AnswerFinancialQuery but invokes progress on every
+// phase so callers (the SSE handler) can forward live status to the UI.
+// The final AIResponse is returned through the normal return; progress
+// is purely informational.
+func (s *Service) AnswerFinancialQueryStream(ctx context.Context, query FinancialQuery, progress ProgressFunc) (AIResponse, error) {
+	userModel := s.GetUserModelPreference(query.UserID)
+	if isConversational(query.Question) {
+		emit(progress, "compose", "Writing a quick reply…")
+		return s.handleConversational(query.Question, userModel)
+	}
+	if s.db == nil {
+		emit(progress, "fallback", "Looking through your transactions…")
+		return s.handleFinancialQuery(query, userModel)
+	}
+	return s.answerWithSQLPlanner(ctx, query, userModel, progress)
+}
+
+func emit(p ProgressFunc, phase, detail string) {
+	if p != nil {
+		p(phase, detail)
+	}
+}
+
 // answerWithSQLPlanner runs the new chat flow:
 //
 //  1. Pass 1: LLM, given the schema + question, writes 1-N SELECT queries.
@@ -96,14 +126,17 @@ type chatQueryResult struct {
 //
 // Falls back to the legacy intent flow if the planner returns nothing
 // usable, so the user always gets *some* answer.
-func (s *Service) answerWithSQLPlanner(ctx context.Context, query FinancialQuery, userModel string) (AIResponse, error) {
+func (s *Service) answerWithSQLPlanner(ctx context.Context, query FinancialQuery, userModel string, progress ProgressFunc) (AIResponse, error) {
+	emit(progress, "plan", "Asking AI to plan queries…")
 	plan, planErr := s.planChatSQL(ctx, query.Question, userModel)
 	if planErr != nil || len(plan.Queries) == 0 {
 		log.Printf("chat: SQL planner produced no queries (%v); falling back to legacy intent flow", planErr)
+		emit(progress, "fallback", "Falling back to simpler search…")
 		return s.handleFinancialQuery(query, userModel)
 	}
 
-	results := s.executeChatPlan(ctx, plan, query.UserID)
+	emit(progress, "execute", fmt.Sprintf("Running %d quer%s…", len(plan.Queries), pluralY(len(plan.Queries))))
+	results := s.executeChatPlanWithProgress(ctx, plan, query.UserID, progress)
 
 	// One-shot self-correct: if every query was rejected/errored, send
 	// the rejection reasons back to the LLM and ask for a fix. This
@@ -111,6 +144,7 @@ func (s *Service) answerWithSQLPlanner(ctx context.Context, query FinancialQuery
 	// a single retry instead of a silent fallback.
 	if everyQueryFailed(results) {
 		log.Printf("chat: every planned query failed first pass; asking LLM to fix")
+		emit(progress, "replan", "First attempt didn't run. Asking AI to fix…")
 		fixed, fixErr := s.replanChatSQL(ctx, query.Question, plan, results, userModel)
 		if fixErr != nil {
 			log.Printf("chat.replan: LLM returned unparseable retry plan: %v", fixErr)
@@ -118,7 +152,8 @@ func (s *Service) answerWithSQLPlanner(ctx context.Context, query FinancialQuery
 			log.Printf("chat.replan: LLM returned empty retry plan")
 		} else {
 			log.Printf("chat.replan: retry produced %d queries; running them now", len(fixed.Queries))
-			results = s.executeChatPlan(ctx, fixed, query.UserID)
+			emit(progress, "execute", fmt.Sprintf("Re-running %d quer%s…", len(fixed.Queries), pluralY(len(fixed.Queries))))
+			results = s.executeChatPlanWithProgress(ctx, fixed, query.UserID, progress)
 		}
 	}
 
@@ -141,6 +176,7 @@ func (s *Service) answerWithSQLPlanner(ctx context.Context, query FinancialQuery
 		}, nil
 	}
 
+	emit(progress, "compose", "Writing the answer…")
 	answer, srcs, err := s.composeChatAnswer(ctx, query.Question, results, userModel)
 	if err != nil {
 		return AIResponse{}, err
@@ -151,6 +187,45 @@ func (s *Service) answerWithSQLPlanner(ctx context.Context, query FinancialQuery
 		Confidence:  0.9,
 		GeneratedAt: time.Now(),
 	}, nil
+}
+
+// pluralY returns "y" when n == 1 and "ies" otherwise. Used for
+// "1 query" vs "3 queries" in progress strings.
+func pluralY(n int) string {
+	if n == 1 {
+		return "y"
+	}
+	return "ies"
+}
+
+// executeChatPlanWithProgress is executeChatPlan but emits per-query
+// status updates. Kept separate from executeChatPlan so the latter
+// stays a no-callback helper for non-streaming callers.
+func (s *Service) executeChatPlanWithProgress(ctx context.Context, plan chatPlanRequest, userID string, progress ProgressFunc) []chatQueryResult {
+	out := make([]chatQueryResult, 0, len(plan.Queries))
+	for i, q := range plan.Queries {
+		emit(progress, "query", fmt.Sprintf("Query %d/%d: %s", i+1, len(plan.Queries), q.Name))
+		r := chatQueryResult{Name: q.Name, SQL: q.SQL}
+		safe, err := validateChatSQL(q.SQL)
+		if err != nil {
+			r.Note = "rejected: " + err.Error()
+			log.Printf("chat.plan rejected query %q: %v\n  sql: %s", q.Name, err, collapseWhitespace(q.SQL))
+			out = append(out, r)
+			continue
+		}
+		log.Printf("chat.plan running query %q: %s", q.Name, collapseWhitespace(safe))
+		rows, err := s.runChatQuery(ctx, safe, userID)
+		if err != nil {
+			r.Note = "execution error: " + err.Error()
+			log.Printf("chat.plan exec error on %q: %v", q.Name, err)
+			out = append(out, r)
+			continue
+		}
+		log.Printf("chat.plan %q → %d row(s)", q.Name, len(rows))
+		r.Rows = rows
+		out = append(out, r)
+	}
+	return out
 }
 
 // planChatSQL is pass 1.

@@ -11,6 +11,10 @@ const Chat = ({ user, onLogout }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  // Live status string streamed from /api/v1/chat/stream while a chat
+  // is in flight. Renders below the spinner instead of the static
+  // "Thinking." text.
+  const [statusDetail, setStatusDetail] = useState('');
   const [ollamaStatus, setOllamaStatus] = useState('checking');
   const [modelName, setModelName] = useState('');
   const [conversations, setConversations] = useState([]);
@@ -80,42 +84,80 @@ const Chat = ({ user, onLogout }) => {
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
     setLoading(true);
+    setStatusDetail('Sending…');
 
     try {
-      const res = await proxyAPI.sophia.post('/api/v1/chat/', {
-        user_id: String(user.id),
-        question: text.trim(),
-        conversation_id: activeConversationId || undefined,
+      const token = localStorage.getItem('authToken');
+      const res = await fetch('/api/v1/chat/stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          user_id: String(user.id),
+          question: text.trim(),
+          conversation_id: activeConversationId || undefined,
+        }),
       });
+      if (!res.ok || !res.body) {
+        throw new Error(`stream HTTP ${res.status}`);
+      }
+      // Parse Server-Sent Events as they arrive. Each event is two
+      // lines: `event: <name>` and `data: <json>`, separated by a
+      // blank line. The browser fetch API gives us a ReadableStream
+      // of bytes; we accumulate and split on \n\n.
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let final = null;
+      let streamError = null;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buffer.indexOf('\n\n')) !== -1) {
+          const block = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 2);
+          const ev = parseSSEBlock(block);
+          if (!ev) continue;
+          if (ev.event === 'status') {
+            if (ev.data?.detail) setStatusDetail(ev.data.detail);
+          } else if (ev.event === 'final') {
+            final = ev.data;
+          } else if (ev.event === 'error') {
+            streamError = ev.data?.error || 'unknown error';
+          }
+        }
+      }
+      if (streamError) throw new Error(streamError);
+      if (!final) throw new Error('stream ended without a final answer');
+
       const aiMsg = {
         role: 'assistant',
-        content: res.data.answer,
-        confidence: res.data.confidence,
-        sources: res.data.sources || [],
-        insights: res.data.insights || [],
+        content: final.answer,
+        confidence: final.confidence,
+        sources: final.sources || [],
+        insights: final.insights || [],
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, aiMsg]);
       setOllamaStatus('active');
-      if (res.data.model) {
-        setModelName(res.data.model);
-      }
-      if (res.data.conversation_id) {
-        setActiveConversationId(res.data.conversation_id);
-        // Refresh conversation list
+      if (final.model) setModelName(final.model);
+      if (final.conversation_id) {
+        setActiveConversationId(final.conversation_id);
         proxyAPI.thesaurus
           .get('/api/v1/conversations/', undefined, { skipLogoutOn401: true })
           .then((r) => setConversations(r.data || []))
           .catch(() => {});
       }
     } catch (err) {
-      const errCorrelationId = err.response?.data?.correlation_id ||
-        err.response?.headers?.['x-correlation-id'] || '';
       const errMsg = {
         role: 'assistant',
         content:
           "I couldn't get to that one. Make sure Ollama is awake and try again." +
-          (errCorrelationId ? `\n\nReference: ${errCorrelationId}` : ''),
+          (err?.message ? `\n\n${err.message}` : ''),
         error: true,
         timestamp: new Date(),
       };
@@ -123,8 +165,23 @@ const Chat = ({ user, onLogout }) => {
       setOllamaStatus('offline');
     } finally {
       setLoading(false);
+      setStatusDetail('');
     }
   };
+
+  // parseSSEBlock pulls "event: foo" / "data: {...}" out of a single
+  // SSE block. Returns null if the block doesn't have a data line.
+  function parseSSEBlock(block) {
+    const lines = block.split('\n');
+    let event = 'message';
+    let data = '';
+    for (const line of lines) {
+      if (line.startsWith('event:')) event = line.slice(6).trim();
+      else if (line.startsWith('data:')) data += line.slice(5).trim();
+    }
+    if (!data) return null;
+    try { return { event, data: JSON.parse(data) }; } catch { return { event, data: null }; }
+  }
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -382,7 +439,7 @@ const Chat = ({ user, onLogout }) => {
               {loading && (
                 <div style={S.loadingRow}>
                   <div style={S.aiAvatar}><span role="img" aria-label="AI">&#10022;</span></div>
-                  <div style={S.loadingBubble}>Thinking.</div>
+                  <div style={S.loadingBubble}>{statusDetail || 'Thinking…'}</div>
                 </div>
               )}
             </div>

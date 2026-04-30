@@ -215,7 +215,7 @@ func (s *Service) AnswerFinancialQuery(query FinancialQuery) (AIResponse, error)
 		response, err = s.handleConversational(query.Question, userModel)
 	} else if s.db != nil {
 		// New flow: LLM writes SQL, we execute, LLM answers from rows.
-		response, err = s.answerWithSQLPlanner(context.Background(), query, userModel)
+		response, err = s.answerWithSQLPlanner(context.Background(), query, userModel, nil)
 	} else {
 		response, err = s.handleFinancialQuery(query, userModel)
 	}

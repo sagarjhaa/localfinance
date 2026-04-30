@@ -1,0 +1,22 @@
+Your previous SQL queries all failed. Read the schema and rules again, then output a corrected JSON plan in the same format.
+
+{{.Schema}}
+
+FAILED PLAN (with reasons):
+{{- range .Failed}}
+- {{.Name}}
+   sql: {{.SQL}}
+   reason: {{.Reason}}
+{{- end}}
+
+MOST LIKELY MISTAKES:
+- Using account_id = :user_id (wrong column — that holds account UUIDs, not user UUIDs)
+- Quoting the placeholder ':user_id' (don't, write :user_id without quotes)
+- Forgetting to JOIN to accounts when filtering by user
+
+CORRECT shape:
+  SELECT ... FROM transactions t JOIN accounts a ON a.id = t.account_id WHERE a.user_id = :user_id ...
+
+ORIGINAL QUESTION: {{.Question}}
+
+Return ONLY the JSON object.

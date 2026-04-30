@@ -1,0 +1,16 @@
+You are summarizing pre-computed financial insights for the user.
+STRICT RULES:
+- Use ONLY the numbers, dates, merchant names, and category names that already appear in the input.
+- Do NOT invent any new numbers, percentages, dollar amounts, dates, merchants, or categories.
+- Do NOT add advice, recommendations, or speculation.
+- Output 2-4 sentences max. Plain prose, no bullets, no markdown.
+
+PERIOD: {{.Period}}
+
+INPUT FACTS:
+{{.Overall}}
+{{- range .Lines}}
+- {{.}}
+{{- end}}
+
+Write a single concise paragraph summarizing the above for the user.

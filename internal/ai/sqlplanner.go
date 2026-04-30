@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sagarjhaa/localfinance/internal/prompts"
 	"gorm.io/gorm"
 )
 
@@ -135,45 +136,10 @@ func (s *Service) answerWithSQLPlanner(ctx context.Context, query FinancialQuery
 
 // planChatSQL is pass 1.
 func (s *Service) planChatSQL(ctx context.Context, question, userModel string) (chatPlanRequest, error) {
-	prompt := fmt.Sprintf(`You are a SQL planner for a personal-finance chat. Given the user's question and the schema below, produce a small set of SQL queries that gather enough evidence to answer.
-
-%s
-
-INSTRUCTIONS:
-- Output ONLY a JSON object {"queries": [{"name": ..., "sql": ..., "why": ...}, ...]}.
-- Use SELECT only. No INSERT/UPDATE/DELETE/DDL.
-- One statement per query (no semicolons in the middle).
-- Prefer ILIKE '%%term%%' for merchant/brand searches — descriptions are
-  raw bank strings (e.g. "PRIMO BRANDS/WATERSERV", "AMZN MARKETPLACE")
-  so search by substring.
-- Cap with LIMIT 200 or smaller.
-- Keep the plan small — 1 to 3 queries is usually enough.
-- Do not invent column names. Stick to the schema above.
-
-USER SCOPING — read carefully, this is the most common mistake:
-- transactions has NO user_id column. To filter by user, you MUST JOIN
-  to accounts.
-- The placeholder for the authenticated user's UUID is the literal
-  string ":user_id" — write it without quotes.
-- account_id is NOT user_id. It is the FK to accounts.id. Writing
-  WHERE account_id = :user_id will return zero rows.
-
-CORRECT shape for any query that filters by user:
-  SELECT t.date, t.description, t.amount
-  FROM transactions t
-  JOIN accounts a ON a.id = t.account_id
-  WHERE a.user_id = :user_id
-    AND t.description ILIKE '%%primo%%'
-  ORDER BY t.date DESC
-  LIMIT 200
-
-WRONG shapes (will be rejected):
-  WHERE account_id = :user_id              -- wrong column
-  WHERE user_id = ':user_id'               -- placeholder must NOT be quoted
-  WHERE a.user_id = '550e8400-...uuid...'  -- never write a literal UUID
-
-QUESTION: %s`, chatSchemaDoc, question)
-
+	prompt := prompts.MustRender("chat_plan", map[string]any{
+		"Schema":   chatSchemaDoc,
+		"Question": question,
+	})
 	raw, err := s.queryOllamaWithModel(prompt, 0.1, userModel)
 	if err != nil {
 		return chatPlanRequest{}, err
@@ -218,40 +184,33 @@ func (s *Service) executeChatPlan(ctx context.Context, plan chatPlanRequest, use
 // composeChatAnswer is pass 2 — feed the question + each query and its
 // (truncated) rows back to the LLM and ask for a natural answer.
 func (s *Service) composeChatAnswer(ctx context.Context, question string, results []chatQueryResult, userModel string) (string, []TransactionRef, error) {
-	var b strings.Builder
-	b.WriteString("You are a concise personal-finance assistant. The data below was fetched by running the SQL queries shown. Answer the user's question using ONLY the row data.\n\n")
-	b.WriteString("RULES:\n")
-	b.WriteString("- Use real numbers from the rows. Never invent amounts, dates, or merchants.\n")
-	b.WriteString("- 2-4 sentences. Format currency as $X,XXX.XX.\n")
-	b.WriteString("- Use clean merchant names (e.g. \"Amazon\" not \"AMZN MARKETPLACE\").\n")
-	b.WriteString("- If a query returned no rows, say what was searched and that there were no matches.\n")
-	b.WriteString("- Do not give generic advice; answer only what was asked.\n\n")
-	b.WriteString("QUESTION: " + question + "\n\n")
-	b.WriteString("EVIDENCE:\n")
-	for i, r := range results {
-		b.WriteString(fmt.Sprintf("--- Query %d: %s ---\n", i+1, r.Name))
-		b.WriteString("SQL: " + collapseWhitespace(r.SQL) + "\n")
-		if r.Note != "" {
-			b.WriteString("Note: " + r.Note + "\n\n")
-			continue
-		}
-		if len(r.Rows) == 0 {
-			b.WriteString("Result: 0 rows.\n\n")
-			continue
-		}
-		b.WriteString(fmt.Sprintf("Result: %d row(s)\n", len(r.Rows)))
-		for j, row := range r.Rows {
-			if j >= 50 {
-				b.WriteString(fmt.Sprintf("... (%d more rows omitted)\n", len(r.Rows)-50))
-				break
-			}
-			b.WriteString("  " + formatRowForPrompt(row) + "\n")
-		}
-		b.WriteString("\n")
+	// Render each query's rows as flat strings up-front so the template
+	// just iterates structured data.
+	type queryView struct {
+		Name string
+		SQL  string
+		Note string
+		Rows []string
 	}
-	b.WriteString("Now write the answer.")
-
-	answer, err := s.queryOllamaWithModel(b.String(), 0.2, userModel)
+	views := make([]queryView, 0, len(results))
+	for _, r := range results {
+		v := queryView{Name: r.Name, SQL: collapseWhitespace(r.SQL), Note: r.Note}
+		if r.Note == "" {
+			for j, row := range r.Rows {
+				if j >= 50 {
+					v.Rows = append(v.Rows, fmt.Sprintf("... (%d more rows omitted)", len(r.Rows)-50))
+					break
+				}
+				v.Rows = append(v.Rows, formatRowForPrompt(row))
+			}
+		}
+		views = append(views, v)
+	}
+	prompt := prompts.MustRender("chat_answer", map[string]any{
+		"Question": question,
+		"Results":  views,
+	})
+	answer, err := s.queryOllamaWithModel(prompt, 0.2, userModel)
 	if err != nil {
 		return "", nil, err
 	}
@@ -339,25 +298,21 @@ func everyQueryFailed(results []chatQueryResult) bool {
 // Best-effort — caller should still gracefully degrade if this also
 // produces nothing usable.
 func (s *Service) replanChatSQL(ctx context.Context, question string, prev chatPlanRequest, results []chatQueryResult, userModel string) (chatPlanRequest, error) {
-	var b strings.Builder
-	b.WriteString("Your previous SQL queries all failed. Read the schema and rules again, then output a corrected JSON plan in the same format.\n\n")
-	b.WriteString(chatSchemaDoc)
-	b.WriteString("\n\nFAILED PLAN (with reasons):\n")
+	type failedRow struct{ Name, SQL, Reason string }
+	failed := make([]failedRow, 0, len(prev.Queries))
 	for i, q := range prev.Queries {
-		b.WriteString(fmt.Sprintf("%d. %s\n   sql: %s\n", i+1, q.Name, collapseWhitespace(q.SQL)))
+		row := failedRow{Name: q.Name, SQL: collapseWhitespace(q.SQL)}
 		if i < len(results) {
-			b.WriteString("   reason: " + results[i].Note + "\n")
+			row.Reason = results[i].Note
 		}
+		failed = append(failed, row)
 	}
-	b.WriteString("\nMOST LIKELY MISTAKES:\n")
-	b.WriteString("- Using account_id = :user_id (wrong column — that holds account UUIDs, not user UUIDs)\n")
-	b.WriteString("- Quoting the placeholder ':user_id' (don't, write :user_id without quotes)\n")
-	b.WriteString("- Forgetting to JOIN to accounts when filtering by user\n\n")
-	b.WriteString("CORRECT shape:\n")
-	b.WriteString("  SELECT ... FROM transactions t JOIN accounts a ON a.id = t.account_id WHERE a.user_id = :user_id ...\n\n")
-	b.WriteString("ORIGINAL QUESTION: " + question + "\n\nReturn ONLY the JSON object.")
-
-	raw, err := s.queryOllamaWithModel(b.String(), 0.1, userModel)
+	prompt := prompts.MustRender("chat_replan", map[string]any{
+		"Schema":   chatSchemaDoc,
+		"Failed":   failed,
+		"Question": question,
+	})
+	raw, err := s.queryOllamaWithModel(prompt, 0.1, userModel)
 	if err != nil {
 		return chatPlanRequest{}, err
 	}

@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/sagarjhaa/localfinance/internal/prompts"
 )
 
 // Period describes the analysis window the narrator is summarizing. Used only
@@ -235,31 +237,20 @@ func (n *llmNarrator) Narrate(ctx context.Context, insights []Insight, period Pe
 }
 
 func buildLLMPrompt(phaseA MonthInReviewNarrative, period Period) string {
-	var b strings.Builder
-	b.WriteString("You are summarizing pre-computed financial insights for the user.\n")
-	b.WriteString("STRICT RULES:\n")
-	b.WriteString("- Use ONLY the numbers, dates, merchant names, and category names that already appear in the input.\n")
-	b.WriteString("- Do NOT invent any new numbers, percentages, dollar amounts, dates, merchants, or categories.\n")
-	b.WriteString("- Do NOT add advice, recommendations, or speculation.\n")
-	b.WriteString("- Output 2-4 sentences max. Plain prose, no bullets, no markdown.\n\n")
-	b.WriteString("PERIOD: ")
-	b.WriteString(period.describe())
-	b.WriteString("\n\n")
-	b.WriteString("INPUT FACTS:\n")
-	b.WriteString(phaseA.Overall)
-	b.WriteString("\n")
 	keys := make([]string, 0, len(phaseA.PerInsight))
 	for k := range phaseA.PerInsight {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
+	lines := make([]string, 0, len(keys))
 	for _, k := range keys {
-		b.WriteString("- ")
-		b.WriteString(phaseA.PerInsight[k])
-		b.WriteString("\n")
+		lines = append(lines, phaseA.PerInsight[k])
 	}
-	b.WriteString("\nWrite a single concise paragraph summarizing the above for the user.")
-	return b.String()
+	return prompts.MustRender("insight_narrator", map[string]any{
+		"Period":  period.describe(),
+		"Overall": phaseA.Overall,
+		"Lines":   lines,
+	})
 }
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,20 @@
+You are a query parser. Convert this financial question into a JSON query.
+Today's date is {{.Today}}.
+
+Available categories: Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Health, Cash, EMI, Education, Other
+
+Rules:
+- Set needs_summary=true when user asks about spending by category, totals, or breakdowns
+- Set needs_search=true when user asks about specific transactions or merchants
+- Use start_date/end_date in YYYY-MM-DD format for time ranges
+- "last month" means the previous calendar month, "last 14 days" means 14 days before today
+- ONLY set start_date/end_date if the user's question explicitly mentions a time period.
+  If no time range is mentioned, leave both empty so the search covers all time.
+  Do NOT default to today — that almost always returns nothing.
+- Use description for merchant/store name searches (e.g., "Amazon", "Starbucks")
+- Use category for category-level queries (e.g., "food", "shopping")
+- Default limit to 50 if not specified
+
+Respond with ONLY valid JSON, no other text:
+
+Question: {{.Question}}

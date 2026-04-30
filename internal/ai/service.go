@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/sagarjhaa/localfinance/internal/ai/config"
+	"github.com/sagarjhaa/localfinance/internal/prompts"
 	"gorm.io/gorm"
 )
 
@@ -166,10 +167,9 @@ func isConversational(question string) bool {
 }
 
 func (s *Service) handleConversational(question string, userModel string) (AIResponse, error) {
-	prompt := fmt.Sprintf(`You are a friendly financial assistant for LocalFinance, a privacy-first personal finance app.
-The user said: "%s"
-
-Respond naturally and briefly. If it's a greeting, greet back and mention what you can help with (analyzing spending, categorizing transactions, answering questions about their finances). Keep it to 2-3 sentences max. Be warm but concise.`, question)
+	prompt := prompts.MustRender("chat_conversational", map[string]any{
+		"Question": question,
+	})
 
 	response, err := s.queryOllamaWithModel(prompt, 0.7, userModel)
 	if err != nil {
@@ -365,15 +365,9 @@ func (s *Service) saveMessage(conversationID, role, content string, confidence *
 // updateConversationTitle generates a short title via Ollama and PATCHes the conversation.
 // Intended to run in a goroutine (async, non-blocking).
 func (s *Service) updateConversationTitle(conversationID, question string) {
-	prompt := fmt.Sprintf(`Generate a very short title (3-5 words) for a finance chat that starts with this question: "%s"
-
-Rules:
-- Exactly 3-5 words
-- No quotes, no punctuation
-- Descriptive of the topic
-- Example: "Monthly Food Spending" or "Recent Amazon Purchases"
-
-Title:`, question)
+	prompt := prompts.MustRender("chat_title", map[string]any{
+		"Question": question,
+	})
 
 	title, err := s.queryOllamaRaw(prompt, 0.3)
 	if err != nil {
@@ -425,27 +419,10 @@ Title:`, question)
 // Pass 1: Ask LLM to parse the user's question into structured query parameters
 func (s *Service) parseQueryIntent(question string, userModel string) (*QueryIntent, error) {
 	today := time.Now().Format("2006-01-02")
-
-	prompt := fmt.Sprintf(`You are a query parser. Convert this financial question into a JSON query.
-Today's date is %s.
-
-Available categories: Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Health, Cash, EMI, Education, Other
-
-Rules:
-- Set needs_summary=true when user asks about spending by category, totals, or breakdowns
-- Set needs_search=true when user asks about specific transactions or merchants
-- Use start_date/end_date in YYYY-MM-DD format for time ranges
-- "last month" means the previous calendar month, "last 14 days" means 14 days before today
-- ONLY set start_date/end_date if the user's question explicitly mentions a time period.
-  If no time range is mentioned, leave both empty so the search covers all time.
-  Do NOT default to today — that almost always returns nothing.
-- Use description for merchant/store name searches (e.g., "Amazon", "Starbucks")
-- Use category for category-level queries (e.g., "food", "shopping")
-- Default limit to 50 if not specified
-
-Respond with ONLY valid JSON, no other text:
-
-Question: %s`, today, question)
+	prompt := prompts.MustRender("chat_intent", map[string]any{
+		"Today":    today,
+		"Question": question,
+	})
 
 	response, err := s.queryOllamaWithModel(prompt, 0.1, userModel)
 	if err != nil {
@@ -769,25 +746,10 @@ func cleanMerchantName(raw string) string {
 
 // Pass 2: Generate natural language answer from real data
 func (s *Service) generateAnswer(question, dataContext string, userModel string) (string, error) {
-	prompt := fmt.Sprintf(`You are a concise financial assistant. Answer using ONLY the real data below.
-
-RULES:
-- Use actual numbers from the data. Never invent amounts.
-- Be concise: 2-4 sentences for the main answer.
-- Format currency as $X,XXX.XX
-- NEVER include raw transaction descriptions or codes. Use clean merchant names only (e.g., "Amazon" not "AMAZON.COM*EY8608493").
-- For category breakdowns, list each category with its total and percentage on a clean line.
-- Highlight the biggest spending category and any notable patterns.
-- If no data, say so honestly.
-- Do not give generic advice. Only answer what was asked.
-
-REAL DATA:
-%s
-
-USER QUESTION: %s
-
-Answer:`, dataContext, question)
-
+	prompt := prompts.MustRender("chat_legacy_answer", map[string]any{
+		"DataContext": dataContext,
+		"Question":    question,
+	})
 	return s.queryOllamaWithModel(prompt, 0.2, userModel)
 }
 
@@ -908,13 +870,9 @@ func (s *Service) calculateConfidence(txns []TransactionRef, summary []SpendingS
 
 // CategorizeTransaction uses AI to categorize a transaction
 func (s *Service) CategorizeTransaction(description string) (CategoryResult, error) {
-	prompt := fmt.Sprintf(`Categorize this financial transaction into one of these categories:
-
-Categories: Food, Transportation, Shopping, Entertainment, Bills, Healthcare, Education, Travel, Income, Other
-
-Transaction: %s
-
-Response format: Category: [category] | Confidence: [0.0-1.0] | Reason: [brief explanation]`, description)
+	prompt := prompts.MustRender("categorize", map[string]any{
+		"Description": description,
+	})
 
 	response, err := s.queryOllama(prompt)
 	if err != nil {
@@ -946,11 +904,9 @@ func (s *Service) GenerateInsights(userID string) ([]FinancialInsight, error) {
 	}
 
 	dataContext := s.buildDataContext(nil, summary)
-	prompt := fmt.Sprintf(`Based on this spending data, provide exactly 3 insights. Each on its own line, format: TITLE: description
-
-%s
-
-Insights:`, dataContext)
+	prompt := prompts.MustRender("legacy_insights", map[string]any{
+		"DataContext": dataContext,
+	})
 
 	response, err := s.queryOllamaRaw(prompt, 0.3)
 	if err != nil {
@@ -1044,35 +1000,11 @@ func (s *Service) parseTransactionsWithSource(ctx context.Context, text string, 
 
 	year := time.Now().Year()
 	prevYear := year - 1
-	prompt := fmt.Sprintf(`Extract transactions as JSON.
-Fields: date (YYYY-MM-DD), description (Clean Name), amount (Positive=Charge, Negative=Payment), category (Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Card Payment, Health, Cash, EMI, Education, Other).
-
-STRICT RULES:
-1. Only extract transactions from the activity table. Do not extract account headers, reward balances, or summary totals.
-2. The date must be the one listed on the transaction line. Do not use the statement's overall date.
-3. If a transaction doesn't fit a category, use "Other". NEVER create new categories.
-4. No raw codes/cities/states in description.
-5. If year unknown, infer it from the statement period. If still unclear, use %d. Statements that span a year boundary should use %d for early-year months and %d for late-year months.
-6. On a credit card statement, payments to the card itself (descriptions like "AUTOMATIC PAYMENT - THANK YOU", "PAYMENT RECEIVED", "ONLINE PAYMENT - THANK YOU") are NOT income. They are the user paying down their card balance. Use category "Card Payment" for these. Only use "Income" for genuine refunds, paychecks, dividends, or reimbursements.
-7. Output ONLY the JSON array inside <JSON> tags.
-
-Examples (current year is %d):
-Input: 03/12 AMZN Mktp US*Amzn.com/bill WA $22.50
-Output: {"date": "%d-03-12", "description": "Amazon", "amount": 22.50, "category": "Shopping"}
-
-Input: 02/18 SAFEWAY #1196 SUNNYVALE CA 28.33
-Output: {"date": "%d-02-18", "description": "Safeway", "amount": 28.33, "category": "Food"}
-
-Input: 03/12 AUTOMATIC PAYMENT - THANK YOU -1323.73
-Output: {"date": "%d-03-12", "description": "Card Payment", "amount": -1323.73, "category": "Card Payment"}
-
-Input: 03/15 REFUND AMAZON.COM ORDER #123-456 -42.99
-Output: {"date": "%d-03-15", "description": "Amazon Refund", "amount": -42.99, "category": "Income"}
-
-Start your response exactly with "<JSON>[" and end with "]</JSON>".
-
-Statement:
-%s`, year, year, prevYear, year, year, year, year, year, text)
+	prompt := prompts.MustRender("parse_text", map[string]any{
+		"Year":     year,
+		"PrevYear": prevYear,
+		"Text":     text,
+	})
 
 	// Right-size the context. Larger num_ctx means larger memory allocation
 	// at inference start — even when the prompt is small. 8192 fits a
@@ -1391,32 +1323,10 @@ func (s *Service) ParseTransactionsFromImages(ctx context.Context, images []stri
 
 	year := time.Now().Year()
 	prevYear := year - 1
-	prompt := fmt.Sprintf(`Extract transactions from the statement images you are looking at, as JSON.
-Fields: date (YYYY-MM-DD), description (Clean Name), amount (Positive=Charge, Negative=Payment), category (Food, Transport, Shopping, Entertainment, Utilities, Housing, Income, Transfer, Card Payment, Health, Cash, EMI, Education, Other).
-
-STRICT RULES:
-1. Only extract transactions from the activity table. Do not extract account headers, reward balances, or summary totals.
-2. The date must be the one listed on the transaction line. Do not use the statement's overall date.
-3. If a transaction doesn't fit a category, use "Other". NEVER create new categories.
-4. No raw codes/cities/states in description.
-5. If year unknown, infer from the statement period. If still unclear, use %d. Statements that span a year boundary should use %d for early-year months and %d for late-year months.
-6. On a credit card statement, payments to the card itself (descriptions like "AUTOMATIC PAYMENT - THANK YOU", "PAYMENT RECEIVED", "ONLINE PAYMENT - THANK YOU") are NOT income. They are the user paying down their card balance. Use category "Card Payment" for these. Only use "Income" for genuine refunds, paychecks, dividends, or reimbursements.
-7. Output ONLY the JSON array inside <JSON> tags.
-
-Examples (current year is %d):
-Input row: 03/12 AMZN Mktp US*Amzn.com/bill WA $22.50
-Output: {"date": "%d-03-12", "description": "Amazon", "amount": 22.50, "category": "Shopping"}
-
-Input row: 02/18 SAFEWAY #1196 SUNNYVALE CA 28.33
-Output: {"date": "%d-02-18", "description": "Safeway", "amount": 28.33, "category": "Food"}
-
-Input row: 03/12 AUTOMATIC PAYMENT - THANK YOU -1323.73
-Output: {"date": "%d-03-12", "description": "Card Payment", "amount": -1323.73, "category": "Card Payment"}
-
-Input row: 03/15 REFUND AMAZON.COM ORDER #123-456 -42.99
-Output: {"date": "%d-03-15", "description": "Amazon Refund", "amount": -42.99, "category": "Income"}
-
-Start your response exactly with "<JSON>[" and end with "]</JSON>".`, year, year, prevYear, year, year, year, year, year)
+	prompt := prompts.MustRender("parse_vision", map[string]any{
+		"Year":     year,
+		"PrevYear": prevYear,
+	})
 
 	reqBody := OllamaRequest{
 		Model:       userModel,

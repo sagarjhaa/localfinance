@@ -51,6 +51,11 @@ func NewGinRouterWithAI(db *gorm.DB, aiSvc *ai.Service, modelName string) *gin.E
 	router := gin.New()
 	router.Use(gin.Recovery())
 
+	// Hand the AI service the live DB so the chat path can run the
+	// LLM-writes-SQL planner directly instead of round-tripping through
+	// the legacy intent + REST flow.
+	aiSvc.SetDB(db)
+
 	userHandler := handlers.NewUserHandler(db)
 	accountHandler := handlers.NewAccountHandler(db)
 	transactionHandler := handlers.NewTransactionHandler(db)

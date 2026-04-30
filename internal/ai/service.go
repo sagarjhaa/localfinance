@@ -16,13 +16,21 @@ import (
 	"time"
 
 	"github.com/sagarjhaa/localfinance/internal/ai/config"
+	"gorm.io/gorm"
 )
 
 type Service struct {
 	config       config.AIConfig
 	httpClient   *http.Client
 	thesaurusURL string
+	// db, when set, switches the chat path from the legacy parse-intent +
+	// REST-fetch flow to a SQL-planner flow: LLM writes SQL → we execute
+	// it directly against this DB → LLM answers. See sqlplanner.go.
+	db *gorm.DB
 }
+
+// SetDB wires the SQL-planner DB handle. Call once at startup.
+func (s *Service) SetDB(db *gorm.DB) { s.db = db }
 
 type OllamaRequest struct {
 	Model       string                 `json:"model"`
@@ -205,6 +213,9 @@ func (s *Service) AnswerFinancialQuery(query FinancialQuery) (AIResponse, error)
 	var err error
 	if isConversational(query.Question) {
 		response, err = s.handleConversational(query.Question, userModel)
+	} else if s.db != nil {
+		// New flow: LLM writes SQL, we execute, LLM answers from rows.
+		response, err = s.answerWithSQLPlanner(context.Background(), query, userModel)
 	} else {
 		response, err = s.handleFinancialQuery(query, userModel)
 	}

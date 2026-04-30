@@ -112,14 +112,33 @@ func (s *Service) answerWithSQLPlanner(ctx context.Context, query FinancialQuery
 	if everyQueryFailed(results) {
 		log.Printf("chat: every planned query failed first pass; asking LLM to fix")
 		fixed, fixErr := s.replanChatSQL(ctx, query.Question, plan, results, userModel)
-		if fixErr == nil && len(fixed.Queries) > 0 {
+		if fixErr != nil {
+			log.Printf("chat.replan: LLM returned unparseable retry plan: %v", fixErr)
+		} else if len(fixed.Queries) == 0 {
+			log.Printf("chat.replan: LLM returned empty retry plan")
+		} else {
+			log.Printf("chat.replan: retry produced %d queries; running them now", len(fixed.Queries))
 			results = s.executeChatPlan(ctx, fixed, query.UserID)
 		}
 	}
 
 	if everyQueryFailed(results) {
-		log.Printf("chat: every planned query still failed after retry; falling back to legacy intent flow")
-		return s.handleFinancialQuery(query, userModel)
+		// Both passes failed. Don't silently fall back to the legacy flow
+		// — it's the one that hallucinates totals from a free-form prompt
+		// over raw transaction lists. Better to admit the system bailed
+		// than to confidently print wrong numbers.
+		log.Printf("chat: both plan attempts failed; returning a clear bail-out instead of legacy flow")
+		var failures []string
+		for _, r := range results {
+			failures = append(failures, fmt.Sprintf("%s — %s", r.Name, r.Note))
+		}
+		return AIResponse{
+			Answer: "I couldn't put together a query for that question. " +
+				"Try rephrasing — for example, ‘How much did I spend on Amazon last month?’ " +
+				"or ‘List my biggest 5 charges this year.’",
+			Confidence:  0.1,
+			GeneratedAt: time.Now(),
+		}, nil
 	}
 
 	answer, srcs, err := s.composeChatAnswer(ctx, query.Question, results, userModel)

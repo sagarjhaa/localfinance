@@ -275,10 +275,10 @@ func (s *Service) handleFinancialQuery(query FinancialQuery, userModel string) (
 		}
 	}
 
-	// If we got no data at all, fetch recent transactions as fallback
-	if len(transactions) == 0 && len(summaryItems) == 0 {
-		transactions, _ = s.getUserTransactions(query.UserID, 50)
-	}
+	// Note: previous versions padded with getUserTransactions(50) on
+	// empty hits, but that polluted the answer LLM with unrelated rows
+	// AND showed them to the user as "evidence." If the search came back
+	// empty, that's the honest answer — surface it as such.
 
 	// Build data context string for Pass 2
 	dataContext := s.buildDataContext(transactions, summaryItems)
@@ -436,6 +436,9 @@ Rules:
 - Set needs_search=true when user asks about specific transactions or merchants
 - Use start_date/end_date in YYYY-MM-DD format for time ranges
 - "last month" means the previous calendar month, "last 14 days" means 14 days before today
+- ONLY set start_date/end_date if the user's question explicitly mentions a time period.
+  If no time range is mentioned, leave both empty so the search covers all time.
+  Do NOT default to today — that almost always returns nothing.
 - Use description for merchant/store name searches (e.g., "Amazon", "Starbucks")
 - Use category for category-level queries (e.g., "food", "shopping")
 - Default limit to 50 if not specified

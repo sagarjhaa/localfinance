@@ -172,15 +172,19 @@ func (s *Service) executeChatPlan(ctx context.Context, plan chatPlanRequest, use
 		safe, err := validateChatSQL(q.SQL)
 		if err != nil {
 			r.Note = "rejected: " + err.Error()
+			log.Printf("chat.plan rejected query %q: %v\n  sql: %s", q.Name, err, collapseWhitespace(q.SQL))
 			out = append(out, r)
 			continue
 		}
+		log.Printf("chat.plan running query %q: %s", q.Name, collapseWhitespace(safe))
 		rows, err := s.runChatQuery(ctx, safe, userID)
 		if err != nil {
 			r.Note = "execution error: " + err.Error()
+			log.Printf("chat.plan exec error on %q: %v", q.Name, err)
 			out = append(out, r)
 			continue
 		}
+		log.Printf("chat.plan %q → %d row(s)", q.Name, len(rows))
 		r.Rows = rows
 		out = append(out, r)
 	}
@@ -349,10 +353,37 @@ func validateChatSQL(sql string) (string, error) {
 	} else {
 		stripped = stripped + " LIMIT 200"
 	}
-	// Must reference accounts.user_id or :user_id somewhere — if the
-	// LLM forgot to scope, refuse. Otherwise we'd leak across users.
+	// Must reference accounts.user_id somewhere — if the LLM forgot to
+	// scope, refuse, otherwise we'd leak across users. The placeholder
+	// for the actual UUID is :user_id; if the LLM wrote $1 / ? / a
+	// hardcoded UUID we coerce to :user_id here so runChatQuery's
+	// substitution still works.
+	hasUserScope := strings.Contains(stripped, "user_id")
+	if !hasUserScope {
+		return "", fmt.Errorf("query must filter by accounts.user_id")
+	}
 	if !strings.Contains(stripped, ":user_id") {
-		return "", fmt.Errorf("query must filter by :user_id")
+		// Replace the most common alternates with our placeholder. Order
+		// matters — match longest first.
+		replacements := []string{"$1", "?"}
+		for _, alt := range replacements {
+			if strings.Contains(stripped, "user_id = "+alt) {
+				stripped = strings.Replace(stripped, "user_id = "+alt, "user_id = :user_id", 1)
+				break
+			}
+			if strings.Contains(stripped, "user_id="+alt) {
+				stripped = strings.Replace(stripped, "user_id="+alt, "user_id=:user_id", 1)
+				break
+			}
+		}
+		// Also catch a hardcoded UUID literal — if the LLM put one in,
+		// replace it with the real placeholder so we can substitute the
+		// authed user's ID and not whatever the LLM dreamed up.
+		uuidLiteralRE := regexp.MustCompile(`(?i)user_id\s*=\s*'[0-9a-f-]{8,}'`)
+		stripped = uuidLiteralRE.ReplaceAllString(stripped, "user_id = :user_id")
+	}
+	if !strings.Contains(stripped, ":user_id") {
+		return "", fmt.Errorf("could not normalize user_id filter")
 	}
 	return stripped, nil
 }

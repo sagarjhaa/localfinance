@@ -6,9 +6,13 @@ INSTRUCTIONS:
 - Output ONLY a JSON object {"queries": [{"name": ..., "sql": ..., "why": ...}, ...]}.
 - Use SELECT only. No INSERT/UPDATE/DELETE/DDL.
 - One statement per query (no semicolons in the middle).
-- Prefer ILIKE '%term%' for merchant/brand searches — descriptions are
-  raw bank strings (e.g. "PRIMO BRANDS/WATERSERV", "AMZN MARKETPLACE")
-  so search by substring.
+- Descriptions are normalized at parse time — usually a clean merchant
+  name in title case ("Amazon", "Safeway", "Spotify") rather than the
+  raw bank string ("AMZN MARKETPLACE"). When a user says "Amazon",
+  search for ILIKE '%amazon%' — NOT '%AMZN%'. Use the everyday name
+  the user would type, lowercased. ILIKE is case-insensitive.
+- If you're unsure which spelling, OR a couple of likely variants:
+  description ILIKE '%amazon%' OR description ILIKE '%amzn%'
 - Cap with LIMIT 200 or smaller.
 - Keep the plan small — 1 to 3 queries is usually enough.
 - Do not invent column names. Stick to the schema above.

@@ -33,7 +33,7 @@ TABLE transactions (
   id              uuid PRIMARY KEY,
   account_id      uuid NOT NULL REFERENCES accounts(id),
   date            timestamp NOT NULL,
-  description     text NOT NULL,   -- raw bank merchant string ("AMZN MARKETPLACE"); use ILIKE for fuzzy match
+  description     text NOT NULL,   -- merchant name, normalized at parse time ("Amazon", "Safeway"). Use ILIKE for fuzzy match (case-insensitive).
   amount          numeric NOT NULL,
   category        text,            -- one of: Food, Transport, Shopping, Entertainment,
                                    --   Utilities, Housing, Income, Transfer, Card Payment,

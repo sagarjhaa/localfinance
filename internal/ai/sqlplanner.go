@@ -104,18 +104,20 @@ func (s *Service) answerWithSQLPlanner(ctx context.Context, query FinancialQuery
 
 	results := s.executeChatPlan(ctx, plan, query.UserID)
 
-	// If every query failed validation/execution, fall back. Otherwise
-	// pass whatever we got (even partial) to the answer phase — the LLM
-	// can still produce something useful.
-	allEmpty := true
-	for _, r := range results {
-		if r.Note == "" || len(r.Rows) > 0 {
-			allEmpty = false
-			break
+	// One-shot self-correct: if every query was rejected/errored, send
+	// the rejection reasons back to the LLM and ask for a fix. This
+	// turns the most common LLM mistake (wrong user-scope shape) into
+	// a single retry instead of a silent fallback.
+	if everyQueryFailed(results) {
+		log.Printf("chat: every planned query failed first pass; asking LLM to fix")
+		fixed, fixErr := s.replanChatSQL(ctx, query.Question, plan, results, userModel)
+		if fixErr == nil && len(fixed.Queries) > 0 {
+			results = s.executeChatPlan(ctx, fixed, query.UserID)
 		}
 	}
-	if allEmpty {
-		log.Printf("chat: every planned query failed; falling back to legacy intent flow")
+
+	if everyQueryFailed(results) {
+		log.Printf("chat: every planned query still failed after retry; falling back to legacy intent flow")
 		return s.handleFinancialQuery(query, userModel)
 	}
 
@@ -141,12 +143,34 @@ INSTRUCTIONS:
 - Output ONLY a JSON object {"queries": [{"name": ..., "sql": ..., "why": ...}, ...]}.
 - Use SELECT only. No INSERT/UPDATE/DELETE/DDL.
 - One statement per query (no semicolons in the middle).
-- Always JOIN transactions to accounts so you can filter accounts.user_id = :user_id.
-- Prefer ILIKE '%%term%%' for merchant searches (descriptions are raw bank strings).
+- Prefer ILIKE '%%term%%' for merchant/brand searches — descriptions are
+  raw bank strings (e.g. "PRIMO BRANDS/WATERSERV", "AMZN MARKETPLACE")
+  so search by substring.
 - Cap with LIMIT 200 or smaller.
-- If the question is broad (e.g. "how did I spend last month"), include a category-totals query and a top-merchants query.
 - Keep the plan small — 1 to 3 queries is usually enough.
 - Do not invent column names. Stick to the schema above.
+
+USER SCOPING — read carefully, this is the most common mistake:
+- transactions has NO user_id column. To filter by user, you MUST JOIN
+  to accounts.
+- The placeholder for the authenticated user's UUID is the literal
+  string ":user_id" — write it without quotes.
+- account_id is NOT user_id. It is the FK to accounts.id. Writing
+  WHERE account_id = :user_id will return zero rows.
+
+CORRECT shape for any query that filters by user:
+  SELECT t.date, t.description, t.amount
+  FROM transactions t
+  JOIN accounts a ON a.id = t.account_id
+  WHERE a.user_id = :user_id
+    AND t.description ILIKE '%%primo%%'
+  ORDER BY t.date DESC
+  LIMIT 200
+
+WRONG shapes (will be rejected):
+  WHERE account_id = :user_id              -- wrong column
+  WHERE user_id = ':user_id'               -- placeholder must NOT be quoted
+  WHERE a.user_id = '550e8400-...uuid...'  -- never write a literal UUID
 
 QUESTION: %s`, chatSchemaDoc, question)
 
@@ -293,6 +317,58 @@ func rowAsTransactionRef(row map[string]interface{}) (TransactionRef, bool) {
 	}, true
 }
 
+// everyQueryFailed returns true when every result has a Note (i.e.
+// validation rejection or DB error) and zero rows. A query that
+// legitimately returns 0 rows with no Note is success — the user's
+// answer might just be "no match", which is honest.
+func everyQueryFailed(results []chatQueryResult) bool {
+	if len(results) == 0 {
+		return true
+	}
+	for _, r := range results {
+		if r.Note == "" {
+			return false
+		}
+	}
+	return true
+}
+
+// replanChatSQL asks the LLM to rewrite a plan that wholly failed.
+// We feed back the original question, the queries it wrote, and the
+// per-query rejection reason so it has concrete grounds to correct.
+// Best-effort — caller should still gracefully degrade if this also
+// produces nothing usable.
+func (s *Service) replanChatSQL(ctx context.Context, question string, prev chatPlanRequest, results []chatQueryResult, userModel string) (chatPlanRequest, error) {
+	var b strings.Builder
+	b.WriteString("Your previous SQL queries all failed. Read the schema and rules again, then output a corrected JSON plan in the same format.\n\n")
+	b.WriteString(chatSchemaDoc)
+	b.WriteString("\n\nFAILED PLAN (with reasons):\n")
+	for i, q := range prev.Queries {
+		b.WriteString(fmt.Sprintf("%d. %s\n   sql: %s\n", i+1, q.Name, collapseWhitespace(q.SQL)))
+		if i < len(results) {
+			b.WriteString("   reason: " + results[i].Note + "\n")
+		}
+	}
+	b.WriteString("\nMOST LIKELY MISTAKES:\n")
+	b.WriteString("- Using account_id = :user_id (wrong column — that holds account UUIDs, not user UUIDs)\n")
+	b.WriteString("- Quoting the placeholder ':user_id' (don't, write :user_id without quotes)\n")
+	b.WriteString("- Forgetting to JOIN to accounts when filtering by user\n\n")
+	b.WriteString("CORRECT shape:\n")
+	b.WriteString("  SELECT ... FROM transactions t JOIN accounts a ON a.id = t.account_id WHERE a.user_id = :user_id ...\n\n")
+	b.WriteString("ORIGINAL QUESTION: " + question + "\n\nReturn ONLY the JSON object.")
+
+	raw, err := s.queryOllamaWithModel(b.String(), 0.1, userModel)
+	if err != nil {
+		return chatPlanRequest{}, err
+	}
+	jsonStr := extractJSON(raw)
+	var plan chatPlanRequest
+	if err := json.Unmarshal([]byte(jsonStr), &plan); err != nil {
+		return chatPlanRequest{}, fmt.Errorf("parse retry plan json: %w (raw: %s)", err, truncate(raw, 200))
+	}
+	return plan, nil
+}
+
 // chatSQLForbidden flags any keyword that would mutate the database or
 // reach beyond the user's data. Matched as a whole-word substring on
 // the lower-cased SQL after comments are stripped.
@@ -353,37 +429,41 @@ func validateChatSQL(sql string) (string, error) {
 	} else {
 		stripped = stripped + " LIMIT 200"
 	}
-	// Must reference accounts.user_id somewhere — if the LLM forgot to
-	// scope, refuse, otherwise we'd leak across users. The placeholder
-	// for the actual UUID is :user_id; if the LLM wrote $1 / ? / a
-	// hardcoded UUID we coerce to :user_id here so runChatQuery's
-	// substitution still works.
-	hasUserScope := strings.Contains(stripped, "user_id")
-	if !hasUserScope {
-		return "", fmt.Errorf("query must filter by accounts.user_id")
-	}
+	// Strip accidental quotes around the placeholder. LLMs sometimes
+	// emit `WHERE user_id = ':user_id'` which becomes a literal string
+	// after substitution and Postgres rejects it as a non-UUID.
+	stripped = strings.ReplaceAll(stripped, "':user_id'", ":user_id")
+	stripped = strings.ReplaceAll(stripped, "\":user_id\"", ":user_id")
+
+	// Coerce common alternate placeholders to :user_id.
 	if !strings.Contains(stripped, ":user_id") {
-		// Replace the most common alternates with our placeholder. Order
-		// matters — match longest first.
-		replacements := []string{"$1", "?"}
-		for _, alt := range replacements {
-			if strings.Contains(stripped, "user_id = "+alt) {
-				stripped = strings.Replace(stripped, "user_id = "+alt, "user_id = :user_id", 1)
-				break
-			}
-			if strings.Contains(stripped, "user_id="+alt) {
-				stripped = strings.Replace(stripped, "user_id="+alt, "user_id=:user_id", 1)
-				break
-			}
+		alts := []string{"$1", "?"}
+		for _, alt := range alts {
+			pat := regexp.MustCompile(`(?i)\.user_id\s*=\s*` + regexp.QuoteMeta(alt))
+			stripped = pat.ReplaceAllString(stripped, ".user_id = :user_id")
 		}
-		// Also catch a hardcoded UUID literal — if the LLM put one in,
-		// replace it with the real placeholder so we can substitute the
-		// authed user's ID and not whatever the LLM dreamed up.
-		uuidLiteralRE := regexp.MustCompile(`(?i)user_id\s*=\s*'[0-9a-f-]{8,}'`)
-		stripped = uuidLiteralRE.ReplaceAllString(stripped, "user_id = :user_id")
+		// Hardcoded UUID literal? Replace too — never trust an LLM-
+		// generated UUID, always substitute the authed user's.
+		uuidLiteralRE := regexp.MustCompile(`(?i)\.user_id\s*=\s*'[0-9a-f-]{8,}'`)
+		stripped = uuidLiteralRE.ReplaceAllString(stripped, ".user_id = :user_id")
 	}
-	if !strings.Contains(stripped, ":user_id") {
-		return "", fmt.Errorf("could not normalize user_id filter")
+
+	// CRITICAL: the user-scope filter must reference the *user_id column*
+	// of the accounts table — never `account_id` (which is the FK to
+	// accounts.id and would make us scope by some random account UUID).
+	// Match qualified forms: accounts.user_id, a.user_id, etc. Naked
+	// "user_id =" without a table prefix is also accepted because the
+	// accounts table is the only one with that column.
+	scopeRE := regexp.MustCompile(`(?i)(?:\baccounts\.|\b[a-z_]\w{0,30}\.)?user_id\s*=\s*:user_id`)
+	if !scopeRE.MatchString(stripped) {
+		return "", fmt.Errorf("query must filter by accounts.user_id = :user_id (saw something else, possibly account_id)")
+	}
+	// Also: forbid `account_id = :user_id` outright. That's the most
+	// common mistake — the column name shares a substring with user_id
+	// but holds account UUIDs, so the substitution silently returns
+	// zero rows.
+	if regexp.MustCompile(`(?i)\baccount_id\s*=\s*:user_id`).MatchString(stripped) {
+		return "", fmt.Errorf("account_id is not user_id — use accounts.user_id and JOIN through accounts")
 	}
 	return stripped, nil
 }
